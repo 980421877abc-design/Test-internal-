@@ -12060,6 +12060,10 @@ function chefHasHex(ch, id) {
   return !!(ch && ch.type === 'chef' && Array.isArray(ch._variantIds) && ch._variantIds.includes(id));
 }
 
+function vampireHasHex(ch, id) {
+  return !!(ch && ch.type === 'vampire' && Array.isArray(ch._variantIds) && ch._variantIds.includes(id));
+}
+
 function spawnChefItem(x, y, ownerPlayer) {
   if (!state) return;
   state.chefItems = state.chefItems || [];
@@ -12244,8 +12248,8 @@ function boundaryFireRift(b, origin = b, reflected = false) {
   if (!target) target = getNearestEnemyTo(b.x, b.y, b.player);
   if (!target) return null;
   const angle = Math.atan2(target.y - origin.y, target.x - origin.x);
-  return addProjectile({ x: origin.x, y: origin.y, vx: Math.cos(angle) * 270, vy: Math.sin(angle) * 270, owner: b.player, ownerBall: b, type: 'boundary_rift', damage: 0, r: 24, life: BOUNDARY_RIFT_LIFE, angle, boundaryReflected: reflected, boundaryPulseTimer: BOUNDARY_RIFT_PULSE_INTERVAL, boundaryPulseCount: 0, boundaryHitHoles: new Set() });
-}
+  return addProjectile({ x: origin.x, y: origin.y, vx: Math.cos(angle) * BOUNDARY_RIFT_SPEED, vy: Math.sin(angle) * BOUNDARY_RIFT_SPEED, owner: b.player, ownerBall: b, type: 'boundary_rift', damage: 0, r: 24, life: BOUNDARY_RIFT_LIFE, angle, boundaryReflected: reflected, boundaryPulseTimer: BOUNDARY_RIFT_PULSE_INTERVAL, boundaryPulseCount: 0, boundaryHitHoles: new Set() });
+  }
 function boundaryReflectAtHole(rift, hole) {
   if (!rift || !hole || rift.boundaryReflected || rift.boundaryHitHoles?.has(hole)) return;
   if (rift.boundaryHitHoles) rift.boundaryHitHoles.add(hole);
@@ -12254,8 +12258,8 @@ function boundaryReflectAtHole(rift, hole) {
   for (const other of boundaryGetHoles()) {
     if (other === hole) continue;
     const angle = Math.atan2((getNearestEnemyTo(other.x, other.y, b.player)?.y ?? other.y) - other.y, (getNearestEnemyTo(other.x, other.y, b.player)?.x ?? other.x) - other.x);
-    addProjectile({ x: other.x, y: other.y, vx: Math.cos(angle)*270, vy: Math.sin(angle)*270, owner: b.player, ownerBall: b, type:'boundary_rift', damage:0, r:24, life:BOUNDARY_RIFT_LIFE, angle, boundaryReflected:true, boundaryPulseTimer:BOUNDARY_RIFT_PULSE_INTERVAL, boundaryPulseCount:0, boundaryHitHoles:new Set() });
-  }
+    addProjectile({ x: other.x, y: other.y, vx: Math.cos(angle)*BOUNDARY_RIFT_SPEED, vy: Math.sin(angle)*BOUNDARY_RIFT_SPEED, owner: b.player, ownerBall: b, type:'boundary_rift', damage:0, r:24, life:BOUNDARY_RIFT_LIFE, angle, boundaryReflected:true, boundaryPulseTimer:BOUNDARY_RIFT_PULSE_INTERVAL, boundaryPulseCount:0, boundaryHitHoles:new Set() });
+      }
   state.hitFlashes.push({ x: hole.x, y: hole.y, r: 34, alpha: 1.2, color: '#e3b6ff', t: 0.45 });
   state.hitFlashes.push({ x: hole.x, y: hole.y, r: 22, alpha: 1.0, color: '#ff45ff', t: 0.28 });
 }
@@ -12662,15 +12666,17 @@ function update(dt) {
         }
       }
 
-      // 觸發衝刺
-      if (!b.vampireDashing && !b.vampireBiting && b.vampireDashTimer <= 0) {
-        b.vampireDashing = true;
-        b.vampireDashElapsed = 0;
-        b.vampireDashTimer = VAMPIRE_DASH_INTERVAL;
-        playHitSound('vampire_dash');
-        // 生成大量蝙蝠粒子
-        spawnBatParticles(b.x, b.y, b.char.color, 8);
-      }
+ // 觸發衝刺
+if (!b.vampireDashing && !b.vampireBiting && b.vampireDashTimer <= 0) {
+  b.vampireDashing = true;
+  b.vampireDashElapsed = 0;
+  const crimsonFeast = vampireHasHex(b.char, 'crimson_feast');
+  b.vampireDashTimer = VAMPIRE_DASH_INTERVAL + (crimsonFeast ? 4 : 0);
+  if (crimsonFeast) b.vampireCrimsonFeastReady = true;
+  playHitSound('vampire_dash');
+  // 生成大量蝙蝠粒子
+  spawnBatParticles(b.x, b.y, b.char.color, 8);
+}
     }
 
     // 暗夜領主：領主眷屬。蝙蝠平時環繞，鎖定敵人飛出攻擊後返回回血。
@@ -12706,18 +12712,25 @@ function update(dt) {
             if (t.frozenByVampire) { bat.state='return'; bat.target=null; continue; }
             const dx=t.x-bat.x, dy=t.y-bat.y, d=Math.hypot(dx,dy)||1;
             bat.x += dx/d * VAMPIRE_BAT_SPEED * dt; bat.y += dy/d * VAMPIRE_BAT_SPEED * dt;
-            if (!bat.hit && d < RADIUS + bat.r) {
-              dealDamage(t, VAMPIRE_BAT_DAMAGE, { attackerPlayer:b.player });
-              bat.hit=true; bat.state='return';
-              state.hitFlashes.push({x:t.x,y:t.y,r:18,alpha:0.8,color:'#7d2cff',t:0.22});
-              playHitSound('vampire_bite');
-            }
+           if (!bat.hit && d < RADIUS + bat.r) {
+  const bloodBat = vampireHasHex(b.char, 'blood_bat');
+  const batDmg = bloodBat ? VAMPIRE_BAT_DAMAGE * 0.5 : VAMPIRE_BAT_DAMAGE;
+  dealDamage(t, batDmg, { attackerPlayer:b.player });
+  bat.hit=true; bat.state='return';
+  state.hitFlashes.push({x:t.x,y:t.y,r:18,alpha:0.8,color:'#7d2cff',t:0.22});
+  playHitSound('vampire_bite');
+}
           } else if (bat.state === 'return') {
             const dx=b.x-bat.x, dy=b.y-bat.y, d=Math.hypot(dx,dy)||1;
             bat.x += dx/d * VAMPIRE_BAT_SPEED * 1.15 * dt; bat.y += dy/d * VAMPIRE_BAT_SPEED * 1.15 * dt;
-            if (d < RADIUS + 16) {
-              if (bat.hit) { b.hp=Math.min(getBallMaxHp(b), b.hp+VAMPIRE_BAT_HEAL); state.hitFlashes.push({x:b.x,y:b.y,r:18,alpha:0.7,color:'#b23cff',t:0.25}); }
-              bat.state='orbit'; bat.target=null; bat.hit=false;
+          if (d < RADIUS + 16) {
+  if (bat.hit) {
+    const bloodBat = vampireHasHex(b.char, 'blood_bat');
+    const batHeal = bloodBat ? VAMPIRE_BAT_HEAL * 2 : VAMPIRE_BAT_HEAL;
+    b.hp=Math.min(getBallMaxHp(b), b.hp+batHeal);
+    state.hitFlashes.push({x:b.x,y:b.y,r:18,alpha:0.7,color:'#b23cff',t:0.25});
+  }
+                bat.state='orbit'; bat.target=null; bat.hit=false;
             }
           }
         }
@@ -12729,11 +12742,12 @@ function update(dt) {
       b.vampireBiteTimer -= dt;
       if (b.vampireBiteTimer <= 0 && b.vampireBiteStep < VAMPIRE_BITE_COUNT) {
         // 執行本次咬擊（鎖定觸發當下抓住的敵人，而不是每次都重新找場上最近的敵人）
-        const enemy = (b.vampireBiteTarget && b.vampireBiteTarget.hp > 0) ? b.vampireBiteTarget : null;
-        if (enemy) {
-          dealDamage(enemy, VAMPIRE_BITE_DAMAGE, { attackerPlayer: b.player });
-          b.hp = Math.min(getBallMaxHp(b), b.hp + VAMPIRE_BITE_HEAL);
-          // 傷害特效
+       const enemy = (b.vampireBiteTarget && b.vampireBiteTarget.hp > 0) ? b.vampireBiteTarget : null;
+if (enemy) {
+  dealDamage(enemy, VAMPIRE_BITE_DAMAGE, { attackerPlayer: b.player });
+  const biteHealMul = b.vampireBiteHealMultiplier || 1;
+  b.hp = Math.min(getBallMaxHp(b), b.hp + VAMPIRE_BITE_HEAL * biteHealMul);
+            // 傷害特效
           state.hitFlashes.push({ x: enemy.x, y: enemy.y, r: 30, alpha: 1.0, color: '#ff0055', t: 0.3 });
           // 回血特效（在吸血鬼位置）
           state.hitFlashes.push({ x: b.x, y: b.y, r: 20, alpha: 0.8, color: '#aa00ff', t: 0.25 });
@@ -13678,13 +13692,21 @@ function update(dt) {
       if (vamp.hp <= 0 || target.hp <= 0) continue;
       if (vamp.player === target.player) continue; // 同隊不觸發攻擊向技能
       if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
-        // 停止衝刺並開始咬擊
-        vamp.vampireDashing = false;
-        vamp.vampireDashElapsed = 0;
-        vamp.vampireBiting = true;
-        vamp.vampireBiteStep = 0;
-        vamp.vampireBiteTimer = 0.05; // 幾乎立即第一擊
-        vamp.vampireBiteTarget = target; // 鎖定這次咬擊的對象，避免場上有多個對手時中途咬到別人
+       if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
+  // 停止衝刺並開始咬擊
+  vamp.vampireDashing = false;
+  vamp.vampireDashElapsed = 0;
+  vamp.vampireBiting = true;
+  vamp.vampireBiteStep = 0;
+  vamp.vampireBiteTimer = 0.05; // 幾乎立即第一擊
+  vamp.vampireBiteTarget = target; // 鎖定這次咬擊的對象，避免場上有多個對手時中途咬到別人
+  // 猩紅盛宴：本次咬擊期間，每段回血翻倍
+  if (vamp.vampireCrimsonFeastReady) {
+    vamp.vampireBiteHealMultiplier = 2;
+    vamp.vampireCrimsonFeastReady = false;
+  } else {
+    vamp.vampireBiteHealMultiplier = 1;
+  }  
         // 凍結敵人
         target.frozenByVampire = true;
         target.frozenTimer = VAMPIRE_BITE_COUNT * VAMPIRE_BITE_INTERVAL + 0.5;

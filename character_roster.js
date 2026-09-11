@@ -4,26 +4,6 @@
 
 // CHARACTER ROSTER：一般角色名單（依目前角色順序排列）
 // ============================================================================
-const BOUNDARY_MAX_HP = 900;
-const BOUNDARY_ATTACK_INTERVAL = 1.0;
-const BOUNDARY_RIFT_LIFE = 2.4;
-const BOUNDARY_RIFT_PULSE_INTERVAL = 0.2;
-const BOUNDARY_RIFT_PULSE_DAMAGE = 30;
-const BOUNDARY_BLACK_HOLE_INTERVAL = 8.0;
-const BOUNDARY_BLACK_HOLE_EDGE_MARGIN = 60;
-const BOUNDARY_BLACK_HOLE_MAX = 3;
-const BOUNDARY_BLACK_HOLE_RADIUS = 18;
-const BOUNDARY_BLACK_HOLE_BLAST_RADIUS = 30;
-const BOUNDARY_BLACK_HOLE_BLAST_DAMAGE = 50;
-const BOUNDARY_CAMOUFLAGE_NORMAL = 1.8;
-const BOUNDARY_CAMOUFLAGE_DURATION = 1.2;
-const BOUNDARY_WARP_TRIGGER_HP = 400;
-const BOUNDARY_WARP_TRIGGER_TIME = 20;
-const BOUNDARY_WARP_DURATION = 6;
-const BOUNDARY_WARP_SPEED = 245;
-const BOUNDARY_WARP_TURN_RATE = 2.35;
-const BOUNDARY_WARP_DAMAGE = 50;
-const BOUNDARY_WARP_HIT_INTERVAL = 0.4;
 
 const CHARACTERS = [
   {
@@ -75,7 +55,15 @@ const CHARACTERS = [
     skills: [`咬擊：碰到敵人時鎖定撕咬，造成${VAMPIRE_BITE_DAMAGE}傷害×${VAMPIRE_BITE_COUNT}段並吸血${VAMPIRE_BITE_HEAL}×${VAMPIRE_BITE_COUNT}，敵人被咬期間無法移動。`, `蝙蝠狂襲：高速衝向敵人，CD${VAMPIRE_DASH_INTERVAL}秒。`, `領主眷屬：身旁圍繞蝙蝠，會自動追縱敵人並吸血`],
     color: '#8b1a8b', glowColor: 'rgba(139,26,139,0.6)', type: 'vampire',
   winQuote: '我跨越過時代，如獸般的姿態。',
-  loseQuote: '……鮮血先流盡了。'
+  loseQuote: '……鮮血先流盡了。',
+  variants: [
+    { id: 'crimson_feast', label: '猩紅盛宴',
+      desc: '使用蝙蝠狂襲後，下一次咬擊每段回血量翻倍；但蝙蝠狂襲冷卻 +4 秒。',
+      apply: (ch) => { ch.vampireCrimsonFeast = true; } },
+    { id: 'blood_bat', label: '血蝠',
+      desc: '領主眷屬造成傷害時，回血量翻倍；但領主眷屬傷害降低 50%。',
+      apply: (ch) => { ch.vampireBloodBat = true; } }
+  ]
   },
   {
   id: 'gojo', emoji: '😎', weapon: '🔵', name: '現代最強',
