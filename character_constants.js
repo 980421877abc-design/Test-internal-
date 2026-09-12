@@ -63,11 +63,11 @@ const GOJO_BLUE_FRAMEDMG         = 4;     // 每幀傷害
 const GOJO_BLUE_SPEED            = 4.5;     // 飛行速度（*60 → 300px/s）
 const GOJO_BLUE_RADIUS           = 13;
 const GOJO_BLUE_RING_R           = 32;
-const GOJO_BLUE_RAY_RANGE        = 130;
+const GOJO_BLUE_RAY_RANGE        = 100;
 const GOJO_BLUE_RAY_FORCE        = 10;
 const GOJO_BLUE_LIFESPAN         = 2.0;
 const GOJO_BLUE_PROJECTILE_PULL_RANGE = 250;
-const GOJO_BLUE_PROJECTILE_PULL_FORCE = 10;
+const GOJO_BLUE_PROJECTILE_PULL_FORCE = 8;
 const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8;
 
 // ── 赫（斥力球）──
