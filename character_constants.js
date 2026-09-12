@@ -48,7 +48,7 @@ const OPM_WALL_REDUCE          = 0.5; // 撞牆時減少的怒氣值倒數秒數
 
 // ── 被動「無下限」 ──
 const GOJO_INFINITY_MAX          = 10;    // 無下限量條上限
-const GOJO_INFINITY_RADIUS       = 80;    // 偵測投射物半徑（px）
+const GOJO_INFINITY_RADIUS       = 50;    // 偵測投射物半徑（px）
 const GOJO_INFINITY_REGEN_TIME   = 8.0;   // 每 8 秒補滿一次
 const GOJO_INFINITY_SLOW_TIME    = 0.5;   // 投射物從原速減到 0 的時間（秒）
 const GOJO_INFINITY_LINGER       = 0.2;   // 停止後多久消失（秒）
@@ -59,7 +59,7 @@ const GOJO_HP_THRESHOLD          = 850;   // 六眼覺醒血量門檻
 const GOJO_UNLOCK_CD_BONUS       = 0.5;   // 覺醒後技能 CD -0.5 秒
 
 // ── 蒼（引力球）──
-const GOJO_BLUE_FRAMEDMG         = 6;     // 每幀傷害
+const GOJO_BLUE_FRAMEDMG         = 5;     // 每幀傷害
 const GOJO_BLUE_SPEED            = 5;     // 飛行速度（*60 → 300px/s）
 const GOJO_BLUE_RADIUS           = 13;
 const GOJO_BLUE_RING_R           = 32;
@@ -71,7 +71,7 @@ const GOJO_BLUE_PROJECTILE_PULL_FORCE = 10;
 const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8;
 
 // ── 赫（斥力球）──
-const GOJO_RED_DAMAGE            = 170;
+const GOJO_RED_DAMAGE            = 140;
 const GOJO_RED_KNOCKBACK         = 320;
 const GOJO_RED_SPEED             = 4.5;
 const GOJO_RED_STORED_HOMING_TURN = 5.5;
