@@ -5,7 +5,7 @@
  * 效果：
  *   1. 無下限範圍光環（常駐，量條越低越暗）
  *   2. 無下限消耗時的波紋脈衝
- *   3. 紫球蓄力（停在原地 + 收縮光環）+ 發射爆發
+ *   3. 紫球蓄力（藍紅球從兩側聚攏融合）+ 發射爆發
  *   4. 紫球主體增強（螺旋粒子 + 三層旋轉光環 + 電場短刺 + 中心白閃）
  *   5. 蒼拳命中特效（拳頭軌跡 + 引力收縮圈 + 放射拳壓線）
  *   6. 無限制虛式紫爆炸（多層衝擊波 + 放射光線 + 粒子飛散）
@@ -80,8 +80,8 @@
         for (let i = before; i < after.length; i++) {
           const ball = after[i];
           if (ball && ball.type === 'purple') {
-            ball.gojoCharging = 0.4;
-            ball.gojoChargeMax = 0.4;
+            ball.gojoCharging = 0.5;
+            ball.gojoChargeMax = 0.5;
             ball.gojoOriginalVx = ball.vx;
             ball.gojoOriginalVy = ball.vy;
             ball.vx = 0;
@@ -92,7 +92,6 @@
               y: ball.y,
               seed: Math.random() * 1000,
             });
-            // 蓄力起始脈衝
             FX.infinityPulses.push({ x: ball.x, y: ball.y, life: 0.35, maxLife: 0.35, color: '#bf00ff', big: true });
           }
         }
@@ -111,7 +110,6 @@
         continue;
       }
       ball.gojoCharging -= dt;
-      // 強制停在原地
       ball.x = c.x;
       ball.y = c.y;
       ball.vx = 0;
@@ -120,7 +118,6 @@
         ball.vx = ball.gojoOriginalVx || 0;
         ball.vy = ball.gojoOriginalVy || 0;
         ball.gojoCharging = 0;
-        // 發射爆發
         FX.infinityPulses.push({ x: c.x, y: c.y, life: 0.5, maxLife: 0.5, color: '#bf00ff', big: true });
         FX.purpleCharges.splice(i, 1);
       }
@@ -149,7 +146,7 @@
     }
   }
 
-  // ───────── 偵測蒼拳出拳（冷卻突然變大 = 剛出拳）─────────
+  // ───────── 偵測蒼拳出拳 ─────────
   const prevFistCd = new WeakMap();
   function detectFistAttack() {
     if (!state || !state.balls) return;
@@ -247,7 +244,7 @@
   }
 
   // ═══════════════════════════════════════════════
-  // 1. 無下限範圍光環（常駐）
+  // 1. 無下限範圍光環
   // ═══════════════════════════════════════════════
   function drawInfinityAura() {
     if (!state || !state.balls) return;
@@ -263,7 +260,6 @@
 
       overlayCtx.save();
 
-      // 淡色填充
       const fillAlpha = 0.04 + ratio * 0.06;
       const fillGrad = overlayCtx.createRadialGradient(b.x, b.y, b.r * 0.5, b.x, b.y, R);
       fillGrad.addColorStop(0, 'rgba(0,207,255,0)');
@@ -274,7 +270,6 @@
       overlayCtx.fillStyle = fillGrad;
       overlayCtx.fill();
 
-      // 六邊形格線
       overlayCtx.globalAlpha = 0.12 + ratio * 0.18;
       overlayCtx.strokeStyle = '#9df0ff';
       overlayCtx.lineWidth = 0.6;
@@ -297,7 +292,6 @@
         }
       }
 
-      // 外圈虛線
       overlayCtx.globalAlpha = 1;
       overlayCtx.setLineDash([10, 7]);
       overlayCtx.lineDashOffset = -time * 40;
@@ -310,7 +304,6 @@
       overlayCtx.stroke();
       overlayCtx.setLineDash([]);
 
-      // 內圈脈動
       const innerR = R * (0.55 + pulse * 0.08);
       overlayCtx.beginPath();
       overlayCtx.arc(b.x, b.y, innerR, 0, Math.PI * 2);
@@ -319,7 +312,6 @@
       overlayCtx.shadowBlur = 6;
       overlayCtx.stroke();
 
-      // 旋轉光點
       const dotCount = Math.max(3, Math.round(ratio * 10));
       for (let i = 0; i < dotCount; i++) {
         const a = time * 1.4 + (i / dotCount) * Math.PI * 2;
@@ -368,144 +360,138 @@
   }
 
   // ═══════════════════════════════════════════════
-  // 3. 紫球蓄力特效
+  // 3. 紫球蓄力：藍紅球從兩側聚攏融合
   // ═══════════════════════════════════════════════
- function drawPurpleChargingEffects() {
-  const time = performance.now() / 1000;
-  for (const c of FX.purpleCharges) {
-    const ball = c.ball;
-    if (!ball) continue;
-    const prog = 1 - clamp(ball.gojoCharging / ball.gojoChargeMax, 0, 1);
-    // prog: 0 (剛開始) → 1 (蓄力完成)
+  function drawPurpleChargingEffects() {
+    const time = performance.now() / 1000;
+    for (const c of FX.purpleCharges) {
+      const ball = c.ball;
+      if (!ball) continue;
+      const prog = 1 - clamp(ball.gojoCharging / ball.gojoChargeMax, 0, 1);
 
-    overlayCtx.save();
-    overlayCtx.globalCompositeOperation = 'lighter';
+      overlayCtx.save();
+      overlayCtx.globalCompositeOperation = 'lighter';
 
-    // ── 階段 1（0~0.35）：藍紅球在兩側出現，開始靠近 ──
-    // ── 階段 2（0.35~0.75）：兩球急速靠攏 ──
-    // ── 階段 3（0.75~1.0）：融合爆炸，紫光擴散 ──
+      const mergeProg = clamp(prog / 0.75, 0, 1);
+      const offsetDist = 60 * (1 - mergeProg);
+      const rise = 10 * (1 - mergeProg);
 
-    const mergeProg = clamp(prog / 0.75, 0, 1); // 0→1 靠攏進度
-    const offsetDist = 60 * (1 - mergeProg);     // 60px → 0
-    const rise = 10 * (1 - mergeProg);            // 稍微往上抬
+      const blueX = c.x - offsetDist;
+      const blueY = c.y - rise;
+      const redX = c.x + offsetDist;
+      const redY = c.y - rise;
+      const orbR = 9 + 12 * mergeProg;
 
-    const blueX = c.x - offsetDist;
-    const blueY = c.y - rise;
-    const redX = c.x + offsetDist;
-    const redY = c.y - rise;
-    const orbR = 9 + 12 * mergeProg;              // 兩球隨著靠近逐漸變大
+      // 兩球之間的張力連線
+      if (mergeProg < 1) {
+        const lineGrad = overlayCtx.createLinearGradient(blueX, blueY, redX, redY);
+        lineGrad.addColorStop(0, `rgba(0,207,255,${0.5 + 0.3 * mergeProg})`);
+        lineGrad.addColorStop(0.5, `rgba(200,100,255,${0.3 + 0.3 * mergeProg})`);
+        lineGrad.addColorStop(1, `rgba(255,68,68,${0.5 + 0.3 * mergeProg})`);
+        overlayCtx.strokeStyle = lineGrad;
+        overlayCtx.lineWidth = 2 + 3 * mergeProg;
+        overlayCtx.shadowColor = '#bf00ff';
+        overlayCtx.shadowBlur = 12;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(blueX, blueY);
+        overlayCtx.lineTo(redX, redY);
+        overlayCtx.stroke();
+      }
 
-    // ── 兩球之間的張力連線 ──
-    if (mergeProg < 1) {
-      const lineGrad = overlayCtx.createLinearGradient(blueX, blueY, redX, redY);
-      lineGrad.addColorStop(0, `rgba(0,207,255,${0.5 + 0.3 * mergeProg})`);
-      lineGrad.addColorStop(0.5, `rgba(200,100,255,${0.3 + 0.3 * mergeProg})`);
-      lineGrad.addColorStop(1, `rgba(255,68,68,${0.5 + 0.3 * mergeProg})`);
-      overlayCtx.strokeStyle = lineGrad;
-      overlayCtx.lineWidth = 2 + 3 * mergeProg;
-      overlayCtx.shadowColor = '#bf00ff';
-      overlayCtx.shadowBlur = 12;
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(blueX, blueY);
-      overlayCtx.lineTo(redX, redY);
-      overlayCtx.stroke();
+      // 藍球
+      if (mergeProg < 0.98) {
+        overlayCtx.shadowColor = '#00eaff';
+        overlayCtx.shadowBlur = 22;
+        const blueGrad = overlayCtx.createRadialGradient(
+          blueX - orbR * 0.3, blueY - orbR * 0.3, 1,
+          blueX, blueY, orbR
+        );
+        blueGrad.addColorStop(0, '#ffffff');
+        blueGrad.addColorStop(0.4, '#aaf0ff');
+        blueGrad.addColorStop(0.7, '#00cfff');
+        blueGrad.addColorStop(1, '#0066aa');
+        overlayCtx.fillStyle = blueGrad;
+        overlayCtx.beginPath();
+        overlayCtx.arc(blueX, blueY, orbR, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = 'rgba(200,250,255,0.8)';
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.shadowBlur = 0;
+        overlayCtx.stroke();
+      }
+
+      // 紅球
+      if (mergeProg < 0.98) {
+        overlayCtx.shadowColor = '#ff4444';
+        overlayCtx.shadowBlur = 22;
+        const redGrad = overlayCtx.createRadialGradient(
+          redX - orbR * 0.3, redY - orbR * 0.3, 1,
+          redX, redY, orbR
+        );
+        redGrad.addColorStop(0, '#ffffff');
+        redGrad.addColorStop(0.4, '#ffb0b0');
+        redGrad.addColorStop(0.7, '#ff4444');
+        redGrad.addColorStop(1, '#8a0000');
+        overlayCtx.fillStyle = redGrad;
+        overlayCtx.beginPath();
+        overlayCtx.arc(redX, redY, orbR, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = 'rgba(255,220,220,0.8)';
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.shadowBlur = 0;
+        overlayCtx.stroke();
+      }
+
+      // 融合瞬間爆閃
+      if (mergeProg > 0.85) {
+        const flashProg = (mergeProg - 0.85) / 0.15;
+        const flashAlpha = 1 - flashProg;
+        const flashR = 20 + 30 * flashProg;
+
+        overlayCtx.shadowColor = '#ffffff';
+        overlayCtx.shadowBlur = 30 * flashAlpha;
+        const flashGrad = overlayCtx.createRadialGradient(
+          c.x, c.y, 0, c.x, c.y, flashR
+        );
+        flashGrad.addColorStop(0, `rgba(255,255,255,${flashAlpha * 0.95})`);
+        flashGrad.addColorStop(0.4, `rgba(224,176,255,${flashAlpha * 0.7})`);
+        flashGrad.addColorStop(1, 'rgba(191,0,255,0)');
+        overlayCtx.fillStyle = flashGrad;
+        overlayCtx.beginPath();
+        overlayCtx.arc(c.x, c.y, flashR, 0, Math.PI * 2);
+        overlayCtx.fill();
+
+        const ringR = 15 + flashProg * 45;
+        overlayCtx.globalAlpha = flashAlpha * 0.85;
+        overlayCtx.strokeStyle = '#bf00ff';
+        overlayCtx.lineWidth = 3 * flashAlpha + 1;
+        overlayCtx.shadowColor = '#bf00ff';
+        overlayCtx.shadowBlur = 20;
+        overlayCtx.beginPath();
+        overlayCtx.arc(c.x, c.y, ringR, 0, Math.PI * 2);
+        overlayCtx.stroke();
+        overlayCtx.globalAlpha = 1;
+      }
+
+      // 環繞粒子
+      const sparkCount = Math.round(6 + prog * 10);
+      for (let i = 0; i < sparkCount; i++) {
+        const a = time * 3 + (i / sparkCount) * Math.PI * 2 + c.seed;
+        const sparkR = 30 - prog * 15 + Math.sin(time * 8 + i) * 4;
+        const sx = c.x + Math.cos(a) * sparkR;
+        const sy = c.y + Math.sin(a) * sparkR;
+        overlayCtx.globalAlpha = 0.5 + prog * 0.5;
+        overlayCtx.fillStyle = i % 2 ? '#00cfff' : '#ff4444';
+        overlayCtx.shadowColor = i % 2 ? '#00cfff' : '#ff4444';
+        overlayCtx.shadowBlur = 10;
+        overlayCtx.beginPath();
+        overlayCtx.arc(sx, sy, 1.2 + prog * 1.2, 0, Math.PI * 2);
+        overlayCtx.fill();
+      }
+
+      overlayCtx.restore();
     }
-
-    // ── 藍球 ──
-    if (mergeProg < 0.98) {
-      overlayCtx.shadowColor = '#00eaff';
-      overlayCtx.shadowBlur = 22;
-      const blueGrad = overlayCtx.createRadialGradient(
-        blueX - orbR * 0.3, blueY - orbR * 0.3, 1,
-        blueX, blueY, orbR
-      );
-      blueGrad.addColorStop(0, '#ffffff');
-      blueGrad.addColorStop(0.4, '#aaf0ff');
-      blueGrad.addColorStop(0.7, '#00cfff');
-      blueGrad.addColorStop(1, '#0066aa');
-      overlayCtx.fillStyle = blueGrad;
-      overlayCtx.beginPath();
-      overlayCtx.arc(blueX, blueY, orbR, 0, Math.PI * 2);
-      overlayCtx.fill();
-      overlayCtx.strokeStyle = 'rgba(200,250,255,0.8)';
-      overlayCtx.lineWidth = 1.5;
-      overlayCtx.shadowBlur = 0;
-      overlayCtx.stroke();
-    }
-
-    // ── 紅球 ──
-    if (mergeProg < 0.98) {
-      overlayCtx.shadowColor = '#ff4444';
-      overlayCtx.shadowBlur = 22;
-      const redGrad = overlayCtx.createRadialGradient(
-        redX - orbR * 0.3, redY - orbR * 0.3, 1,
-        redX, redY, orbR
-      );
-      redGrad.addColorStop(0, '#ffffff');
-      redGrad.addColorStop(0.4, '#ffb0b0');
-      redGrad.addColorStop(0.7, '#ff4444');
-      redGrad.addColorStop(1, '#8a0000');
-      overlayCtx.fillStyle = redGrad;
-      overlayCtx.beginPath();
-      overlayCtx.arc(redX, redY, orbR, 0, Math.PI * 2);
-      overlayCtx.fill();
-      overlayCtx.strokeStyle = 'rgba(255,220,220,0.8)';
-      overlayCtx.lineWidth = 1.5;
-      overlayCtx.shadowBlur = 0;
-      overlayCtx.stroke();
-    }
-
-    // ── 融合瞬間（mergeProg > 0.85）：中心爆閃 ──
-    if (mergeProg > 0.85) {
-      const flashProg = (mergeProg - 0.85) / 0.15; // 0→1
-      const flashAlpha = 1 - flashProg;
-      const flashR = 20 + 30 * flashProg;
-
-      overlayCtx.shadowColor = '#ffffff';
-      overlayCtx.shadowBlur = 30 * flashAlpha;
-      const flashGrad = overlayCtx.createRadialGradient(
-        c.x, c.y, 0, c.x, c.y, flashR
-      );
-      flashGrad.addColorStop(0, `rgba(255,255,255,${flashAlpha * 0.95})`);
-      flashGrad.addColorStop(0.4, `rgba(224,176,255,${flashAlpha * 0.7})`);
-      flashGrad.addColorStop(1, 'rgba(191,0,255,0)');
-      overlayCtx.fillStyle = flashGrad;
-      overlayCtx.beginPath();
-      overlayCtx.arc(c.x, c.y, flashR, 0, Math.PI * 2);
-      overlayCtx.fill();
-
-      // 紫色波紋環
-      const ringR = 15 + flashProg * 45;
-      overlayCtx.globalAlpha = flashAlpha * 0.85;
-      overlayCtx.strokeStyle = '#bf00ff';
-      overlayCtx.lineWidth = 3 * flashAlpha + 1;
-      overlayCtx.shadowColor = '#bf00ff';
-      overlayCtx.shadowBlur = 20;
-      overlayCtx.beginPath();
-      overlayCtx.arc(c.x, c.y, ringR, 0, Math.PI * 2);
-      overlayCtx.stroke();
-      overlayCtx.globalAlpha = 1;
-    }
-
-    // ── 環繞粒子（讓蓄力看起來「有力量」）──
-    const sparkCount = Math.round(6 + prog * 10);
-    for (let i = 0; i < sparkCount; i++) {
-      const a = time * 3 + (i / sparkCount) * Math.PI * 2 + c.seed;
-      const sparkR = 30 - prog * 15 + Math.sin(time * 8 + i) * 4;
-      const sx = c.x + Math.cos(a) * sparkR;
-      const sy = c.y + Math.sin(a) * sparkR;
-      overlayCtx.globalAlpha = 0.5 + prog * 0.5;
-      overlayCtx.fillStyle = i % 2 ? '#00cfff' : '#ff4444';
-      overlayCtx.shadowColor = i % 2 ? '#00cfff' : '#ff4444';
-      overlayCtx.shadowBlur = 10;
-      overlayCtx.beginPath();
-      overlayCtx.arc(sx, sy, 1.2 + prog * 1.2, 0, Math.PI * 2);
-      overlayCtx.fill();
-    }
-
-    overlayCtx.restore();
   }
-}
 
   // ═══════════════════════════════════════════════
   // 4. 紫球主體增強
@@ -524,7 +510,6 @@
         overlayCtx.save();
         overlayCtx.globalCompositeOperation = 'lighter';
 
-        // 螺旋粒子軌跡
         const trail = ball.trail || [];
         for (let i = 0; i < trail.length; i++) {
           const t = trail[i];
@@ -545,7 +530,6 @@
           }
         }
 
-        // 主球體
         const pulse = 0.85 + 0.15 * Math.sin(time * 10);
         const coreGrad = overlayCtx.createRadialGradient(
           ball.x - 3, ball.y - 3, 1,
@@ -563,7 +547,6 @@
         overlayCtx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
         overlayCtx.fill();
 
-        // 三層旋轉光環
         for (let ring = 0; ring < 3; ring++) {
           const ringR = ball.r * (1.7 + ring * 0.55) * pulse;
           const alpha = 0.55 - ring * 0.15;
@@ -581,7 +564,6 @@
           overlayCtx.stroke();
         }
 
-        // 電場短刺
         const spikeCount = 10;
         for (let i = 0; i < spikeCount; i++) {
           const a = time * 3 + (i / spikeCount) * Math.PI * 2;
@@ -598,7 +580,6 @@
           overlayCtx.stroke();
         }
 
-        // 中心白閃
         overlayCtx.globalAlpha = 0.95;
         overlayCtx.fillStyle = '#ffffff';
         overlayCtx.shadowColor = '#ffffff';
@@ -616,7 +597,6 @@
   // 5. 蒼拳命中特效
   // ═══════════════════════════════════════════════
   function drawFistBursts() {
-    const time = performance.now() / 1000;
     for (const fx of FX.fistBursts) {
       const prog = 1 - clamp(fx.life / fx.maxLife, 0, 1);
       const fade = clamp(fx.life / fx.maxLife, 0, 1);
@@ -627,7 +607,6 @@
       overlayCtx.save();
       overlayCtx.globalCompositeOperation = 'lighter';
 
-      // 拳頭軌跡（從 Gojo 到目標）
       const trailProg = Math.min(1, prog / 0.5);
       const trailLen = dist * trailProg;
       overlayCtx.globalAlpha = fade * 0.85;
@@ -641,10 +620,200 @@
       overlayCtx.lineTo(fx.originX + dx * trailLen, fx.originY + dy * trailLen);
       overlayCtx.stroke();
 
-      // 白色核心軌跡
       overlayCtx.globalAlpha = fade * 0.7;
       overlayCtx.strokeStyle = '#ffffff';
       overlayCtx.lineWidth = 2;
       overlayCtx.shadowBlur = 10;
       overlayCtx.beginPath();
-      overlayCtx.moveTo(fx.originX, fx.
+      overlayCtx.moveTo(fx.originX, fx.originY);
+      overlayCtx.lineTo(fx.originX + dx * trailLen, fx.originY + dy * trailLen);
+      overlayCtx.stroke();
+
+      if (prog < 0.7) {
+        const hitProg = prog / 0.7;
+        const flashR = 20 + hitProg * 35;
+
+        const flashGrad = overlayCtx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, flashR);
+        flashGrad.addColorStop(0, `rgba(255,255,255,${(1 - hitProg) * fade})`);
+        flashGrad.addColorStop(0.3, `rgba(170,240,255,${(1 - hitProg) * fade * 0.7})`);
+        flashGrad.addColorStop(1, 'rgba(0,207,255,0)');
+        overlayCtx.globalAlpha = 1;
+        overlayCtx.fillStyle = flashGrad;
+        overlayCtx.beginPath();
+        overlayCtx.arc(fx.x, fx.y, flashR, 0, Math.PI * 2);
+        overlayCtx.fill();
+
+        for (let ring = 0; ring < 4; ring++) {
+          const startR = 30 + ring * 12;
+          const endR = 8;
+          const ringProg = Math.min(1, (prog - ring * 0.05) / 0.7);
+          if (ringProg <= 0) continue;
+          const ringR = startR + (endR - startR) * ringProg;
+          overlayCtx.globalAlpha = (1 - ringProg) * fade * 0.8;
+          overlayCtx.strokeStyle = ring % 2 ? '#aaf0ff' : '#00cfff';
+          overlayCtx.lineWidth = 2.5;
+          overlayCtx.shadowColor = '#00cfff';
+          overlayCtx.shadowBlur = 14;
+          overlayCtx.beginPath();
+          overlayCtx.arc(fx.x, fx.y, ringR, 0, Math.PI * 2);
+          overlayCtx.stroke();
+        }
+
+        const rayCount = 8;
+        for (let i = 0; i < rayCount; i++) {
+          const a = (i / rayCount) * Math.PI * 2 + fx.seed;
+          const inner = 12;
+          const outer = 30 + hitProg * 40;
+          overlayCtx.globalAlpha = (1 - hitProg) * fade * 0.75;
+          overlayCtx.strokeStyle = '#aaf0ff';
+          overlayCtx.lineWidth = 2;
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(fx.x + Math.cos(a) * inner, fx.y + Math.sin(a) * inner);
+          overlayCtx.lineTo(fx.x + Math.cos(a) * outer, fx.y + Math.sin(a) * outer);
+          overlayCtx.stroke();
+        }
+
+        if (prog < 0.35) {
+          overlayCtx.globalAlpha = (1 - prog / 0.35) * fade;
+          overlayCtx.font = '28px serif';
+          overlayCtx.textAlign = 'center';
+          overlayCtx.textBaseline = 'middle';
+          overlayCtx.fillText('👊', fx.x, fx.y - 10 - prog * 30);
+        }
+      }
+
+      overlayCtx.restore();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 6. 無限制虛式紫爆炸
+  // ═══════════════════════════════════════════════
+  function drawClashBursts() {
+    for (const fx of FX.clashBursts) {
+      const prog = 1 - clamp(fx.life / fx.maxLife, 0, 1);
+      const fade = clamp(fx.life / fx.maxLife, 0, 1);
+
+      overlayCtx.save();
+      overlayCtx.globalCompositeOperation = 'lighter';
+
+      for (const ring of fx.rings) {
+        const localProg = Math.max(0, (prog - ring.delay) / (1 - ring.delay));
+        if (localProg <= 0) continue;
+        const ease = 1 - Math.pow(1 - localProg, 3);
+        const r = ring.maxR * ease;
+        const alpha = (1 - localProg) * fade;
+        overlayCtx.globalAlpha = alpha;
+        overlayCtx.strokeStyle = ring.color;
+        overlayCtx.lineWidth = ring.w * (1 - localProg * 0.6);
+        overlayCtx.shadowColor = ring.color;
+        overlayCtx.shadowBlur = 30;
+        overlayCtx.beginPath();
+        overlayCtx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+        overlayCtx.stroke();
+      }
+
+      if (prog < 0.35) {
+        const flashAlpha = (1 - prog / 0.35) * fade;
+        const flashR = 60 + prog * 120;
+        const g = overlayCtx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, flashR);
+        g.addColorStop(0, `rgba(255,255,255,${flashAlpha})`);
+        g.addColorStop(0.3, `rgba(224,176,255,${flashAlpha * 0.6})`);
+        g.addColorStop(1, 'rgba(191,0,255,0)');
+        overlayCtx.globalAlpha = 1;
+        overlayCtx.fillStyle = g;
+        overlayCtx.beginPath();
+        overlayCtx.arc(fx.x, fx.y, flashR, 0, Math.PI * 2);
+        overlayCtx.fill();
+      }
+
+      for (let ri = 0; ri < fx.rays.length; ri++) {
+        const ray = fx.rays[ri];
+        const inner = 20 + prog * 30;
+        const outer = inner + ray.len * Math.min(1, prog / 0.6);
+        overlayCtx.globalAlpha = (1 - prog) * fade * 0.9;
+        overlayCtx.strokeStyle = (ri % 2 === 0) ? '#e0b0ff' : '#bf00ff';
+        overlayCtx.lineWidth = 2.5;
+        overlayCtx.shadowColor = '#bf00ff';
+        overlayCtx.shadowBlur = 16;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(fx.x + Math.cos(ray.angle) * inner, fx.y + Math.sin(ray.angle) * inner);
+        overlayCtx.lineTo(fx.x + Math.cos(ray.angle) * outer, fx.y + Math.sin(ray.angle) * outer);
+        overlayCtx.stroke();
+      }
+
+      for (const p of fx.particles) {
+        const particleAlpha = clamp(p.life / p.maxLife, 0, 1);
+        overlayCtx.globalAlpha = particleAlpha;
+        overlayCtx.fillStyle = p.color;
+        overlayCtx.shadowColor = p.color;
+        overlayCtx.shadowBlur = 14;
+        overlayCtx.beginPath();
+        overlayCtx.arc(p.x, p.y, p.r * particleAlpha, 0, Math.PI * 2);
+        overlayCtx.fill();
+      }
+
+      overlayCtx.restore();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 更新
+  // ═══════════════════════════════════════════════
+  function updateEffects(dt) {
+    if (state && state.dioWorldGlobalActive) return;
+
+    updatePurpleCharges(dt);
+
+    for (let i = FX.infinityPulses.length - 1; i >= 0; i--) {
+      FX.infinityPulses[i].life -= dt;
+      if (FX.infinityPulses[i].life <= 0) FX.infinityPulses.splice(i, 1);
+    }
+
+    for (let i = FX.fistBursts.length - 1; i >= 0; i--) {
+      FX.fistBursts[i].life -= dt;
+      if (FX.fistBursts[i].life <= 0) FX.fistBursts.splice(i, 1);
+    }
+
+    for (let i = FX.clashBursts.length - 1; i >= 0; i--) {
+      const fx = FX.clashBursts[i];
+      fx.life -= dt;
+      for (const p of fx.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.94;
+        p.vy *= 0.94;
+        p.life -= dt;
+      }
+      if (fx.life <= 0) FX.clashBursts.splice(i, 1);
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 主循環
+  // ═══════════════════════════════════════════════
+  function loop() {
+    const t = performance.now();
+    const dt = Math.min(0.05, Math.max(0, (t - (FX.lastTime || t)) / 1000));
+    FX.lastTime = t;
+
+    tryHookClashExplode();
+    tryHookFire();
+    detectInfinityConsume();
+    detectFistAttack();
+    updateEffects(dt);
+    syncOverlay();
+    if (overlayCanvas && overlayCanvas.style.display !== 'none') {
+      drawOverlay();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(loop), { once: true });
+  } else {
+    requestAnimationFrame(loop);
+  }
+
+  console.log('[gojo_vfx] 現代最強視覺特效 v2 已載入');
+})();
