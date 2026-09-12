@@ -13691,8 +13691,7 @@ if (enemy) {
     for (const [vamp, target] of [[b0, b1], [b1, b0]]) {
       if (vamp.hp <= 0 || target.hp <= 0) continue;
       if (vamp.player === target.player) continue; // 同隊不觸發攻擊向技能
-      if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
-       if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
+             if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
   // 停止衝刺並開始咬擊
   vamp.vampireDashing = false;
   vamp.vampireDashElapsed = 0;
