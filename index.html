@@ -14568,9 +14568,8 @@ function gojoReleaseProjectileResources(p) {
 // 發射蒼 / 赫 / 紫（交替制：每 6 發蒼赫 → 1 發紫）
 // ─────────────────────────────────────────────
 function fireGojoAttack(b, enemy) {
-  const dx = enemy.x - b.x, dy = enemy.y - b.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const nx = dx / d, ny = dy / d;
+  let targetX = enemy.x;
+  let targetY = enemy.y;
 
   let type;
   if (b.gojoAttackCount >= GOJO_PURPLE_EVERY_N) {
@@ -14581,7 +14580,20 @@ function fireGojoAttack(b, enemy) {
     b.gojoAttackCount++;
   }
 
-  if (type === 'purple') {
+  // 赫：優先瞄準場上最近的自己的蒼球，讓蒼赫容易相撞
+  if (type === 'red') {
+    const blues = (b.gojoBalls || []).filter(bl => bl.active && bl.type === 'blue');
+    if (blues.length > 0) {
+      blues.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y));
+      targetX = blues[0].x;
+      targetY = blues[0].y;
+    }
+  }
+
+  const dx = targetX - b.x, dy = targetY - b.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const nx = dx / d, ny = dy / d;
+    if (type === 'purple') {
     b.gojoBalls.push({
       x: b.x, y: b.y,
       vx: nx * GOJO_PURPLE_SPEED * 60,
@@ -40339,5 +40351,6 @@ function launchBossBattle(teamIds, boss, requestedDefinition = null) {
 </script>
 <script src="handbook_mode.js?v=arena-split-20260911-1"></script>
 <script src="special.js"></script>
+<script src="gojo_vfx.js"></script>
 </body>
 </html>
