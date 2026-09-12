@@ -69,7 +69,16 @@ const CHARACTERS = [
   id: 'gojo', emoji: '😎', weapon: '🔵', name: '現代最強',
   desc: '​「放心吧，因為我是最強的。」​戰場上最令人絕望的對手。可一旦他拉下眼罩，迎來的便是敵人的末日。他能使用「無下限術式」將對手玩弄於股掌之間。',
   stats: ['蒼', '赫', '紫', ],
-  skills: [`順轉「蒼」：帶引力的術式，可穿透並吸走${GOJO_BLUE_PROJECTILE_PULL_RANGE}px內的敵方投射物，最多儲存${GOJO_BLUE_PROJECTILE_CAPTURE_MAX}顆，並造成持續傷害。CD${GOJO_COOLDOWN}s`, `反轉「赫」：帶斥力的術式，造成${GOJO_RED_DAMAGE}傷害，並釋放蒼所儲存的投射物；釋放出的投射物會追蹤敵人${GOJO_RED_STORED_HOMING_DURATION}秒，CD${GOJO_COOLDOWN}s。`, `大招「虛式紫」：血量降至${GOJO_HP_THRESHOLD}後蓄力${GOJO_CHARGE_TIME}秒釋放，對碰到的敵人造成${GOJO_PURPLE_FRAMEDMG}傷害/幀。`],
+skills: [
+  `被動「無下限」：身邊 ${GOJO_INFINITY_RADIUS}px 內出現敵方投射物時，消耗 1 點無下限量條讓其逐漸停下並消失（不造成傷害）。量條上限 ${GOJO_INFINITY_MAX}，每 ${GOJO_INFINITY_REGEN_TIME} 秒補滿。`,
+  `順轉「蒼」：發射引力球，穿透敵人持續造成 ${GOJO_BLUE_FRAMEDMG} 傷害/幀，吸引範圍內敵方投射物最多儲存 ${GOJO_BLUE_PROJECTILE_CAPTURE_MAX} 顆。`,
+  `反轉「赫」：發射斥力球，命中造成 ${GOJO_RED_DAMAGE} 傷害並強力擊退，同時釋放蒼儲存的投射物。`,
+  `蒼／赫交替發射，每 ${GOJO_COOLDOWN} 秒一發；每發射 ${GOJO_PURPLE_EVERY_N} 發後，下一發改為發射穿透紫球（${GOJO_PURPLE_DAMAGE} 傷害）。`,
+  `蒼與赫在場上碰撞時，於碰撞點產生 ${GOJO_CLASH_DAMAGE} 傷害的大範圍爆炸（無限制虛式紫，對五條悟自身減免 ${Math.round(GOJO_CLASH_SELF_REDUCE * 100)}%）。`,
+  `「蒼拳」：近身 ${GOJO_FIST_RANGE}px 內主動出拳，造成 ${GOJO_FIST_DAMAGE} 傷害並將敵人拉向自己，CD ${GOJO_FIST_COOLDOWN} 秒。`,
+  `「領域展開・無量空處」：血量 ≥ ${GOJO_DOMAIN_HP_REQ} 時發動，全場敵人麻痺 ${GOJO_DOMAIN_PARALYZE} 秒並每秒受到 ${GOJO_DOMAIN_DPS} 傷害；站在五條悟 ${GOJO_DOMAIN_SAFE_RADIUS}px 內的敵人不受影響。持續 ${GOJO_DOMAIN_DURATION} 秒，CD ${GOJO_DOMAIN_CD} 秒。`,
+  `被動「六眼覺醒」：血量 ≤ ${GOJO_HP_THRESHOLD} 時，所有技能 CD 減少 ${GOJO_UNLOCK_CD_BONUS} 秒。`
+],
   color: '#00cfff', glowColor: 'rgba(0,207,255,0.6)', type: 'gojo',
   winQuote: '沒錯，是五條贏了。',
   loseQuote: '沒能讓你感到盡興真是抱歉。',

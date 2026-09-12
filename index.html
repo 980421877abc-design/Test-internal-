@@ -5140,10 +5140,23 @@ const PROGRESS_HANDLERS = {
       barColor: b.vampireDashing ? '#ff44ff' : (b.vampireBiting ? '#aa00ff' : b.char.color)
     };
   },
-  gojo(b) {
-    if (b.gojoCharging) return { atFrac: Math.min(b.gojoChargeTimer / GOJO_CHARGE_TIME, 1), barColor: '#bf00ff' };
-    return { atFrac: Math.min(b.gojoTimer / GOJO_COOLDOWN, 1), barColor: b.gojoUnlocked ? '#bf00ff' : b.char.color };
-  },
+gojo(b) {
+  // 領域展開中：顯示剩餘持續時間
+  if (b.gojoDomainActive) {
+    return { atFrac: Math.max(0, Math.min(1, b.gojoDomainTimer / GOJO_DOMAIN_DURATION)), barColor: '#bf00ff' };
+  }
+  // 領域冷卻中：顯示 CD 進度
+  if (b.gojoDomainCooldown > 0) {
+    return { atFrac: 1 - Math.max(0, Math.min(1, b.gojoDomainCooldown / GOJO_DOMAIN_CD)), barColor: '#7a2cb8' };
+  }
+  // 平常：顯示無下限量條（0～10）
+  const inf = Math.max(0, Math.min(GOJO_INFINITY_MAX, b.gojoInfinity || 0));
+  return {
+    atFrac: inf / GOJO_INFINITY_MAX,
+    barColor: inf >= GOJO_INFINITY_MAX ? '#00cfff' : (inf >= 5 ? '#5fdcff' : '#3a8a9c')
+  };
+},
+
   cursed(b) {
     return {
       atFrac: b.curseSlashTimer != null ? 1 - (b.curseSlashTimer / curseC(b.char, b).SLASH_INTERVAL) : 0,
@@ -6030,15 +6043,26 @@ function makeBall(x, y, vx, vy, ch, player, twinRole) {
     vampireDashElapsed: ch.type === 'vampire' ? 0 : null,  // 衝刺已持續時間
     vampireBatTimer: ch.type === 'vampire' ? 0 : null,
     // 被暗夜領主鎖定而停止移動
-    gojoTimer: ch.type === 'gojo' ? 0 : null,
+   // ── GOJO 重做版欄位 ──
+gojoInfinity: ch.type === 'gojo' ? GOJO_INFINITY_MAX : null,
+gojoInfinityRegenTimer: ch.type === 'gojo' ? GOJO_INFINITY_REGEN_TIME : null,
+gojoAttackCount: ch.type === 'gojo' ? 0 : null,
+gojoFistCooldown: ch.type === 'gojo' ? 0 : null,
+gojoDomainActive: ch.type === 'gojo' ? false : null,
+gojoDomainTimer: ch.type === 'gojo' ? 0 : null,
+gojoDomainCooldown: ch.type === 'gojo' ? 0 : null,
+gojoDomainDamageTick: ch.type === 'gojo' ? 0 : null,
+gojoDomainSafeSet: ch.type === 'gojo' ? null : null,
+// 舊欄位保留（避免舊程式碼引用報錯；新邏輯不使用）
+gojoTimer: ch.type === 'gojo' ? 0 : null,
 gojoCooldown: ch.type === 'gojo' ? GOJO_COOLDOWN : null,
 gojoUnlocked: ch.type === 'gojo' ? false : null,
 gojoCharging: ch.type === 'gojo' ? false : null,
 gojoChargeTimer: ch.type === 'gojo' ? 0 : null,
 gojoHasTriggered: ch.type === 'gojo' ? false : null,
 gojoBalls: ch.type === 'gojo' ? [] : null,
-	gojoStoredProjectiles: ch.type === 'gojo' ? [] : null,
-	gojoChargingVisual: ch.type === 'gojo' ? false : null,
+gojoStoredProjectiles: ch.type === 'gojo' ? [] : null,
+gojoChargingVisual: ch.type === 'gojo' ? false : null,
     // 魔彈射手・奧提斯專屬狀態
     otisLockTimer: ch.type === 'otis' ? OTIS_LOCK_INTERVAL : null,
     otisShotNumber: ch.type === 'otis' ? 0 : null,
@@ -10652,18 +10676,6 @@ function tickInner(now) {
     }
   }
 
-  // 無量空處特效更新（在 update 之外，避免被 early return 跳過）
-  if (state.gojoKillFX) {
-    const fx = state.gojoKillFX;
-    fx.life -= dt;
-    for (const l of fx.lines) l.dist += l.speed * dt;
-    if (fx.life <= 0) {
-      state.gojoKillFX = null;
-      const dead = state.balls.filter(b => b.hp <= 0);
-      scheduleRoundEnd(dead, 100);
-      return;
-    }
-  }
 
   // 砲爹 vs 乙骨 決鬥終結特效更新（在 update 之外，避免被 early return 跳過）
   if (state.cannonDuelFX) {
@@ -10892,35 +10904,11 @@ function tickInner(now) {
       return;
     }
 
-    // Gojo 擊殺：觸發無量空處
-    if (!state.gojoKillFX && !state.minatoKillFX) {
-      const killer = state.balls.find(b => b.hp > 0 && b.char.type === 'gojo');
-      if (killer) {
-        const lines = [];
-        for (let i = 0; i < 80; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          lines.push({
-            angle, dist: 20 + Math.random() * 60,
-            speed: 180 + Math.random() * 400,
-            len: 30 + Math.random() * 120,
-            alpha: 0.4 + Math.random() * 0.6,
-            width: 0.5 + Math.random() * 1.5
-          });
-        }
-        state.gojoKillFX = { life: 3.2, maxLife: 3.2, lines };
-        // 凍結所有球：停止移動、無敵、停止攻擊
-        for (const b of state.balls) {
-          b.vx = 0; b.vy = 0;
-          b.invincible = true;
-          b.attackTimer = 0;
-        }
-      }
-    }
-    // 若有特效還在播就繼續跑
-    if (state.opmFX.length > 0 || state.gojoKillFX) {
-      gameLoop = requestAnimationFrame(tick);
-      return;
-    }
+ // 若有其他特效還在播就繼續跑
+if (state.opmFX.length > 0) {
+  gameLoop = requestAnimationFrame(tick);
+  return;
+}
     scheduleRoundEnd(outcomeDead, 300);
     return;
   }
@@ -14412,185 +14400,453 @@ for (let bi = 0; bi < state.balls.length; bi++) {
       }
     }
   }
-// ── GOJO 術式更新 ──
-  for (let bi = 0; bi < state.balls.length; bi++) {
-    const b = state.balls[bi];
-    if (b.hp <= 0) continue;
-    const enemy = getNearestEnemyTo(b.x, b.y, b.player);
-    if (b.char.type !== 'gojo') continue;
-    if (!Array.isArray(b.gojoStoredProjectiles)) b.gojoStoredProjectiles = [];
-    if (!enemy) continue;
-    if ((state.dioWorldGlobalActive && b !== state.dioWorldCaster) || b.obitoInSpace || b.pucciDiscFrozen || isBallInBossDryPowderZone(b)) {
-      // 時停中：術式球仍可移動（已在投射物迴圈凍結），但不觸發新技能
-      continue;
+  // ── GOJO 重做版：主更新 ──
+for (const b of state.balls) {
+  if (b.hp <= 0 || b.char.type !== 'gojo') continue;
+  updateGojo(b, dt);
+}
+  // ══════════════════
+// 現代最強（Gojo）重做版：所有子函式
+// ══════════════════
+
+function updateGojo(b, dt) {
+  // 欄位防護
+  if (!Array.isArray(b.gojoStoredProjectiles)) b.gojoStoredProjectiles = [];
+  if (!Array.isArray(b.gojoBalls)) b.gojoBalls = [];
+  if (typeof b.gojoAttackCount !== 'number') b.gojoAttackCount = 0;
+  if (typeof b.gojoInfinity !== 'number') b.gojoInfinity = GOJO_INFINITY_MAX;
+  if (typeof b.gojoInfinityRegenTimer !== 'number') b.gojoInfinityRegenTimer = GOJO_INFINITY_REGEN_TIME;
+
+  // ── 六眼覺醒：只減 CD，僅觸發一次 ──
+  if (!b.gojoUnlocked && b.hp <= GOJO_HP_THRESHOLD) {
+    b.gojoUnlocked = true;
+    b.gojoHasTriggered = true;
+    state.hitFlashes.push({ x: b.x, y: b.y, r: 80, alpha: 1, color: '#bf00ff', t: 0.6 });
+    state.damageNumbers.push({ x: b.x, y: b.y - b.r - 20, value: '六眼覺醒', color: '#c77dff', life: 1.2, maxLife: 1.2, scale: 1.1 });
+    if (!state.standCryFX) state.standCryFX = [];
+    state.standCryFX.push({ text: '六眼覺醒', x: b.x, y: b.y, life: 1.6, maxLife: 1.6, color: '#bf00ff', player: b.player });
+    playHitSound('opm');
+  }
+
+  // ── 凍結：完全暫停 ──
+  const frozen = (state.dioWorldGlobalActive && b !== state.dioWorldCaster)
+    || b.obitoInSpace || b.pucciDiscFrozen || isBallInBossDryPowderZone(b)
+    || b.thunderParalyzed > 0 || b.thunderStunTimer > 0;
+  if (frozen) return;
+
+  // ── 無下限回復 ──
+  b.gojoInfinityRegenTimer -= dt;
+  if (b.gojoInfinityRegenTimer <= 0) {
+    b.gojoInfinityRegenTimer = GOJO_INFINITY_REGEN_TIME;
+    b.gojoInfinity = GOJO_INFINITY_MAX;
+    state.hitFlashes.push({ x: b.x, y: b.y, r: b.r + 14, alpha: 0.7, color: '#00cfff', t: 0.4 });
+  }
+
+  // ── 無下限：吸收敵方投射物 ──
+  updateGojoInfinity(b, dt);
+
+  // ── 蒼/赫/紫交替發射 ──
+  const enemy = getNearestEnemyTo(b.x, b.y, b.player);
+  if (enemy) {
+    b.gojoTimer += dt;
+    const cd = Math.max(0.3, GOJO_COOLDOWN - (b.gojoUnlocked ? GOJO_UNLOCK_CD_BONUS : 0));
+    if (b.gojoTimer >= cd) {
+      b.gojoTimer = 0;
+      fireGojoAttack(b, enemy);
+    }
+  }
+
+  // ── 蒼赫碰撞 → 無限制虛式紫 ──
+  checkGojoClash(b);
+
+  // ── 蒼拳（近戰，CD 不隨覺醒改變）──
+  if (b.gojoFistCooldown > 0) b.gojoFistCooldown -= dt;
+  if (b.gojoFistCooldown <= 0 && enemy) {
+    const d = Math.hypot(enemy.x - b.x, enemy.y - b.y);
+    if (d < b.r + (enemy.r || RADIUS) + GOJO_FIST_RANGE) {
+      b.gojoFistCooldown = GOJO_FIST_COOLDOWN;
+      dealDamage(enemy, GOJO_FIST_DAMAGE, { attackerPlayer: b.player });
+      const dx = b.x - enemy.x, dy = b.y - enemy.y;
+      const dd = Math.hypot(dx, dy) || 1;
+      enemy.vx += (dx / dd) * GOJO_FIST_PULL_FORCE;
+      enemy.vy += (dy / dd) * GOJO_FIST_PULL_FORCE;
+      state.hitFlashes.push({ x: enemy.x, y: enemy.y, r: 24, alpha: 0.9, color: '#5fdcff', t: 0.2 });
+      state.hitFlashes.push({ x: enemy.x, y: enemy.y, r: 14, alpha: 1, color: '#ffffff', t: 0.12 });
+      state.damageNumbers.push({ x: enemy.x, y: enemy.y - 26, value: `蒼拳 ${GOJO_FIST_DAMAGE}`, color: '#aaf0ff', life: 0.6, maxLife: 0.6, scale: 0.85 });
+      playHitSound('knife');
+    }
+  }
+
+  // ── 領域展開（開局就有，不需覺醒）──
+  updateGojoDomain(b, dt);
+
+  // ── 蒼/赫/紫球更新 ──
+  updateGojoBalls(b, dt);
+}
+
+// ─────────────────────────────────────────────
+// 無下限：緩速並吸收敵方投射物
+// ─────────────────────────────────────────────
+function updateGojoInfinity(b, dt) {
+  const R = GOJO_INFINITY_RADIUS;
+
+  // 需要掃的投射物陣列（都可能是敵方投射物）
+  const arrays = [
+    state.projectiles,
+    state.otisMagicBullets,
+    state.getoUltimateProjectiles,
+    state.tigerNovaNeedles,
+    state.oniichanSpikes,
+    state.fisherOceanWaves,
+  ].filter(a => Array.isArray(a));
+
+  for (const arr of arrays) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const p = arr[i];
+      if (!p || p.gojoConsumed) continue;
+      const pOwner = p.owner ?? p.ownerPlayer;
+      if (pOwner == null || pOwner === b.player) continue;
+
+      const dx = p.x - b.x, dy = p.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d > R + (p.r || 8)) continue;
+
+      // 首次進入範圍：消耗 1 點無下限
+      if (!p.gojoSlowing) {
+        if (b.gojoInfinity <= 0) continue;
+        b.gojoInfinity--;
+        p.gojoSlowing = true;
+        p.gojoOriginalVx = p.vx;
+        p.gojoOriginalVy = p.vy;
+        p.gojoOriginalDamage = p.damage;
+        p.gojoSlowElapsed = 0;
+        p.gojoLingerTimer = 0;
+        p.damage = 0; // 不造成傷害
+        state.hitFlashes.push({ x: p.x, y: p.y, r: 20, alpha: 0.8, color: '#00cfff', t: 0.3 });
+        state.damageNumbers.push({ x: b.x, y: b.y - b.r - 12, value: `無下限 ${b.gojoInfinity}`, color: '#5fdcff', life: 0.5, maxLife: 0.5, scale: 0.7 });
+      }
+
+      // 逐幀緩速
+      p.gojoSlowElapsed += dt;
+      const t = Math.min(1, p.gojoSlowElapsed / GOJO_INFINITY_SLOW_TIME);
+      const scale = 1 - t;
+      p.vx = (p.gojoOriginalVx || 0) * scale;
+      p.vy = (p.gojoOriginalVy || 0) * scale;
+
+      // 完全停止後，留 GOJO_INFINITY_LINGER 秒再移除
+      if (t >= 1) {
+        p.vx = 0;
+        p.vy = 0;
+        p.gojoLingerTimer += dt;
+        if (p.gojoLingerTimer >= GOJO_INFINITY_LINGER) {
+          gojoReleaseProjectileResources(p);
+          p.gojoConsumed = true;
+          arr.splice(i, 1);
+        }
+      }
+    }
+  }
+}
+
+// 釋放投射物時，歸還它原本佔用的資源（例如廚神的刀）
+function gojoReleaseProjectileResources(p) {
+  if (!p) return;
+  if (p.type === 'knife') {
+    const chefBall = p.ownerBall && p.ownerBall.char && p.ownerBall.char.type === 'chef' ? p.ownerBall : null;
+    if (chefBall && chefBall.hp > 0) {
+      chefBall.knives = Math.min((chefBall.knives || 0) + 1, chefBall.knifeMax || KNIFE_MAX_COUNT);
+      const wallLeft = state.wallKnives.filter(k => k.ownerBall ? k.ownerBall === chefBall : k.owner === chefBall.player).length;
+      if (chefBall.knives >= (chefBall.knifeMax || KNIFE_MAX_COUNT) && wallLeft === 0) {
+        chefBall.knifeRecalling = false;
+        chefBall.attackTimer = chefBall.attackInterval;
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// 發射蒼 / 赫 / 紫（交替制：每 6 發蒼赫 → 1 發紫）
+// ─────────────────────────────────────────────
+function fireGojoAttack(b, enemy) {
+  const dx = enemy.x - b.x, dy = enemy.y - b.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const nx = dx / d, ny = dy / d;
+
+  let type;
+  if (b.gojoAttackCount >= GOJO_PURPLE_EVERY_N) {
+    type = 'purple';
+    b.gojoAttackCount = 0;
+  } else {
+    type = (b.gojoAttackCount % 2 === 0) ? 'blue' : 'red';
+    b.gojoAttackCount++;
+  }
+
+  if (type === 'purple') {
+    b.gojoBalls.push({
+      x: b.x, y: b.y,
+      vx: nx * GOJO_PURPLE_SPEED * 60,
+      vy: ny * GOJO_PURPLE_SPEED * 60,
+      type: 'purple',
+      r: GOJO_PURPLE_RADIUS,
+      damage: GOJO_PURPLE_DAMAGE,
+      active: true,
+      life: GOJO_PURPLE_LIFESPAN,
+      hitTargets: new Set(),
+      trail: [],
+    });
+    state.hitFlashes.push({ x: b.x, y: b.y, r: 30, alpha: 0.9, color: '#bf00ff', t: 0.4 });
+    state.hitFlashes.push({ x: b.x, y: b.y, r: 16, alpha: 1, color: '#ffffff', t: 0.25 });
+    playHitSound('opm');
+  } else if (type === 'blue') {
+    b.gojoBalls.push({
+      x: b.x, y: b.y,
+      vx: nx * GOJO_BLUE_SPEED * 60 + (Math.random() - 0.5) * 30,
+      vy: ny * GOJO_BLUE_SPEED * 60 + (Math.random() - 0.5) * 30,
+      type: 'blue', r: GOJO_BLUE_RADIUS,
+      frameDmg: GOJO_BLUE_FRAMEDMG,
+      active: true, ringAngle: 0, life: GOJO_BLUE_LIFESPAN,
+      trail: [], storedCount: b.gojoStoredProjectiles.length,
+    });
+    playHitSound('vampire_bite');
+  } else {
+    b.gojoBalls.push({
+      x: b.x, y: b.y,
+      vx: nx * GOJO_RED_SPEED * 60 + (Math.random() - 0.5) * 30,
+      vy: ny * GOJO_RED_SPEED * 60 + (Math.random() - 0.5) * 30,
+      type: 'red', r: GOJO_BLUE_RADIUS,
+      damage: GOJO_RED_DAMAGE,
+      active: true,
+    });
+    releaseGojoStoredProjectiles(b, b.gojoStoredProjectiles);
+    playHitSound('knife');
+  }
+}
+
+// ─────────────────────────────────────────────
+// 蒼 + 赫碰撞 → 無限制虛式紫
+// ─────────────────────────────────────────────
+function checkGojoClash(b) {
+  if (!Array.isArray(b.gojoBalls)) return;
+  const blues = b.gojoBalls.filter(bl => bl.active && bl.type === 'blue');
+  const reds = b.gojoBalls.filter(bl => bl.active && bl.type === 'red');
+  for (const blue of blues) {
+    for (const red of reds) {
+      if (!blue.active || !red.active) continue;
+      const d = Math.hypot(blue.x - red.x, blue.y - red.y);
+      if (d < GOJO_CLASH_RADIUS) {
+        const cx = (blue.x + red.x) / 2;
+        const cy = (blue.y + red.y) / 2;
+        blue.active = false;
+        red.active = false;
+        gojoClashExplode(b, cx, cy);
+        return;
+      }
+    }
+  }
+}
+
+function gojoClashExplode(b, cx, cy) {
+  for (const t of getAllCombatTargets()) {
+    if (!t || t.hp <= 0) continue;
+    const d = Math.hypot(t.x - cx, t.y - cy);
+    if (d > GOJO_CLASH_AOE_RADIUS + (t.r || RADIUS)) continue;
+    const dmg = (t === b) ? GOJO_CLASH_DAMAGE * (1 - GOJO_CLASH_SELF_REDUCE) : GOJO_CLASH_DAMAGE;
+    dealDamage(t, dmg, { attackerPlayer: b.player });
+  }
+  state.hitFlashes.push({ x: cx, y: cy, r: GOJO_CLASH_AOE_RADIUS, alpha: 1.3, color: '#bf00ff', t: 0.6 });
+  state.hitFlashes.push({ x: cx, y: cy, r: GOJO_CLASH_AOE_RADIUS * 0.6, alpha: 1, color: '#ffffff', t: 0.4 });
+  state.opmFX.push({ type: 'ring', x: cx, y: cy, r: 20, maxR: GOJO_CLASH_AOE_RADIUS, life: 0.6, maxLife: 0.6, color: '#bf00ff', lineW: 5 });
+  state.opmFX.push({ type: 'ring', x: cx, y: cy, r: 10, maxR: GOJO_CLASH_AOE_RADIUS * 0.7, life: 0.4, maxLife: 0.4, color: '#ffffff', lineW: 3 });
+  state.opmFX.push({ type: 'shake', life: 0.35, maxLife: 0.35, intensity: 12 });
+  playHitSound('opm');
+}
+
+// ─────────────────────────────────────────────
+// 蒼/赫/紫球：移動、碰撞、領域追蹤
+// ─────────────────────────────────────────────
+function updateGojoBalls(b, dt) {
+  b.gojoBalls = b.gojoBalls.filter(bl => bl.active);
+  const enemy = getNearestEnemyTo(b.x, b.y, b.player);
+
+  for (const ball of b.gojoBalls) {
+    if (!ball.active) continue;
+
+    // 領域追蹤：所有 Gojo 球轉向最近敵人
+    if (b.gojoDomainActive && enemy) {
+      const desired = Math.atan2(enemy.y - ball.y, enemy.x - ball.x);
+      const cur = Math.atan2(ball.vy, ball.vx);
+      let diff = desired - cur;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const maxTurn = GOJO_DOMAIN_HOMING_TURN * dt;
+      const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+      const newAng = cur + turn;
+      const spd = Math.hypot(ball.vx, ball.vy);
+      ball.vx = Math.cos(newAng) * spd;
+      ball.vy = Math.sin(newAng) * spd;
     }
 
-    // 血量觸發紫
-    if (!b.gojoHasTriggered && b.hp <= GOJO_HP_THRESHOLD)
-      {
-      b.gojoHasTriggered = true;
-      b.gojoCharging = true;
-      b.gojoChargeTimer = 0;
-      b.gojoUnlocked = true;
-    }
+    // 移動
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
 
- // 蓄力紫
-    if (b.gojoCharging) {
-      b.gojoChargingVisual = true;
-      b.gojoChargeTimer += dt;
-      if (b.gojoChargeTimer >= GOJO_CHARGE_TIME) {
-        b.gojoCharging = false;
-        b.gojoTimer = 0;
-        b.gojoChargingVisual = false;
-        const ddx = enemy.x - b.x, ddy = enemy.y - b.y;
-        const dd = Math.sqrt(ddx*ddx+ddy*ddy)||1;
-        b.gojoBalls.push({ x:b.x, y:b.y,
-          vx:(ddx/dd)*GOJO_PURPLE_SPEED, vy:(ddy/dd)*GOJO_PURPLE_SPEED,
-          type:'purple', r:GOJO_PURPLE_RADIUS, frameDmg:GOJO_PURPLE_FRAMEDMG,
-          active:true, stickTimer:0 });
-        playHitSound('opm');
+    // 軌跡
+    ball.trail = ball.trail || [];
+    ball.trail.push({ x: ball.x, y: ball.y });
+    if (ball.trail.length > 10) ball.trail.shift();
+
+    // 邊界
+    let hitWall = false;
+    if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = -ball.vx; hitWall = true; }
+    if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.vx = -ball.vx; hitWall = true; }
+    if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy = -ball.vy; hitWall = true; }
+    if (ball.y + ball.r > H) { ball.y = H - ball.r; ball.vy = -ball.vy; hitWall = true; }
+
+    // 障礙場地：中央巨石
+    if (state.arena === 'obstacle') {
+      const odx = ball.x - W / 2, ody = ball.y - H / 2;
+      const odist = Math.hypot(odx, ody) || 1;
+      const minDist = OBSTACLE_ARENA_RADIUS + ball.r;
+      if (odist < minDist) {
+        const onx = odx / odist, ony = ody / odist;
+        ball.x = W / 2 + onx * minDist;
+        ball.y = H / 2 + ony * minDist;
+        const dot = ball.vx * onx + ball.vy * ony;
+        ball.vx -= 2 * dot * onx;
+        ball.vy -= 2 * dot * ony;
+        hitWall = true;
       }
     }
 
-    // 技能CD → 發蒼/赫/紫
-    if (!b.gojoCharging) {
-      b.gojoTimer += dt;
-      if (b.gojoTimer >= b.gojoCooldown) {
-        b.gojoTimer = 0;
-        // 麻痺：跳過本次技能
-        if (b.thunderParalyzed > 0) {
-          b.thunderParalyzed = 0;
-          b.thunderStunTimer = 0.5; // 打斷定身 0.5 秒
-          b.vx = 0; b.vy = 0;
-          state.thunderStunFX = state.thunderStunFX || [];
-          state.thunderStunFX.push({ x: b.x, y: b.y, life: 0.5, maxLife: 0.5 });
-          state.hitFlashes.push({ x: b.x, y: b.y, r: 22, alpha: 0.8, color: '#f1c40f', t: 0.4 });
-          // skip attack
-        } else {
-        const ddx = enemy.x - b.x, ddy = enemy.y - b.y;
-        const dd = Math.sqrt(ddx*ddx+ddy*ddy)||1;
-        const roll = Math.random();
-        let sk;
-        if (b.gojoUnlocked && roll < GOJO_PURPLE_CHANCE) sk = 'purple';
-        else if (roll < (b.gojoUnlocked ? 0.53 : 0.50)) sk = 'blue';
-        else sk = 'red';
-        const spd = sk==='purple' ? GOJO_PURPLE_SPEED : sk==='blue' ? GOJO_BLUE_SPEED : GOJO_RED_SPEED;
-        const rad = sk==='purple' ? GOJO_PURPLE_RADIUS : GOJO_BLUE_RADIUS;
-        const dmg = sk==='red' ? GOJO_RED_DAMAGE : 0;
-        b.gojoBalls.push({ x:b.x, y:b.y,
-          vx:(ddx/dd)*spd+(Math.random()-0.5)*0.5,
-          vy:(ddy/dd)*spd+(Math.random()-0.5)*0.5,
-          type:sk, r:rad, damage:dmg,
-          frameDmg: sk==='blue' ? GOJO_BLUE_FRAMEDMG : sk==='purple' ? GOJO_PURPLE_FRAMEDMG : 0,
-          active:true, stickTimer:0,
-          ringAngle: 0,  // 蒼球光圈旋轉角度
-          trail: [],     // 飛行軌跡殘影
-          life: sk==='blue' ? GOJO_BLUE_LIFESPAN : undefined, // 蒼球存在時間
-          storedCount: b.gojoStoredProjectiles.length
-        });
-        // 赫發動時將蒼吸入的投射物重新釋放，並仍保留原本的赫球攻擊。
-        if (sk === 'red') releaseGojoStoredProjectiles(b, b.gojoStoredProjectiles);
-        playHitSound(sk==='red'?'knife':'vampire_bite');
-        } // end else (not paralyzed)
-      }
-    }
-  // 術式球移動與碰撞
-    b.gojoBalls = b.gojoBalls.filter(bl => bl.active);
-    for (const ball of b.gojoBalls) {
-      if (!ball.active) continue;
-      ball.x += ball.vx * dt * 60; ball.y += ball.vy * dt * 60;
-
-      // 飛行軌跡殘影（供繪製拖尾用）
-      ball.trail = ball.trail || [];
-      ball.trail.push({ x: ball.x, y: ball.y });
-      if (ball.trail.length > 10) ball.trail.shift();
-
-      // 旋轉光圈角度
-      if (ball.type === 'blue') ball.ringAngle = (ball.ringAngle || 0) + dt * 3.5;
-
-      // 蒼球存在時間倒數，時間到自動消散
-      if (ball.type === 'blue' && ball.life != null) {
+    if (ball.type === 'blue') {
+      ball.ringAngle = (ball.ringAngle || 0) + dt * 3.5;
+      if (ball.life != null) {
         ball.life -= dt;
         if (ball.life <= 0) { ball.active = false; continue; }
       }
-
-      // 每幀持續施力（引力/斥力）
       applyGojoForce(ball, state.balls, b);
-      // 蒼的無下限術式會牽引並吸入敵方投射物，存到五條自己的儲存庫。
       applyGojoProjectilePull(ball, state.projectiles, b.player, b.gojoStoredProjectiles);
       applyGojoProjectilePull(ball, state.getoUltimateProjectiles, b.player, b.gojoStoredProjectiles);
       ball.storedCount = b.gojoStoredProjectiles.length;
-
-      // 蒼球：對射程內敵人發射光線引力
-      if (ball.type === 'blue') {
-        for (const f of state.balls) {
-          if (f === b) continue; // 不對自己
-          const dx = f.x - ball.x, dy = f.y - ball.y;
-          const d = Math.sqrt(dx*dx+dy*dy) || 1;
-          if (d < GOJO_BLUE_RAY_RANGE) {
-            // 引力：把敵人往蒼球方向拉
-            const pull = GOJO_BLUE_RAY_FORCE * (1 - d / GOJO_BLUE_RAY_RANGE);
-            f.vx -= (dx/d) * pull;
-            f.vy -= (dy/d) * pull;
-          }
+      for (const f of state.balls) {
+        if (f === b) continue;
+        const dx = f.x - ball.x, dy = f.y - ball.y;
+        const dd = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dd < GOJO_BLUE_RAY_RANGE) {
+          const pull = GOJO_BLUE_RAY_FORCE * (1 - dd / GOJO_BLUE_RAY_RANGE);
+          f.vx -= (dx / dd) * pull;
+          f.vy -= (dy / dd) * pull;
         }
       }
-
-      // 碰邊界
-      let hitWall = false;
-      if (ball.x-ball.r < 0) { ball.x=ball.r; ball.vx*=-1; hitWall=true; }
-      if (ball.x+ball.r > W) { ball.x=W-ball.r; ball.vx*=-1; hitWall=true; }
-      if (ball.y-ball.r < 0) { ball.y=ball.r; ball.vy*=-1; hitWall=true; }
-      if (ball.y+ball.r > H) { ball.y=H-ball.r; ball.vy*=-1; hitWall=true; }
-
-      // 障礙場地：中央巨石跟外牆一樣要能實際擋住球，不然球會直接飛穿過去
-      if (state.arena === 'obstacle') {
-        const odx = ball.x - W / 2, ody = ball.y - H / 2;
-        const odist = Math.hypot(odx, ody) || 1;
-        const minDist = OBSTACLE_ARENA_RADIUS + ball.r;
-        if (odist < minDist) {
-          const onx = odx / odist, ony = ody / odist;
-          ball.x = W / 2 + onx * minDist;
-          ball.y = H / 2 + ony * minDist;
-          const dot = ball.vx * onx + ball.vy * ony;
-          ball.vx -= 2 * dot * onx;
-          ball.vy -= 2 * dot * ony;
-          hitWall = true;
-        }
-      }
-
-      if (hitWall && ball.type!=='purple' && ball.type!=='blue') { ball.active=false; continue; }
-      if (hitWall && ball.type==='blue') {
-        // 蒼球碰牆反彈，留下撞牆光閃
-        state.hitFlashes.push({ x: ball.x, y: ball.y, r: ball.r+10, alpha: 0.7, color: '#00cfff', t: 0.25 });
-      }
-
-      // 碰敵人
-      const ed = Math.sqrt((ball.x-enemy.x)**2+(ball.y-enemy.y)**2);
-      if (ed < ball.r + getCombatRadius(enemy)) {
-        if (ball.type==='purple' || ball.type==='blue') {
-          // 穿透飛行，經過時每幀扣血
+      if (enemy) {
+        const ed = Math.hypot(ball.x - enemy.x, ball.y - enemy.y);
+        if (ed < ball.r + getCombatRadius(enemy)) {
           dealDamage(enemy, ball.frameDmg, { attackerPlayer: b.player });
-          state.hitFlashes.push({ x:enemy.x, y:enemy.y, r:22, alpha:0.9,
-            color: ball.type==='blue' ? '#00cfff' : '#bf00ff', t:0.12 });
-        } else {
-          dealDamage(enemy, ball.damage, { attackerPlayer: b.player });
-          // 赫：命中瞬間把敵人撞飛（仿鍛造師劍擊擊退寫法：疊加速度 + 立即位移，確保視覺上立刻看得到）
-          const kdx = enemy.x - ball.x, kdy = enemy.y - ball.y;
-          const kd = Math.sqrt(kdx*kdx + kdy*kdy) || 1;
-          const knx = kdx / kd, kny = kdy / kd;
-          enemy.x += knx * 22;
-          enemy.y += kny * 22;
-          enemy.vx += knx * GOJO_RED_KNOCKBACK;
-          enemy.vy += kny * GOJO_RED_KNOCKBACK;
-          state.hitFlashes.push({ x:ball.x, y:ball.y, r:25, alpha:1,
-            color:'#ff4444', t:0.3 });
-          playHitSound('knife');
-          ball.active=false;
         }
       }
-    } // end for (const ball of b.gojoBalls)
-  } // end for (let bi gojo)
+    } else if (ball.type === 'red') {
+      if (hitWall) { ball.active = false; continue; }
+      if (enemy) {
+        const ed = Math.hypot(ball.x - enemy.x, ball.y - enemy.y);
+        if (ed < ball.r + getCombatRadius(enemy)) {
+          dealDamage(enemy, ball.damage, { attackerPlayer: b.player });
+          const kdx = enemy.x - ball.x, kdy = enemy.y - ball.y;
+          const kd = Math.hypot(kdx, kdy) || 1;
+          enemy.x += (kdx / kd) * 22;
+          enemy.y += (kdy / kd) * 22;
+          enemy.vx += (kdx / kd) * GOJO_RED_KNOCKBACK;
+          enemy.vy += (kdy / kd) * GOJO_RED_KNOCKBACK;
+          state.hitFlashes.push({ x: ball.x, y: ball.y, r: 25, alpha: 1, color: '#ff4444', t: 0.3 });
+          playHitSound('knife');
+          ball.active = false;
+        }
+      }
+    } else if (ball.type === 'purple') {
+      ball.hitTargets = ball.hitTargets || new Set();
+      ball.life -= dt;
+      if (ball.life <= 0 || hitWall) { ball.active = false; continue; }
+      for (const t of getAllCombatTargets()) {
+        if (!t || t.hp <= 0 || t.player === b.player) continue;
+        if (ball.hitTargets.has(t)) continue;
+        const ed = Math.hypot(ball.x - t.x, ball.y - t.y);
+        if (ed < ball.r + getCombatRadius(t)) {
+          ball.hitTargets.add(t);
+          dealDamage(t, ball.damage, { attackerPlayer: b.player });
+          state.hitFlashes.push({ x: t.x, y: t.y, r: 36, alpha: 1.2, color: '#bf00ff', t: 0.4 });
+          state.hitFlashes.push({ x: t.x, y: t.y, r: 18, alpha: 1, color: '#ffffff', t: 0.25 });
+          playHitSound('opm');
+        }
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// 領域展開・無量空處
+// ─────────────────────────────────────────────
+function updateGojoDomain(b, dt) {
+  if (b.gojoDomainCooldown > 0) b.gojoDomainCooldown -= dt;
+
+  // 進行中
+  if (b.gojoDomainActive) {
+    b.gojoDomainTimer -= dt;
+    b.gojoDomainDamageTick = (b.gojoDomainDamageTick || 0) + dt;
+    if (b.gojoDomainDamageTick >= 1.0) {
+      b.gojoDomainDamageTick -= 1.0;
+      for (const t of getAllCombatTargets()) {
+        if (!t || t.hp <= 0 || t.player === b.player) continue;
+        const safeSet = b.gojoDomainSafeSet;
+        if (safeSet && safeSet.has(t)) continue;
+        const d = Math.hypot(t.x - b.x, t.y - b.y);
+        if (d <= GOJO_DOMAIN_SAFE_RADIUS + (t.r || RADIUS)) continue;
+        dealDamage(t, GOJO_DOMAIN_DPS, { attackerPlayer: b.player, continuousDamage: true });
+        state.hitFlashes.push({ x: t.x, y: t.y, r: 16, alpha: 0.6, color: '#bf00ff', t: 0.25 });
+      }
+    }
+    if (b.gojoDomainTimer <= 0) {
+      b.gojoDomainActive = false;
+      b.gojoDomainSafeSet = null;
+    }
+    return;
+  }
+
+  // 冷卻中
+  if (b.gojoDomainCooldown > 0) return;
+  // 血量需 >= 700
+  if (b.hp < GOJO_DOMAIN_HP_REQ) return;
+  // 必須有敵人
+  const hasEnemy = getAllCombatTargets().some(t => t && t.hp > 0 && t.player !== b.player);
+  if (!hasEnemy) return;
+
+  // ── 展開 ──
+  b.gojoDomainActive = true;
+  b.gojoDomainTimer = GOJO_DOMAIN_DURATION;
+  // 六眼覺醒後 CD -0.5 秒
+  const cdBase = GOJO_DOMAIN_CD - (b.gojoUnlocked ? GOJO_UNLOCK_CD_BONUS : 0);
+  b.gojoDomainCooldown = cdBase;
+  b.gojoDomainDamageTick = 0;
+  b.gojoDomainSafeSet = new Set();
+
+  for (const t of getAllCombatTargets()) {
+    if (!t || t.hp <= 0 || t.player === b.player) continue;
+    const d = Math.hypot(t.x - b.x, t.y - b.y);
+    if (d <= GOJO_DOMAIN_SAFE_RADIUS + (t.r || RADIUS)) {
+      b.gojoDomainSafeSet.add(t);
+    } else {
+      t.thunderParalyzed = Math.max(t.thunderParalyzed || 0, GOJO_DOMAIN_PARALYZE);
+      t.vx = 0;
+      t.vy = 0;
+    }
+  }
+
+  state.hitFlashes.push({ x: b.x, y: b.y, r: 120, alpha: 1.3, color: '#bf00ff', t: 0.8 });
+  state.hitFlashes.push({ x: b.x, y: b.y, r: 70, alpha: 1, color: '#ffffff', t: 0.5 });
+  state.opmFX.push({ type: 'ring', x: b.x, y: b.y, r: 30, maxR: Math.max(W, H) * 1.4, life: 0.9, maxLife: 0.9, color: '#bf00ff', lineW: 6 });
+  state.opmFX.push({ type: 'shake', life: 0.5, maxLife: 0.5, intensity: 16 });
+  if (!state.standCryFX) state.standCryFX = [];
+  state.standCryFX.push({ text: '領域展開・無量空處', x: b.x, y: b.y, life: 2.2, maxLife: 2.2, color: '#bf00ff', player: b.player });
+  playHitSound('opm');
+}
 
   // ── 奕邏輯：9×9 棋盤、雙棋落子、連星地雷與天下劫 ──
   for (let bi = 0; bi < state.balls.length; bi++) {
@@ -26155,29 +26411,134 @@ drawKashimoReadability();
         drawGojoBlueBall(ball);
       } else if (ball.type==='red') {
         drawGojoRedBall(ball);
-      } else {
-        drawGojoTrail(ball, '191,0,255');
-        ctx.save();
-        const pulse = 0.7+0.3*Math.sin(Date.now()/150);
-        // 雙層旋轉光圈，呼應蒼／赫的環形視覺，強調「反轉術式」的至高感
-        const pang = (ball.ringAngle = (ball.ringAngle||0) + 0.05);
-        ctx.shadowColor='#bf00ff'; ctx.shadowBlur=22*pulse;
-        ctx.strokeStyle = `rgba(230,160,255,${0.8*pulse})`;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.ellipse(ball.x, ball.y, ball.r*2.1, ball.r*0.7, pang, 0, Math.PI*2); ctx.stroke();
-        ctx.beginPath(); ctx.ellipse(ball.x, ball.y, ball.r*2.1, ball.r*0.7, pang + Math.PI/2, 0, Math.PI*2); ctx.stroke();
-        ctx.shadowBlur=30*pulse;
-        const pg = ctx.createRadialGradient(ball.x-2, ball.y-2, 1, ball.x, ball.y, ball.r);
-        pg.addColorStop(0, '#ffffff');
-        pg.addColorStop(0.4, '#e0b0ff');
-        pg.addColorStop(0.75, '#bf00ff');
-        pg.addColorStop(1, '#4a0066');
-        ctx.fillStyle=pg; ctx.globalAlpha=pulse;
-        ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
-        ctx.restore();
-      }
+ } else if (ball.type === 'purple') {
+  // ── 新版「紫」：獨立穿透球 ──
+  const trail = ball.trail || [];
+  for (let i = 0; i < trail.length; i++) {
+    const t = trail[i];
+    const frac = (i + 1) / trail.length;
+    ctx.save();
+    ctx.globalAlpha = frac * 0.45;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, ball.r * frac * 0.85, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(191,0,255,${frac * 0.6})`;
+    ctx.shadowColor = '#bf00ff';
+    ctx.shadowBlur = 18 * frac;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.save();
+  const pulse = 0.75 + 0.25 * Math.sin(Date.now() / 90);
+  const auraR = ball.r * (1.9 + pulse * 0.2);
+  const auraGrad = ctx.createRadialGradient(ball.x, ball.y, ball.r * 0.4, ball.x, ball.y, auraR);
+  auraGrad.addColorStop(0, 'rgba(230,160,255,0.55)');
+  auraGrad.addColorStop(0.5, 'rgba(191,0,255,0.28)');
+  auraGrad.addColorStop(1, 'rgba(75,0,102,0)');
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, auraR, 0, Math.PI * 2);
+  ctx.fillStyle = auraGrad;
+  ctx.fill();
+
+  const spin = Date.now() / 200;
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = `rgba(230,160,255,${0.6 + pulse * 0.3})`;
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#bf00ff';
+  ctx.shadowBlur = 22 * pulse;
+  ctx.beginPath();
+  ctx.ellipse(ball.x, ball.y, ball.r * 1.9, ball.r * 0.7, spin, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(ball.x, ball.y, ball.r * 1.9, ball.r * 0.7, spin + Math.PI / 2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 30 * pulse;
+  const coreGrad = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, ball.r);
+  coreGrad.addColorStop(0, '#ffffff');
+  coreGrad.addColorStop(0.35, '#e0b0ff');
+  coreGrad.addColorStop(0.72, '#bf00ff');
+  coreGrad.addColorStop(1, '#4a0066');
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.7 * pulse;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+      }     
     }
   }
+// ── GOJO 領域展開視覺（無量空處）──
+for (const b of state.balls) {
+  if (b.hp <= 0 || b.char.type !== 'gojo' || !b.gojoDomainActive) continue;
+  const prog = 1 - Math.max(0, b.gojoDomainTimer / GOJO_DOMAIN_DURATION);
+  const pulse = 0.5 + 0.5 * Math.sin(elapsed * 6);
+  ctx.save();
+
+  const fog = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, Math.max(W, H));
+  fog.addColorStop(0, 'rgba(191,0,255,0.22)');
+  fog.addColorStop(0.5, 'rgba(140,0,200,0.15)');
+  fog.addColorStop(1, 'rgba(60,0,100,0.28)');
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.setLineDash([12, 8]);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = `rgba(160,240,255,${0.7 + pulse * 0.3})`;
+  ctx.shadowColor = '#00cfff';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, GOJO_DOMAIN_SAFE_RADIUS, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const ringR = 30 + prog * Math.max(W, H) * 0.7;
+  ctx.globalAlpha = 0.5 * (1 - prog * 0.6);
+  ctx.strokeStyle = '#bf00ff';
+  ctx.lineWidth = 6;
+  ctx.shadowColor = '#bf00ff';
+  ctx.shadowBlur = 22;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.9;
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#e0b0ff';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 4;
+  ctx.fillText(`無量空處 ${b.gojoDomainTimer.toFixed(1)}s`, b.x, b.y - b.r - 34);
+
+  ctx.restore();
+}
+
+// ── GOJO 無下限量條（球旁）──
+for (const b of state.balls) {
+  if (b.hp <= 0 || b.char.type !== 'gojo') continue;
+  const inf = Math.max(0, Math.min(GOJO_INFINITY_MAX, b.gojoInfinity || 0));
+  const ratio = inf / GOJO_INFINITY_MAX;
+  const barW = 44, barH = 5;
+  const barX = b.x - barW / 2;
+  const barY = b.y + b.r + 12;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(barX, barY, barW, barH);
+  const color = ratio >= 1 ? '#00cfff' : (ratio > 0.5 ? '#5fdcff' : '#3a8a9c');
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(barX, barY, barW * ratio, barH);
+  ctx.restore();
+}
 
   // ── 繪製 組裝機器人「蒼」零件 的飛行引力球 ──
   for (const b of state.balls) {
@@ -30967,51 +31328,7 @@ drawKashimoReadability();
     }
   }
 
-  // ── 無量空處領域展開 ──
-  if (state.gojoKillFX) {
-    const fx = state.gojoKillFX;
-    const prog = 1 - fx.life / fx.maxLife; // 0→1
-    const cx = W / 2, cy = H / 2;
-
-    // 1. 虛無底色（藍黑漸層，逐漸覆蓋畫面）
-    const bgAlpha = Math.min(prog * 3, 0.92);
-    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H));
-    bgGrad.addColorStop(0,   `rgba(0,40,80,${bgAlpha})`);
-    bgGrad.addColorStop(0.5, `rgba(0,10,40,${bgAlpha * 0.95})`);
-    bgGrad.addColorStop(1,   `rgba(0,0,10,${bgAlpha})`);
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // 2. 速度線（從中心向外爆射）
-    ctx.save();
-    ctx.translate(cx, cy);
-    for (const l of fx.lines) {
-      const fadeIn  = Math.min(prog * 5, 1);
-      const fadeOut = fx.life < 0.6 ? fx.life / 0.6 : 1;
-      const a = l.alpha * fadeIn * fadeOut;
-      ctx.save();
-      ctx.rotate(l.angle);
-      ctx.beginPath();
-      ctx.moveTo(l.dist, 0);
-      ctx.lineTo(l.dist + l.len, 0);
-      ctx.strokeStyle = `rgba(100,200,255,${a})`;
-      ctx.lineWidth = l.width;
-      ctx.stroke();
-      ctx.restore();
-    }
-    ctx.restore();
-
-    // 3. 藍色光暈圓圈（中心擴散）
-    const ringR = 40 + prog * 220;
-    const ringA = Math.max(0, 0.6 - prog * 0.5);
-    const rg = ctx.createRadialGradient(cx, cy, ringR * 0.5, cx, cy, ringR);
-    rg.addColorStop(0, `rgba(100,210,255,${ringA})`);
-    rg.addColorStop(1, `rgba(0,80,160,0)`);
-    ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
-    ctx.fillStyle = rg; ctx.fill();
-  }
-
-  // ── 波風水門「飛雷神・亂斬」擊殺演出 ──
+    // ── 波風水門「飛雷神・亂斬」擊殺演出 ──
   if (state.minatoKillFX) {
     const fx = state.minatoKillFX;
 

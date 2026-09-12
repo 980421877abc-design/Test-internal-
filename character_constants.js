@@ -44,33 +44,74 @@ const OPM_COLLISION_REDUCE   = 1.0;    // 每次碰撞時增加的怒氣值
 const OPM_RAGE_PARTICLE_THRESHOLD = 0.3; // 怒氣超過此比例才出現粒子
 const OPM_DMG_REDUCE          = 0.3;  // 全局減傷比例（受到的所有傷害降低）
 const OPM_WALL_REDUCE          = 0.5; // 撞牆時減少的怒氣值倒數秒數
-//現代最強
+// ══════════════ 現代最強（Gojo 重做版）══════════════
 
-const GOJO_COOLDOWN        = 2.0;   // 蒼/赫CD（秒）
-const GOJO_BLUE_FRAMEDMG   = 6;    // 蒼每幀傷害（穿透持續）
-const GOJO_RED_DAMAGE      = 170;   // 赫傷害
-const GOJO_RED_KNOCKBACK   = 320;   // 赫球命中時的擊退強度（直接設定速度，效果明顯）
-const GOJO_PURPLE_FRAMEDMG = 8;     // 紫每幀傷害
-const GOJO_BLUE_SPEED      = 5;     // 蒼飛行速度
-const GOJO_RED_SPEED       = 4.5;
-const GOJO_PURPLE_SPEED    = 6.0;   // 紫飛行速度
-const GOJO_BLUE_RADIUS     = 13;    // 蒼球半徑
-const GOJO_BLUE_RING_R     = 32;    // 蒼球光圈半徑
-const GOJO_BLUE_RAY_RANGE  = 130;   // 蒼球光線射程
-const GOJO_BLUE_RAY_FORCE  = 10;    // 蒼球光線引力強度
-const GOJO_BLUE_LIFESPAN   = 2.0;   // 蒼球存在時間（秒），超時自動消失
-const GOJO_BLUE_PROJECTILE_PULL_RANGE = 250; // 蒼吸引敵方投射物的作用範圍（px）
-const GOJO_BLUE_PROJECTILE_PULL_FORCE = 10;  // 每幀施加在敵方投射物上的引力速度（px/frame）
-const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8; // 蒼每場最多儲存的敵方投射物數量
-const GOJO_RED_STORED_HOMING_TURN = 5.5; // 赫釋放投射物的追蹤角速度（rad/s）
-const GOJO_RED_STORED_HOMING_DURATION = 4.0; // 赫釋放投射物的追蹤持續時間（秒）
-const GOJO_PURPLE_RADIUS   = 24;    // 紫球半徑
-const GOJO_CHARGE_TIME     = 1.0;   // 虛式蓄力時間（秒）
-const GOJO_FORCE           = 10;    // 引力/斥力強度（碰撞區域）
-const GOJO_FORCE_RANGE     = 100;   // 引力/斥力作用範圍
-const GOJO_HP_THRESHOLD    = 850;   // 觸發虛式的血量門檻
-const GOJO_PURPLE_CHANCE   = 0.10;  // 解鎖後紫出現機率
+// ── 被動「無下限」 ──
+const GOJO_INFINITY_MAX          = 10;    // 無下限量條上限
+const GOJO_INFINITY_RADIUS       = 80;    // 偵測投射物半徑（px）
+const GOJO_INFINITY_REGEN_TIME   = 8.0;   // 每 8 秒補滿一次
+const GOJO_INFINITY_SLOW_TIME    = 0.5;   // 投射物從原速減到 0 的時間（秒）
+const GOJO_INFINITY_LINGER       = 0.2;   // 停止後多久消失（秒）
 
+// ── 蒼／赫交替發射 ──
+const GOJO_COOLDOWN              = 2.0;   // 基礎發射間隔（秒）
+const GOJO_HP_THRESHOLD          = 850;   // 六眼覺醒血量門檻
+const GOJO_UNLOCK_CD_BONUS       = 0.5;   // 覺醒後技能 CD -0.5 秒
+
+// ── 蒼（引力球）──
+const GOJO_BLUE_FRAMEDMG         = 6;     // 每幀傷害
+const GOJO_BLUE_SPEED            = 5;     // 飛行速度（*60 → 300px/s）
+const GOJO_BLUE_RADIUS           = 13;
+const GOJO_BLUE_RING_R           = 32;
+const GOJO_BLUE_RAY_RANGE        = 130;
+const GOJO_BLUE_RAY_FORCE        = 10;
+const GOJO_BLUE_LIFESPAN         = 2.0;
+const GOJO_BLUE_PROJECTILE_PULL_RANGE = 250;
+const GOJO_BLUE_PROJECTILE_PULL_FORCE = 10;
+const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8;
+
+// ── 赫（斥力球）──
+const GOJO_RED_DAMAGE            = 170;
+const GOJO_RED_KNOCKBACK         = 320;
+const GOJO_RED_SPEED             = 4.5;
+const GOJO_RED_STORED_HOMING_TURN = 5.5;
+const GOJO_RED_STORED_HOMING_DURATION = 4.0;
+
+// ── 紫（穿透高傷球）──
+const GOJO_PURPLE_DAMAGE         = 250;   // 命中單一敵人傷害
+const GOJO_PURPLE_SPEED          = 12.0;  // 極快（*60 → 720px/s）
+const GOJO_PURPLE_RADIUS         = 18;
+const GOJO_PURPLE_LIFESPAN       = 1.2;   // 存在時間（秒）
+// 紫不再反彈、不再吸附、不再反射，穿透路徑上所有敵人（同一敵人只打一次）
+const GOJO_PURPLE_EVERY_N        = 6;     // 每發射 6 發蒼/赫後，下一發為紫（僅六眼覺醒後）
+const GOJO_DOMAIN_HOMING_TURN    = 3.0;   // 領域展開期間，蒼/赫球的追蹤轉向速率（rad/s）
+
+// ── 無限制虛式紫（蒼+赫碰撞）──
+const GOJO_CLASH_RADIUS          = 40;    // 蒼赫距離 < 此值 → 觸發爆炸
+const GOJO_CLASH_DAMAGE          = 200;   // 爆炸傷害
+const GOJO_CLASH_AOE_RADIUS      = 180;   // 爆炸範圍半徑（px）—— 想更大就調大這個
+const GOJO_CLASH_SELF_REDUCE     = 0.7;   // 對 Gojo 自己的減傷比例（減 70%）
+
+// ── 蒼拳（近戰）──
+const GOJO_FIST_RANGE            = 60;    // 觸發距離（px）
+const GOJO_FIST_DAMAGE           = 30;
+const GOJO_FIST_COOLDOWN         = 0.5;
+const GOJO_FIST_PULL_FORCE       = 250;   // 引力（拉向 Gojo）
+
+// ── 領域展開・無量空處 ──
+const GOJO_DOMAIN_HP_REQ         = 700;   // 血量 >= 此值才能展開
+const GOJO_DOMAIN_DURATION       = 5.0;   // 持續秒數
+const GOJO_DOMAIN_CD             = 10.0;  // 冷卻秒數
+const GOJO_DOMAIN_SAFE_RADIUS    = 120;   // 展開時站在 Gojo 此範圍內免疫
+const GOJO_DOMAIN_DPS            = 30;    // 每秒傷害（只對「不安全」的敵人）
+const GOJO_DOMAIN_PARALYZE       = 5.0;   // 展開瞬間麻痺持續時間
+
+// ── 舊常數保留（避免其他程式碼引用時報錯）──
+const GOJO_PURPLE_FRAMEDMG       = 8;
+const GOJO_PURPLE_CHANCE         = 0;
+const GOJO_CHARGE_TIME           = 1.0;
+const GOJO_FORCE                 = 10;
+const GOJO_FORCE_RANGE           = 100;
 
 // 詛咒之王常數
 const CURSE_SLASH_INTERVAL    = 3.5;   // 解：斬痕發動間隔（秒）
