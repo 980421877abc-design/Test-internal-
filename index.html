@@ -2033,7 +2033,13 @@ const FIREBASE_CONFIG = {
   databaseURL: "https://test-c6c79-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "test-c6c79"
 };
-
+// ── 勝率統計資料版本 ──
+// 想開新版本時，只改這一個字就好（例如改成 'v4'）
+// 目前結構：charStats/v1/（舊資料直接掛根）→ charStats/v2/ → charStats/v3/
+const WINRATE_DATA_VERSION = 'v3';
+const WINRATE_PATH_CHAR_STATS = 'charStats/' + WINRATE_DATA_VERSION;
+const WINRATE_PATH_MATCH_HISTORY = 'matchHistory/' + WINRATE_DATA_VERSION;
+  
 // ──────────────── 傷害數字開關 ────────────────
 let damageNumbersEnabled = localStorage.getItem('damageNumbersEnabled') !== '0'; // 預設開啟
 function setDamageNumbersEnabled(on) {
@@ -2061,14 +2067,14 @@ function recordCharacterResult(charId, won, variantIds = []) {
   // 自組機器人屬於零件組裝玩法，不納入角色強度勝率統計。
   if (!winRateDB || !charId || charId === 'custom_assembled') return;
   const resultKey = won ? 'wins' : 'losses';
-  winRateDB.ref(`charStats/${charId}/${resultKey}`).transaction(cur => (cur || 0) + 1);
+ winRateDB.ref(`${WINRATE_PATH_CHAR_STATS}/${charId}/${resultKey}`).transaction(cur => (cur || 0) + 1);
 
   // 海克斯科技獨立統計：每個本場實際選用的配置各自 +1；
   // 若完全沒選任何海克斯科技，則記到 __none__。
   const ids = Array.isArray(variantIds) ? variantIds.filter(Boolean) : [];
   const trackedIds = ids.length ? ids : ['__none__'];
   trackedIds.forEach(variantId => {
-    winRateDB.ref(`charStats/${charId}/variants/${variantId}/${resultKey}`)
+    winRateDB.ref(`${WINRATE_PATH_CHAR_STATS}/${charId}/variants/${variantId}/${resultKey}`)
       .transaction(cur => (cur || 0) + 1);
   });
 }
@@ -2079,13 +2085,13 @@ function fetchCharacterVariantStats(charId, callback) {
   const ch = getCharacterRoster().find(c => c && c.id === charId);
   const variants = Array.isArray(ch?.variants) ? ch.variants : [];
   const baseRows = [
-    { id: '__none__', label: '沒帶', wins: 0, losses: 0, total: 0, rate: 0 }
+    { id: '__none__', label: '無', wins: 0, losses: 0, total: 0, rate: 0 }
   ];
   variants.forEach(v => baseRows.push({
     id: v.id, label: v.label || v.id, wins: 0, losses: 0, total: 0, rate: 0
   }));
   if (!winRateDB) { callback(baseRows); return; }
-  winRateDB.ref(`charStats/${charId}/variants`).once('value')
+  winRateDB.ref(`${WINRATE_PATH_CHAR_STATS}/${charId}/variants`).once('value')
     .then(snap => {
       const data = snap.val() || {};
       const rows = baseRows.map(row => {
@@ -2108,20 +2114,20 @@ function fetchCharacterVariantStats(charId, callback) {
 // 對戰結束時呼叫：記錄這兩個角色互相對位的勝/敗（雙向各寫一筆，查任一方都查得到）
 function recordMatchup(charA, charB, winnerCharId) {
   if (!winRateDB || !charA || !charB || charA === 'custom_assembled' || charB === 'custom_assembled') return;
-  winRateDB.ref(`charStats/${charA}/vs/${charB}/${winnerCharId === charA ? 'wins' : 'losses'}`).transaction(cur => (cur || 0) + 1);
-  winRateDB.ref(`charStats/${charB}/vs/${charA}/${winnerCharId === charB ? 'wins' : 'losses'}`).transaction(cur => (cur || 0) + 1);
+  winRateDB.ref(`${WINRATE_PATH_CHAR_STATS}/${charA}/vs/${charB}/${winnerCharId === charA ? 'wins' : 'losses'}`).transaction(cur => (cur || 0) + 1);
+winRateDB.ref(`${WINRATE_PATH_CHAR_STATS}/${charB}/vs/${charA}/${winnerCharId === charB ? 'wins' : 'losses'}`).transaction(cur => (cur || 0) + 1);
 }
 
 // 對戰結束時呼叫：把這場戰鬥推進對戰紀錄清單（每場1v1一筆，供「最近對戰紀錄」查詢）
 function recordMatchHistory(charA, charB, winnerCharId) {
   if (!winRateDB || !charA || !charB || charA === 'custom_assembled' || charB === 'custom_assembled') return;
-  winRateDB.ref('matchHistory').push({ a: charA, b: charB, winner: winnerCharId, ts: Date.now() });
+ winRateDB.ref(WINRATE_PATH_MATCH_HISTORY).push({ a: charA, b: charB, winner: winnerCharId, ts: Date.now() });
 }
 
 // 讀取所有角色的勝率榜，callback(rows) 其中 rows = [{id, wins, losses, total, rate}], 依勝率高→低排序
 function fetchWinRateBoard(callback) {
   if (!winRateDB) { callback([]); return; }
-  winRateDB.ref('charStats').once('value')
+  winRateDB.ref(WINRATE_PATH_CHAR_STATS).once('value')
     .then(snap => {
       const data = snap.val() || {};
       const rows = Object.keys(data).map(id => {
@@ -2139,7 +2145,7 @@ function fetchWinRateBoard(callback) {
 // 讀取單一角色對每個對手的對位勝率，callback(rows) 其中 rows = [{oppId, wins, losses, total, rate}], 依勝率高→低排序
 function fetchCharacterMatchups(charId, callback) {
   if (!winRateDB || !charId) { callback([]); return; }
-  winRateDB.ref(`charStats/${charId}/vs`).once('value')
+ winRateDB.ref(`${WINRATE_PATH_CHAR_STATS}/${charId}/vs`).once('value')
     .then(snap => {
       const data = snap.val() || {};
       const rows = Object.keys(data).map(oppId => {
@@ -2158,7 +2164,7 @@ function fetchCharacterMatchups(charId, callback) {
 function fetchCharacterMatchHistory(charId, callback, limit = 10) {
   if (!winRateDB || !charId) { callback([]); return; }
   // 撈最近300筆全域紀錄後在前端篩出跟這個角色有關的場次；資料量大時可再改成專用索引。
-  winRateDB.ref('matchHistory').orderByChild('ts').limitToLast(300).once('value')
+ winRateDB.ref(WINRATE_PATH_MATCH_HISTORY).orderByChild('ts').limitToLast(300).once('value')
     .then(snap => {
       const data = snap.val() || {};
       const rows = Object.keys(data).map(id => ({ id, ...data[id] }))
