@@ -47,20 +47,20 @@ const OPM_WALL_REDUCE          = 0.5; // 撞牆時減少的怒氣值倒數秒數
 // ══════════════ 現代最強（Gojo 重做版）══════════════
 
 // ── 被動「無下限」 ──
-const GOJO_INFINITY_MAX          = 10;    // 無下限量條上限
-const GOJO_INFINITY_RADIUS       = 50;    // 偵測投射物半徑（px）
-const GOJO_INFINITY_REGEN_TIME   = 8.0;   // 每 8 秒補滿一次
-const GOJO_INFINITY_SLOW_TIME    = 0.5;   // 投射物從原速減到 0 的時間（秒）
+const GOJO_INFINITY_MAX          = 8;    // 無下限量條上限
+const GOJO_INFINITY_RADIUS       = 70;    // 偵測投射物半徑（px）
+const GOJO_INFINITY_REGEN_TIME   = 12.0;   // 每 8 秒補滿一次
+const GOJO_INFINITY_SLOW_TIME    = 0.3;   // 投射物從原速減到 0 的時間（秒）
 const GOJO_INFINITY_LINGER       = 0.2;   // 停止後多久消失（秒）
 
 // ── 蒼／赫交替發射 ──
 const GOJO_COOLDOWN              = 2.0;   // 基礎發射間隔（秒）
-const GOJO_HP_THRESHOLD          = 850;   // 六眼覺醒血量門檻
+const GOJO_HP_THRESHOLD          = 700;   // 六眼覺醒血量門檻
 const GOJO_UNLOCK_CD_BONUS       = 0.5;   // 覺醒後技能 CD -0.5 秒
 
 // ── 蒼（引力球）──
-const GOJO_BLUE_FRAMEDMG         = 5;     // 每幀傷害
-const GOJO_BLUE_SPEED            = 5;     // 飛行速度（*60 → 300px/s）
+const GOJO_BLUE_FRAMEDMG         = 4;     // 每幀傷害
+const GOJO_BLUE_SPEED            = 4.5;     // 飛行速度（*60 → 300px/s）
 const GOJO_BLUE_RADIUS           = 13;
 const GOJO_BLUE_RING_R           = 32;
 const GOJO_BLUE_RAY_RANGE        = 130;
@@ -71,7 +71,7 @@ const GOJO_BLUE_PROJECTILE_PULL_FORCE = 10;
 const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8;
 
 // ── 赫（斥力球）──
-const GOJO_RED_DAMAGE            = 140;
+const GOJO_RED_DAMAGE            = 120;
 const GOJO_RED_KNOCKBACK         = 320;
 const GOJO_RED_SPEED             = 4.5;
 const GOJO_RED_STORED_HOMING_TURN = 5.5;
@@ -94,8 +94,8 @@ const GOJO_CLASH_SELF_REDUCE     = 0.7;   // 對 Gojo 自己的減傷比例（�
 
 // ── 蒼拳（近戰）──
 const GOJO_FIST_RANGE            = 60;    // 觸發距離（px）
-const GOJO_FIST_DAMAGE           = 30;
-const GOJO_FIST_COOLDOWN         = 0.5;
+const GOJO_FIST_DAMAGE           = 20;
+const GOJO_FIST_COOLDOWN         = 0.8;
 const GOJO_FIST_PULL_FORCE       = 250;   // 引力（拉向 Gojo）
 
 // ── 領域展開・無量空處 ──
@@ -104,7 +104,7 @@ const GOJO_DOMAIN_DURATION       = 3.0;   // 持續秒數
 const GOJO_DOMAIN_CD             = 10.0;  // 冷卻秒數
 const GOJO_DOMAIN_SAFE_RADIUS    = 60;   // 展開時站在 Gojo 此範圍內免疫
 const GOJO_DOMAIN_DPS            = 30;    // 每秒傷害（只對「不安全」的敵人）
-const GOJO_DOMAIN_PARALYZE       = 5.0;   // 展開瞬間麻痺持續時間
+const GOJO_DOMAIN_PARALYZE       = 3.0;   // 展開瞬間麻痺持續時間
 
 // ── 舊常數保留（避免其他程式碼引用時報錯）──
 const GOJO_PURPLE_FRAMEDMG       = 8;
