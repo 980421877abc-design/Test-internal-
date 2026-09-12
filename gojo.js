@@ -125,6 +125,35 @@
       }
     }
   }
+  
+  // ───────── 修復：蒼吸收的投射物會保留原始傷害 ─────────
+  let hookedPull = null;
+  function tryHookPull() {
+    if (hookedPull) return;
+    if (typeof window.applyGojoProjectilePull === 'function') {
+      hookedPull = window.applyGojoProjectilePull;
+      window.applyGojoProjectilePull = function (ball, projectiles, ownerPlayer, storage) {
+        // 暫存被無下限歸零的 damage，還原成原始值
+        const restoreList = [];
+        if (Array.isArray(projectiles)) {
+          for (const p of projectiles) {
+            if (p && p.gojoSlowing && Number.isFinite(p.gojoOriginalDamage) && p.damage === 0) {
+              restoreList.push({ p: p, saved: p.damage });
+              p.damage = p.gojoOriginalDamage;
+            }
+          }
+        }
+        try {
+          hookedPull(ball, projectiles, ownerPlayer, storage);
+        } finally {
+          for (const entry of restoreList) {
+            entry.p.damage = entry.saved;
+          }
+        }
+      };
+      console.log('[gojo_vfx] applyGojoProjectilePull hooked');
+    }
+  }
 
   // ───────── 偵測無下限消耗 ─────────
   const seenSlowingProjectiles = new WeakSet();
@@ -813,6 +842,7 @@
 
     tryHookClashExplode();
     tryHookFire();
+    tryHookPull();
     detectInfinityConsume();
     detectFistAttack();
     updateEffects(dt);
