@@ -12271,9 +12271,9 @@ function boundaryPulseRift(p, dt) {
     state.hitFlashes.push({ x:p.x, y:p.y, r:28, alpha:0.55, color:'#9feaff', t:0.18 });
     state.boundaryShockwaves = state.boundaryShockwaves || [];
     state.boundaryShockwaves.push({ x:p.x, y:p.y, age:0, life:0.32, maxR:42 });
-    for (const target of state.balls) {
-      if (!target || target.hp <= 0 || target.player === p.owner) continue;
-      if (Math.hypot(target.x-p.x,target.y-p.y) <= (p.r || 12) + (target.r || RADIUS)) dealDamage(target, BOUNDARY_RIFT_PULSE_DAMAGE, { attackerPlayer:p.owner, attackerBall:p.ownerBall });
+    for (const target of getAllCombatTargets()) {
+      if (!target || target.hp <= 0 || (target.player ?? target.ownerPlayer ?? target.owner) === p.owner) continue;
+      if (Math.hypot(target.x-p.x,target.y-p.y) <= (p.r || 12) + getCombatRadius(target)) dealDamage(target, BOUNDARY_RIFT_PULSE_DAMAGE, { attackerPlayer:p.owner, attackerBall:p.ownerBall });
     }
   }
 }
@@ -13691,7 +13691,7 @@ if (enemy) {
     for (const [vamp, target] of [[b0, b1], [b1, b0]]) {
       if (vamp.hp <= 0 || target.hp <= 0) continue;
       if (vamp.player === target.player) continue; // 同隊不觸發攻擊向技能
-             if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
+      if (vamp.char.type === 'vampire' && !vamp.vampireBiting && !target.frozenByVampire && vamp.vampireBiteCooldown <= 0 && !vamp.pucciDiscFrozen) {
   // 停止衝刺並開始咬擊
   vamp.vampireDashing = false;
   vamp.vampireDashElapsed = 0;
