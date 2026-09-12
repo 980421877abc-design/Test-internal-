@@ -80,8 +80,8 @@
         for (let i = before; i < after.length; i++) {
           const ball = after[i];
           if (ball && ball.type === 'purple') {
-            ball.gojoCharging = 0.5;
-            ball.gojoChargeMax = 0.5;
+            ball.gojoCharging = 1.0;
+            ball.gojoChargeMax = 1.0;
             ball.gojoOriginalVx = ball.vx;
             ball.gojoOriginalVy = ball.vy;
             ball.vx = 0;
@@ -200,7 +200,7 @@
     );
   }
 
-  function syncOverlay() {
+    function syncOverlay() {
     ensureOverlay();
     const arena = document.getElementById('arena');
     if (!arena || !overlayCanvas) return;
@@ -215,33 +215,28 @@
     }
     const rect = arena.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    overlayCanvas.width = Math.max(1, Math.round(arena.width * dpr));
-    overlayCanvas.height = Math.max(1, Math.round(arena.height * dpr));
+    // 用 arena 的「顯示尺寸」決定 overlay 內部像素，才能完全貼合
+    overlayCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+    overlayCanvas.height = Math.max(1, Math.round(rect.height * dpr));
     overlayCanvas.style.left = rect.left + 'px';
     overlayCanvas.style.top = rect.top + 'px';
     overlayCanvas.style.width = rect.width + 'px';
     overlayCanvas.style.height = rect.height + 'px';
     overlayCanvas.style.display = 'block';
   }
-
+  
   // ───────── 主繪製 ─────────
-  function drawOverlay() {
+    function drawOverlay() {
     if (!overlayCtx || !overlayCanvas) return;
     const arena = document.getElementById('arena');
     if (!arena) return;
     const W = arena.width;
     const H = arena.height;
-    const dpr = overlayCanvas.width / Math.max(1, W);
-    overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 世界座標 (W×H) 映射到 overlay 內部像素 (overlayCanvas.width × overlayCanvas.height)
+    const scaleX = overlayCanvas.width / Math.max(1, W);
+    const scaleY = overlayCanvas.height / Math.max(1, H);
+    overlayCtx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
     overlayCtx.clearRect(0, 0, W, H);
-
-    drawInfinityAura();
-    drawInfinityPulses();
-    drawPurpleChargingEffects();
-    drawPurpleEnhancements();
-    drawFistBursts();
-    drawClashBursts();
-  }
 
   // ═══════════════════════════════════════════════
   // 1. 無下限範圍光環
