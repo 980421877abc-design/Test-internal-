@@ -697,10 +697,15 @@ vsQuotes: {
   },
   {
     id: 'boundary', emoji: '👁️‍🗨️', weapon: '🌀', name: '超界者',
-    desc: '穿越維度邊界的異常存在，在黑洞與裂隙之間改寫戰場位置。',
+    desc: '自由穿梭在不同维度的高维生物，在黑洞與裂隙之間改寫戰場位置。',
     stats: ['次元之握', '維度穿梭'],
-    skills: ['次元之握：發射可穿透敵人與障礙物的次元裂隙，持續2.4秒並每0.2秒造成30點震盪傷害。', '黑洞折射：每8秒一次在場上隨機放置3個黑洞（不貼著邊界）；裂隙命中黑洞時由其他黑洞複製發射。', '維度躍遷：生命值降至400或遊戲時間20秒後觸發一次，持續6秒，期間持續追擊同一敵人，只要仍在攻擊範圍內就能反覆造成傷害。'],
+        skills: [
+      `「次元之握」：每 ${BOUNDARY_ATTACK_INTERVAL}s 向敵人投擲可穿透一切單位與障礙的次元裂隙，持續 ${BOUNDARY_RIFT_LIFE}s，每 ${BOUNDARY_RIFT_PULSE_INTERVAL}s 對路徑上所有敵人造成 ${BOUNDARY_RIFT_PULSE_DAMAGE} 點震盪傷害。`,
+      `「黑洞折射」：每 ${BOUNDARY_BLACK_HOLE_INTERVAL}s 在場上隨機生成 ${BOUNDARY_BLACK_HOLE_MAX} 個黑洞（遠離邊界 ${BOUNDARY_BLACK_HOLE_EDGE_MARGIN}px 以上）。當次元裂隙命中黑洞，其他黑洞會同步噴射出一道同樣的裂隙，朝各自方向擴散；黑洞被引爆時對範圍內敵人造成 ${BOUNDARY_BLACK_HOLE_BLAST_DAMAGE} 傷害。`,
+      `「維度躍遷」：生命值降至 ${BOUNDARY_WARP_TRIGGER_HP} 或開局後 ${BOUNDARY_WARP_TRIGGER_TIME}s 自動觸發一次，持續 ${BOUNDARY_WARP_DURATION}s。期間以 ${BOUNDARY_WARP_SPEED}px/s 高速追擊同一敵人，每 ${BOUNDARY_WARP_HIT_INTERVAL}s 對其造成 ${BOUNDARY_WARP_DAMAGE} 傷害。`,
+      `「迷彩」：每 ${BOUNDARY_CAMOUFLAGE_DURATION}s 迷彩 / ${BOUNDARY_CAMOUFLAGE_NORMAL}s 一般交替切換。迷彩期間無法被敵方索敵鎖定，但仍可被範圍傷害命中。`
+    ],
     color: '#8ee7ff', glowColor: 'rgba(142,231,255,0.75)', type: 'boundary',
-    winQuote: '邊界之外，仍然是我的領域。', loseQuote: '這個維度……拒絕了我。'
+    winQuote: '時間在我眼裡就像一張沙盤。', loseQuote: '這個維度……拒絕了我。'
   }
 ];
