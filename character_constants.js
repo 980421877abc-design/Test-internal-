@@ -100,9 +100,9 @@ const GOJO_FIST_PULL_FORCE       = 250;   // 引力（拉向 Gojo）
 
 // ── 領域展開・無量空處 ──
 const GOJO_DOMAIN_HP_REQ         = 700;   // 血量 >= 此值才能展開
-const GOJO_DOMAIN_DURATION       = 5.0;   // 持續秒數
+const GOJO_DOMAIN_DURATION       = 3.0;   // 持續秒數
 const GOJO_DOMAIN_CD             = 10.0;  // 冷卻秒數
-const GOJO_DOMAIN_SAFE_RADIUS    = 120;   // 展開時站在 Gojo 此範圍內免疫
+const GOJO_DOMAIN_SAFE_RADIUS    = 60;   // 展開時站在 Gojo 此範圍內免疫
 const GOJO_DOMAIN_DPS            = 30;    // 每秒傷害（只對「不安全」的敵人）
 const GOJO_DOMAIN_PARALYZE       = 5.0;   // 展開瞬間麻痺持續時間
 
