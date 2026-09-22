@@ -1,15 +1,15 @@
 /**
- * sakura.js — 櫻🌸 外部擴充模組（v3：判定與視覺對齊）
+ * sakura.js — 櫻🌸 外部擴充模組（v4：修正緩速抖動）
  *
  * 依賴：
  *   - character_constants.js 需提供 SAKURA_* 常數
  *   - character_roster.js 需提供 { id:'sakura', type:'sakura', ... } 條目
  *   - index.html 只需加入 <script src="sakura.js"></script>
  *
- * 本版修正：
- *   1. 判定線段 = [bR, bR + THRUST_LENGTH]，與視覺尖端對齊
- *   2. 視覺半寬 = 判定半寬（中段略寬，確保視覺碰到即判定命中）
- *   3. 動畫節奏改為「刺出→保持滿長→淡出」，判定窗口與視覺同步
+ * v4 修正：
+ *   1. 緩速持續時間 = 施加間隔 × 2.5 倍以上，消除因雙 rAF 相位差導致的「一卡一卡」
+ *   2. 樱吹雪額外位移套用緩速倍率，讓「2 倍速 × 緩速」正確叠加
+ *   3. 緩速只在「上一帧尚未生效或即將失效」時施加，避免每次 tick 都刷新造成視覺閃爍
  */
 (function () {
   'use strict';
@@ -47,7 +47,8 @@
   const SENBON_PER_3           = SAKURA_SENBON_DAMAGE_PER_3_PETALS;
   const SENBON_RADIUS_MULT     = SAKURA_SENBON_RADIUS_MULT;
   const SENBON_SLOW_FACTOR     = SAKURA_SENBON_SLOW_FACTOR;
-  const SENBON_SLOW_DUR        = SAKURA_SENBON_SLOW_DURATION;
+  // ★ 關鍵：緩速持續時間至少是 tick 間隔的 2.5 倍，避免雙 rAF 相位差導致斷斷續續
+  const SENBON_SLOW_DUR        = Math.max(SAKURA_SENBON_SLOW_DURATION, SENBON_TICK * 2.5);
   const YAE_REDUCE             = SAKURA_YAE_DAMAGE_REDUCE;
   const YAE_MAX                = SAKURA_YAE_MAX_CHARGES;
   const YAE_RECHARGE_TIME      = SAKURA_YAE_RECHARGE_TIME;
@@ -66,11 +67,13 @@
   const BLOOM_SPEED_MULT       = SAKURA_FULL_BLOOM_SPEED_MULT;
   const BLOOM_TICK             = SAKURA_FULL_BLOOM_TICK_INTERVAL;
   const BLOOM_DUR_PER_PETAL    = SAKURA_FULL_BLOOM_DURATION_PER_PETAL;
+  // ★ 樱吹雪的緩速持續時間也要拉長（tick 是 0.1 秒，0.15 秒根本不夠）
+  const BLOOM_SLOW_DUR         = Math.max(0.35, BLOOM_TICK * 3);
 
-  // ── 刺擊參數（判定與視覺共用同一組座標）──
-  const THRUST_LENGTH        = 80;   // 從「球邊緣」算起的攻擊距離
-  const THRUST_HALF_WIDTH    = 18;    // 判定半寬；也是視覺刀鋒的最大半寬基準
-  const THRUST_ANIM_DURATION = 0.26;  // 動畫時長
+  // ── 刺擊參數 ──
+  const THRUST_LENGTH        = 80;
+  const THRUST_HALF_WIDTH    = 18;
+  const THRUST_ANIM_DURATION = 0.26;
 
   // ══════════════════════════════════════════════════════════
   // 全域存取工具
@@ -96,9 +99,7 @@
     try { return (typeof RADIUS !== 'undefined') ? RADIUS : 25; } catch (_) { return 25; }
   }
   function getAllTargets() {
-    try {
-      if (typeof getAllCombatTargets === 'function') return getAllCombatTargets();
-    } catch (_) {}
+    try { if (typeof getAllCombatTargets === 'function') return getAllCombatTargets(); } catch (_) {}
     const r = getRoot();
     return (r && r.balls) || [];
   }
@@ -135,6 +136,19 @@
     const root = getRoot();
     if (!root || !root.hitFlashes) return;
     root.hitFlashes.push({ x, y, r, alpha: 1, color, t });
+  }
+
+  // ★ 讀取目標目前的緩速倍率（給樱吹雪的額外位移用，讓加速×緩速正確叠加）
+  function getSlowMultiplier(b) {
+    if (!b) return 1;
+    try {
+      if (typeof getStatusEffect === 'function') {
+        const eff = getStatusEffect(b, 'slow');
+        if (eff && Number.isFinite(eff.strength)) return eff.strength;
+      }
+    } catch (_) {}
+    if (b.curseSlowTimer > 0 && Number.isFinite(b.curseSlowFactor)) return b.curseSlowFactor;
+    return 1;
   }
 
   function sakuraDamage(ownerPlayer, ownerBall, target, base) {
@@ -245,10 +259,33 @@
     return false;
   }
 
-  // ── 刺擊判定：與視覺完全共用座標系 ──
-  //   判定線段 = [bR, bR + THRUST_LENGTH]，沿 angle 方向
-  //   視覺尖端（extension = 1 時）= bR + THRUST_LENGTH，與判定終點重合
-  //   判定半寬 = THRUST_HALF_WIDTH，視覺中段半寬 = THRUST_HALF_WIDTH * 1.10（略寬，確保視覺碰到即命中）
+  // ★ 緩速施加：只在「目前緩速剩餘 < tick 間隔的一半」時才重新施加
+  // 這樣可以避免每次 tick 都重寫 remaining，也避免視覺閃爍
+  function applySakuraSlow(target, duration, strength, source) {
+    if (!target || target.hp <= 0) return;
+
+    // 檢查目前緩速剩餘時間
+    let remaining = 0;
+    try {
+      if (typeof getStatusEffect === 'function') {
+        const eff = getStatusEffect(target, 'slow');
+        if (eff && Number.isFinite(eff.remaining)) remaining = eff.remaining;
+      }
+    } catch (_) {}
+    if (!remaining && target.curseSlowTimer > 0) remaining = target.curseSlowTimer;
+
+    // 剩餘時間充足 → 不重複施加，避免每 tick 重寫
+    if (remaining >= duration * 0.5) return;
+
+    applyStatusSafe(target, {
+      id: 'slow',
+      duration,
+      strength,
+      source,
+      stackMode: 'refreshMax'
+    });
+  }
+
   function performThrust(b, enemy) {
     const angle = Math.atan2(enemy.y - b.y, enemy.x - b.x);
     const bR = getRadius(b);
@@ -260,7 +297,6 @@
     b._sakuraThrustHits = new Set();
     b.sakuraBasicTimer = BASIC_INTERVAL;
 
-    // 判定線段：從球邊緣開始，與視覺對齊
     const x1 = b.x + Math.cos(angle) * bR;
     const y1 = b.y + Math.sin(angle) * bR;
     const x2 = b.x + Math.cos(angle) * (bR + THRUST_LENGTH);
@@ -305,6 +341,7 @@
       }
     }
 
+    // 被動千本櫻
     if (!b.sakuraFullBloomActive) {
       b.sakuraSenbonTickTimer -= dt;
       if (b.sakuraSenbonTickTimer <= 0) {
@@ -317,10 +354,8 @@
           if (Math.hypot(foe.x - b.x, foe.y - b.y) <= radius + getRadius(foe)) {
             const dmg = sakuraDamage(b.player, b, foe, baseDmg);
             applyDmg(foe, dmg, { attackerPlayer: b.player, attackerBall: b, continuousDamage: true });
-            applyStatusSafe(foe, {
-              id: 'slow', duration: SENBON_SLOW_DUR, strength: SENBON_SLOW_FACTOR,
-              source: 'sakura_senbon', stackMode: 'refreshMax'
-            });
+            // ★ 只在緩速快失效時才重新施加
+            applySakuraSlow(foe, SENBON_SLOW_DUR, SENBON_SLOW_FACTOR, 'sakura_senbon');
           }
         }
       }
@@ -332,7 +367,6 @@
 
     if (b.sakuraBasicTimer > 0) b.sakuraBasicTimer -= dt;
     if (enemy && b.sakuraBasicTimer <= 0) {
-      // 出手條件也與判定對齊：敵人在 [bR, bR + THRUST_LENGTH + enemyR] 之間才出手
       const reach = getRadius(b) + THRUST_LENGTH + getRadius(enemy);
       if (Math.hypot(enemy.x - b.x, enemy.y - b.y) <= reach) {
         performThrust(b, enemy);
@@ -373,10 +407,8 @@
           if ((foe.player ?? foe.ownerPlayer ?? foe.owner) === b.player) continue;
           const dmg = sakuraDamage(b.player, b, foe, baseDmg);
           applyDmg(foe, dmg, { attackerPlayer: b.player, attackerBall: b, continuousDamage: true });
-          applyStatusSafe(foe, {
-            id: 'slow', duration: 0.15, strength: SENBON_SLOW_FACTOR,
-            source: 'sakura_full_bloom', stackMode: 'refreshMax'
-          });
+          // ★ 樱吹雪的緩速也拉長並用同一套施加策略
+          applySakuraSlow(foe, BLOOM_SLOW_DUR, SENBON_SLOW_FACTOR, 'sakura_full_bloom');
         }
       }
       if (b.sakuraFullBloomDuration <= 0) {
@@ -384,9 +416,11 @@
         b.sakuraFullBloomDuration = 0;
         b.sakuraFullBloomCooldown = BLOOM_CD;
       }
+      // ★ 樱吹雪的額外位移，套用緩速倍率，讓「2 倍速 × 緩速」正確叠加
+      const slowMul = getSlowMultiplier(b);
       const wall = getWall(), W = getW(), H = getH(), r = getRadius(b);
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
+      b.x += b.vx * dt * slowMul;
+      b.y += b.vy * dt * slowMul;
       if (b.x - r < wall) b.x = wall + r;
       if (b.x + r > W - wall) b.x = W - wall - r;
       if (b.y - r < wall) b.y = wall + r;
@@ -421,10 +455,8 @@
           if (Math.hypot(foe.x - z.x, foe.y - z.y) < z.radius + getRadius(foe)) {
             const dmg = sakuraDamage(z.owner, ownerBall, foe, baseDmg);
             applyDmg(foe, dmg, { attackerPlayer: z.owner, attackerBall: ownerBall, continuousDamage: true });
-            applyStatusSafe(foe, {
-              id: 'slow', duration: SENBON_SLOW_DUR, strength: SENBON_SLOW_FACTOR,
-              source: 'sakura_fubun', stackMode: 'refreshMax'
-            });
+            // ★ 領域也用同一套緩速施加策略
+            applySakuraSlow(foe, SENBON_SLOW_DUR, SENBON_SLOW_FACTOR, 'sakura_fubun');
           }
         }
       }
@@ -474,13 +506,12 @@
   }
 
   // ══════════════════════════════════════════════════════════
-  // 繪製：刺擊刀鋒（與判定對齊）
+  // 繪製：刺擊刀鋒
   // ══════════════════════════════════════════════════════════
   function drawThrust(c, b, bR) {
     if (!(b._sakuraThrustAnim > 0) || !(b._sakuraThrustAnimMax > 0)) return;
-    const t = 1 - b._sakuraThrustAnim / b._sakuraThrustAnimMax; // 0 → 1
+    const t = 1 - b._sakuraThrustAnim / b._sakuraThrustAnimMax;
 
-    // 三段節奏：0~25% 刺出 → 25~70% 保持滿長（判定窗口） → 70~100% 淡出
     let extension, opacity;
     if (t < 0.25) {
       const k = t / 0.25;
@@ -496,11 +527,6 @@
     }
     if (opacity <= 0.02) return;
 
-    // 座標系統（本地：+x = 刺出方向）：
-    //   判定線段 = [bR, bR + THRUST_LENGTH]（世界座標，沿 angle 方向）
-    //   視覺根部 = bR * 0.35（球內一點，看起來從球裡伸出）
-    //   視覺尖端 = bR + THRUST_LENGTH * extension（extension=1 時與判定終點重合）
-    //   視覺半寬：中段最寬 = THRUST_HALF_WIDTH * 1.10（略寬於判定，確保視覺碰到即命中）
     const rootX = bR * 0.35;
     const tipX = bR + THRUST_LENGTH * extension;
     const len = tipX - rootX;
@@ -511,7 +537,6 @@
     c.translate(b.x, b.y);
     c.rotate(b._sakuraThrustAngle);
 
-    // ── 刺出階段飄散的花瓣碎片（收回階段不畫）──
     if (t < 0.5) {
       const sp = Math.max(0, 1 - t / 0.5);
       c.globalAlpha = opacity * sp * 0.85;
@@ -536,28 +561,17 @@
       }
     }
 
-    // ── 刀鋒主體：花瓣梭形 ──
     c.globalAlpha = opacity;
     c.globalCompositeOperation = 'source-over';
 
-    // 外暈（極淡，略寬於判定，讓「視覺碰到」＝「判定命中」）
     c.beginPath();
     c.moveTo(rootX, 0);
-    c.bezierCurveTo(
-      rootX + len * 0.25, -maxHalfW * 1.45,
-      rootX + len * 0.60, -maxHalfW * 1.20,
-      tipX, 0
-    );
-    c.bezierCurveTo(
-      rootX + len * 0.60, maxHalfW * 1.20,
-      rootX + len * 0.25, maxHalfW * 1.45,
-      rootX, 0
-    );
+    c.bezierCurveTo(rootX + len * 0.25, -maxHalfW * 1.45, rootX + len * 0.60, -maxHalfW * 1.20, tipX, 0);
+    c.bezierCurveTo(rootX + len * 0.60, maxHalfW * 1.20, rootX + len * 0.25, maxHalfW * 1.45, rootX, 0);
     c.closePath();
     c.fillStyle = 'rgba(255, 166, 201, 0.22)';
     c.fill();
 
-    // 刀身（粉色漸層）
     const bladeGrad = c.createLinearGradient(rootX, 0, tipX, 0);
     bladeGrad.addColorStop(0, 'rgba(255, 235, 244, 0.05)');
     bladeGrad.addColorStop(0.30, 'rgba(255, 190, 215, 0.85)');
@@ -565,33 +579,19 @@
     bladeGrad.addColorStop(1, 'rgba(255, 245, 250, 0.9)');
     c.beginPath();
     c.moveTo(rootX, 0);
-    c.bezierCurveTo(
-      rootX + len * 0.25, -maxHalfW * 1.05,
-      rootX + len * 0.60, -maxHalfW * 0.85,
-      tipX, 0
-    );
-    c.bezierCurveTo(
-      rootX + len * 0.60, maxHalfW * 0.85,
-      rootX + len * 0.25, maxHalfW * 1.05,
-      rootX, 0
-    );
+    c.bezierCurveTo(rootX + len * 0.25, -maxHalfW * 1.05, rootX + len * 0.60, -maxHalfW * 0.85, tipX, 0);
+    c.bezierCurveTo(rootX + len * 0.60, maxHalfW * 0.85, rootX + len * 0.25, maxHalfW * 1.05, rootX, 0);
     c.closePath();
     c.fillStyle = bladeGrad;
     c.fill();
 
-    // 上緣高光
     c.beginPath();
     c.moveTo(rootX, 0);
-    c.bezierCurveTo(
-      rootX + len * 0.25, -maxHalfW * 1.05,
-      rootX + len * 0.60, -maxHalfW * 0.85,
-      tipX, 0
-    );
+    c.bezierCurveTo(rootX + len * 0.25, -maxHalfW * 1.05, rootX + len * 0.60, -maxHalfW * 0.85, tipX, 0);
     c.strokeStyle = 'rgba(255, 245, 250, 0.95)';
     c.lineWidth = 1.2;
     c.stroke();
 
-    // 中央花脈（用 lighter 疊加，不影響主體顏色）
     c.globalCompositeOperation = 'lighter';
     const coreGrad = c.createLinearGradient(rootX, 0, tipX, 0);
     coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
@@ -605,7 +605,6 @@
     c.lineTo(tipX * 0.98, 0);
     c.stroke();
 
-    // 尖端亮點
     const tipGlow = c.createRadialGradient(tipX, 0, 0, tipX, 0, 9);
     tipGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
     tipGlow.addColorStop(0.4, 'rgba(255, 220, 235, 0.5)');
@@ -616,7 +615,6 @@
     c.fill();
     c.globalCompositeOperation = 'source-over';
 
-    // ── 命中綻放：刀尖向外炸出花瓣（非圓形爆閃）──
     if (b._sakuraThrustHit && t > 0.28 && t < 0.82) {
       const hp = (t - 0.28) / 0.54;
       const flash = Math.sin(hp * Math.PI);
@@ -667,7 +665,6 @@
 
     const balls = root.balls || [];
 
-    // 樱吹雪全場濾鏡
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.char || b.char.type !== TYPE) continue;
       if (!b.sakuraFullBloomActive) continue;
@@ -692,7 +689,6 @@
       c.restore();
     }
 
-    // 千本櫻範圍虛線圈
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.char || b.char.type !== TYPE) continue;
       if (b.sakuraFullBloomActive) continue;
@@ -711,7 +707,6 @@
       c.restore();
     }
 
-    // 落櫻繽紛領域
     if (root.sakuraFubunZones) {
       for (const z of root.sakuraFubunZones) {
         c.save();
@@ -740,7 +735,6 @@
       }
     }
 
-    // 每顆櫻
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.char || b.char.type !== TYPE) continue;
       const petals = Math.min(PETAL_MAX, b.sakuraPetals || 0);
@@ -796,7 +790,6 @@
       }
     }
 
-    // 櫻印標記
     for (const b of balls) {
       if (!b || b.hp <= 0 || !(b.sakuraMarkedTimer > 0)) continue;
       c.save();
