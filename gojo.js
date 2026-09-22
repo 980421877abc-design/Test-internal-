@@ -1,6 +1,12 @@
 /* ============================================================================
- * gojo.js v4 — 現代最強視覺特效（強化版）
+ * gojo.js v5 — 現代最強視覺特效（強化版 + 戰鬥外守門）
  * 紫球蓄力修復 + 無量空處華麗 + 虛式紫炸裂 + 紫球路徑毀滅感
+ *
+ * v5 修正：
+ *   1. 新增 isBattleActive() 守門：主引擎停機（退出／結算／matchEnded）後
+ *      不再更新與繪製，解決現代最強勝利後畫面卡頓
+ *   2. 偵測 state 更換時清空 FX 陣列，避免跨對局殘留
+ *   3. syncOverlay 在非戰鬥時直接隱藏，不呼叫 getBoundingClientRect
  * ============================================================================ */
 (() => {
   'use strict';
@@ -17,6 +23,24 @@
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
+
+  // ═══════════════════════════════════════════════
+  // 戰鬥狀態守門：判斷戰鬥是否仍在進行
+  //   任一條件成立即視為「不在戰鬥」：
+  //     1. game-screen 被隱藏（回到選角畫面）
+  //     2. 結算 overlay 已出現（分出勝負）
+  //     3. 主引擎已標記 matchEnded
+  //   不在戰鬥時必須完全停掉更新與繪製，避免主引擎停機後特效殘留卡住畫面。
+  // ═══════════════════════════════════════════════
+  function isBattleActive() {
+    const gameScreen = document.getElementById('game-screen');
+    if (!gameScreen) return false;
+    if (window.getComputedStyle(gameScreen).display === 'none') return false;
+    const overlay = document.getElementById('overlay');
+    if (overlay && overlay.classList.contains('show')) return false;
+    if (typeof state !== 'undefined' && state && state.matchEnded) return false;
+    return true;
+  }
 
   // ═══════════════════════════════════════════════
   // Hook 1：gojoClashExplode → 無限制虛式紫爆炸
@@ -302,6 +326,13 @@
     ensureOverlay();
     const arena = document.getElementById('arena');
     if (!arena || !overlayCanvas) return;
+
+    // 不在戰鬥：直接隱藏 overlay，不計算 getBoundingClientRect（避免強制佈局）
+    if (!isBattleActive()) {
+      overlayCanvas.style.display = 'none';
+      return;
+    }
+
     const active = FX.infinityPulses.length > 0
       || FX.clashBursts.length > 0
       || FX.fistBursts.length > 0
@@ -1098,10 +1129,33 @@
   // ═══════════════════════════════════════════════
   // 主循環
   // ═══════════════════════════════════════════════
+  // 記住上一帧的 state 參照，用來偵測「新對局」
+  let lastStateRef = null;
+
   function loop() {
     const t = performance.now();
     const dt = Math.min(0.05, Math.max(0, (t - (FX.lastTime || t)) / 1000));
     FX.lastTime = t;
+
+    // 偵測新對局：state 被 startGame() 重新指派時，清空所有殘留特效
+    // （FX 是模組層級陣列，不會隨 state 更換自動清空）
+    if (typeof state !== 'undefined' && state !== lastStateRef) {
+      lastStateRef = state;
+      FX.infinityPulses.length = 0;
+      FX.clashBursts.length = 0;
+      FX.fistBursts.length = 0;
+      FX.purpleCharges.length = 0;
+      FX.domainTears.length = 0;
+      FX.purpleTrails.length = 0;
+    }
+
+    // 不在戰鬥：跳過所有更新與繪製，只維持 rAF 存活
+    // 這解決了「主引擎 cancelAnimationFrame 停機後，gojo.js 仍每帧重畫領域特效」造成的卡頓。
+    if (!isBattleActive()) {
+      if (overlayCanvas) overlayCanvas.style.display = 'none';
+      requestAnimationFrame(loop);
+      return;
+    }
 
     tryHookClashExplode();
     tryHookFire();
@@ -1123,5 +1177,5 @@
     requestAnimationFrame(loop);
   }
 
-  console.log('[gojo_vfx] v4 已載入');
+  console.log('[gojo_vfx] v5 已載入');
 })();
