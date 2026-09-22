@@ -1,12 +1,15 @@
 /**
- * sakura.js — 櫻🌸 外部擴充模組（完整版）
+ * sakura.js — 櫻🌸 外部擴充模組（完整改良版）
  *
  * 依賴：
  *   - character_constants.js 需提供 SAKURA_* 常數
  *   - character_roster.js 需提供 { id:'sakura', type:'sakura', ... } 條目
  *   - index.html 只需加入 <script src="sakura.js"></script>
  *
- * 不改主引擎。所有狀態懒初始化、所有特效走獨立 overlay canvas。
+ * 本版改良：
+ *   1. 普攻改為近戰刺擊（線段判定，非飛行投射物）
+ *   2. 加入 isBattleActive 守門，退出／結算時完全停止邏輯與音效
+ *   3. 常數單一來源（character_constants.js），缺少時明確報錯停用
  */
 (function () {
   'use strict';
@@ -15,7 +18,6 @@
 
   // ══════════════════════════════════════════════════════════
   // 常數來源：character_constants.js（唯一）
-  // 若使用者忘記貼補丁，這裡直接停用本模組並在 Console 明示缺哪個。
   // ══════════════════════════════════════════════════════════
   const REQUIRED_CONSTANTS = [
     'SAKURA_PETAL_MAX',
@@ -57,7 +59,7 @@
     return;
   }
 
-  // ── 常數別名（本檔案內部用短名）──
+  // ── 常數別名 ──
   const PETAL_MAX              = SAKURA_PETAL_MAX;
   const SENBON_TICK            = SAKURA_SENBON_TICK_INTERVAL;
   const SENBON_BASE_DMG        = SAKURA_SENBON_BASE_DAMAGE;
@@ -71,7 +73,6 @@
   const YAE_RECHARGE_PER_PETAL = SAKURA_YAE_RECHARGE_PER_PETAL;
   const BASIC_DMG              = SAKURA_BASIC_DAMAGE;
   const BASIC_INTERVAL         = SAKURA_BASIC_INTERVAL;
-  const BASIC_SPEED            = SAKURA_BASIC_SPEED;
   const FUBUN_RADIUS_MULT      = SAKURA_FUBUN_RADIUS_MULT;
   const FUBUN_DURATION         = SAKURA_FUBUN_DURATION;
   const FUBUN_CD               = SAKURA_FUBUN_CD;
@@ -84,6 +85,11 @@
   const BLOOM_SPEED_MULT       = SAKURA_FULL_BLOOM_SPEED_MULT;
   const BLOOM_TICK             = SAKURA_FULL_BLOOM_TICK_INTERVAL;
   const BLOOM_DUR_PER_PETAL    = SAKURA_FULL_BLOOM_DURATION_PER_PETAL;
+
+  // ── 刺擊參數（純本檔內部，屬於「表現形式」而非角色數值）──
+  const THRUST_LENGTH          = 110;   // 從本體中心向前延伸的判定長度
+  const THRUST_HALF_WIDTH      = 18;    // 判定線段的半寬（總寬 36）
+  const THRUST_ANIM_DURATION   = 0.22;  // 刺出→收回動畫時長
 
   // ══════════════════════════════════════════════════════════
   // 全域存取工具
@@ -165,6 +171,15 @@
     return dmg;
   }
 
+  // 點到線段的最短距離（刺擊判定）
+  function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2)) : 0;
+    const cx = x1 + dx * t, cy = y1 + dy * t;
+    return Math.hypot(px - cx, py - cy);
+  }
+
   // ══════════════════════════════════════════════════════════
   // 狀態初始化（懒初始化）
   // ══════════════════════════════════════════════════════════
@@ -183,8 +198,11 @@
     b.sakuraFullBloomDuration   = 0;
     b.sakuraFullBloomActive     = false;
     b.sakuraFullBloomTickTimer  = 0;
-    b._sakuraAimX               = b.x;
-    b._sakuraAimY               = b.y;
+    b._sakuraThrustAnim         = 0;
+    b._sakuraThrustAnimMax      = 0;
+    b._sakuraThrustAngle        = 0;
+    b._sakuraThrustHit          = false;
+    b._sakuraThrustHits         = null;
   }
 
   // ══════════════════════════════════════════════════════════
@@ -210,7 +228,6 @@
           return;
         }
 
-        // DIO 世界時停的還原：不改充能
         const root = getRoot();
         if (root && root.dioWorldGlobalActive && root.dioWorldCaster !== b) {
           realHp = nv;
@@ -236,7 +253,6 @@
       }
     });
 
-    // 觸發一次同步，讓閉包內的 realHp 與 b.hp 對齊
     b._yaeSkipOnce = true;
     b.hp = realHp;
   }
@@ -258,25 +274,44 @@
     return false;
   }
 
-  function firePetal(b) {
-    const root = getRoot();
-    if (!root) return;
-    if (!root._sakuraProjectiles) root._sakuraProjectiles = [];
-    const angle = Math.atan2(b._sakuraAimY - b.y, b._sakuraAimX - b.x);
-    root._sakuraProjectiles.push({
-      x: b.x + Math.cos(angle) * (getRadius(b) + 6),
-      y: b.y + Math.sin(angle) * (getRadius(b) + 6),
-      vx: Math.cos(angle) * BASIC_SPEED,
-      vy: Math.sin(angle) * BASIC_SPEED,
-      angle,
-      owner: b.player,
-      ownerBall: b,
-      damage: BASIC_DMG,
-      r: 9,
-      life: 2.2,
-      hitTargets: new Set()
-    });
-    playHit('knife');
+  // 近戰刺擊：判定 + 啟動動畫
+  function performThrust(b, enemy) {
+    const angle = Math.atan2(enemy.y - b.y, enemy.x - b.x);
+    b._sakuraThrustAngle = angle;
+    b._sakuraThrustAnim = THRUST_ANIM_DURATION;
+    b._sakuraThrustAnimMax = THRUST_ANIM_DURATION;
+    b._sakuraThrustHit = false;
+    b._sakuraThrustHits = new Set();
+    b.sakuraBasicTimer = BASIC_INTERVAL;
+
+    // 從本體中心沿 angle 方向延伸 THRUST_LENGTH 的線段判定
+    const x1 = b.x, y1 = b.y;
+    const x2 = b.x + Math.cos(angle) * THRUST_LENGTH;
+    const y2 = b.y + Math.sin(angle) * THRUST_LENGTH;
+
+    for (const foe of getAllTargets()) {
+      if (!foe || foe.hp <= 0) continue;
+      if ((foe.player ?? foe.ownerPlayer ?? foe.owner) === b.player) continue;
+      if (b._sakuraThrustHits.has(foe)) continue;
+      const dist = pointToSegmentDistance(foe.x, foe.y, x1, y1, x2, y2);
+      if (dist < getRadius(foe) + THRUST_HALF_WIDTH) {
+        b._sakuraThrustHits.add(foe);
+        b._sakuraThrustHit = true;
+        const dmg = sakuraDamage(b.player, b, foe, BASIC_DMG);
+        applyDmg(foe, dmg, { attackerPlayer: b.player, attackerBall: b });
+        b.sakuraPetals = Math.min(PETAL_MAX, (b.sakuraPetals || 0) + 1);
+        pushFlash(foe.x, foe.y, 24, '#ffa6c9', 0.26);
+        playHit('knife');
+      }
+    }
+  }
+
+  // 刺擊動畫推進（純視覺）
+  function tickThrustAnim(b, dt) {
+    if (b._sakuraThrustAnim > 0) {
+      b._sakuraThrustAnim -= dt;
+      if (b._sakuraThrustAnim < 0) b._sakuraThrustAnim = 0;
+    }
   }
 
   function updateSakuraLogic(b, dt, root) {
@@ -317,15 +352,18 @@
       }
     }
 
+    // 刺擊動畫推進
+    tickThrustAnim(b, dt);
+
     const enemy = getNearestEnemyTo(b.x, b.y, b.player);
 
-    // 普攻：花刃
+    // 普攻：花刃刺擊
     if (b.sakuraBasicTimer > 0) b.sakuraBasicTimer -= dt;
     if (enemy && b.sakuraBasicTimer <= 0) {
-      b.sakuraBasicTimer = BASIC_INTERVAL;
-      b._sakuraAimX = enemy.x;
-      b._sakuraAimY = enemy.y;
-      firePetal(b);
+      const reach = THRUST_LENGTH + getRadius(b) + getRadius(enemy);
+      if (Math.hypot(enemy.x - b.x, enemy.y - b.y) <= reach) {
+        performThrust(b, enemy);
+      }
     }
 
     // 技能一：落櫻繽紛
@@ -377,7 +415,6 @@
         b.sakuraFullBloomCooldown = BLOOM_CD;
       }
       // 樱吹雪加速：主引擎已依原速度移動一次，這裡再補一次相同位移 ≈ 總位移 2 倍。
-      // 緩速仍會作用在主引擎的 vx/vy 上，因此被緩速時加成的絕對值也會同步縮小。
       const wall = getWall(), W = getW(), H = getH(), r = getRadius(b);
       b.x += b.vx * dt;
       b.y += b.vy * dt;
@@ -426,7 +463,7 @@
     }
   }
 
-  // 櫻印計時器（任何角色都可能被標記）
+  // 櫻印計時器
   function updateMarks(dt, root) {
     for (const b of (root.balls || [])) {
       if (!b || !(b.sakuraMarkedTimer > 0)) continue;
@@ -434,40 +471,6 @@
       if (b.sakuraMarkedTimer <= 0) {
         b.sakuraMarkedTimer = 0;
         b.sakuraMarkedOwnerPlayer = null;
-      }
-    }
-  }
-
-  // 花刃投射物
-  function updateProjectiles(dt, root) {
-    if (!root._sakuraProjectiles) root._sakuraProjectiles = [];
-    const arr = root._sakuraProjectiles;
-    const wall = getWall(), W = getW(), H = getH();
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const p = arr[i];
-      if (root.dioWorldGlobalActive && (!root.dioWorldCaster || p.owner !== root.dioWorldCaster.player)) continue;
-      if (!p.ownerBall || p.ownerBall.hp <= 0) { arr.splice(i, 1); continue; }
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.life -= dt;
-      if (p.life <= 0 || p.x < wall || p.x > W - wall || p.y < wall || p.y > H - wall) {
-        arr.splice(i, 1);
-        continue;
-      }
-      for (const foe of getAllTargets()) {
-        if (!foe || foe.hp <= 0) continue;
-        if ((foe.player ?? foe.ownerPlayer ?? foe.owner) === p.owner) continue;
-        if (p.hitTargets.has(foe)) continue;
-        if (Math.hypot(foe.x - p.x, foe.y - p.y) < getRadius(foe) + p.r) {
-          p.hitTargets.add(foe);
-          const dmg = sakuraDamage(p.owner, p.ownerBall, foe, p.damage);
-          applyDmg(foe, dmg, { attackerPlayer: p.owner, attackerBall: p.ownerBall });
-          if (p.ownerBall && p.ownerBall.hp > 0 && p.ownerBall.char && p.ownerBall.char.type === TYPE) {
-            p.ownerBall.sakuraPetals = Math.min(PETAL_MAX, (p.ownerBall.sakuraPetals || 0) + 1);
-          }
-          pushFlash(foe.x, foe.y, 22, '#ffa6c9', 0.26);
-          playHit('knife');
-        }
       }
     }
   }
@@ -536,7 +539,6 @@
       grad.addColorStop(1, 'rgba(255,166,201,0)');
       c.fillStyle = grad;
       c.fillRect(0, 0, W, H);
-      // 飄落花瓣
       for (let i = 0; i < 24; i++) {
         const t = (elapsed * 0.45 + i * 0.137) % 1;
         const px = ((i * 137) % W) + Math.sin(elapsed * 2 + i) * 20;
@@ -598,15 +600,107 @@
       }
     }
 
-    // 花瓣環繞 + 層數字 + 八重櫻充能
+    // 每顆櫻的個別特效
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.char || b.char.type !== TYPE) continue;
       const petals = Math.min(PETAL_MAX, b.sakuraPetals || 0);
+      const bR = getRadius(b);
 
+      // 刺擊動畫
+      if (b._sakuraThrustAnim > 0 && b._sakuraThrustAnimMax > 0) {
+        const t = 1 - b._sakuraThrustAnim / b._sakuraThrustAnimMax;
+        let extend;
+        if (t < 0.4) {
+          extend = Math.sin((t / 0.4) * Math.PI * 0.5);
+        } else {
+          extend = Math.cos(((t - 0.4) / 0.6) * Math.PI * 0.5);
+        }
+        const reach = bR + THRUST_LENGTH * extend;
+        const fade = 1 - Math.max(0, (t - 0.5) / 0.5) * 0.5;
+
+        c.save();
+        c.translate(b.x, b.y);
+        c.rotate(b._sakuraThrustAngle);
+        c.globalCompositeOperation = 'lighter';
+
+        // 外層光暈
+        c.globalAlpha = 0.35 * fade;
+        c.fillStyle = '#ffd6e6';
+        c.beginPath();
+        c.moveTo(bR * 0.3, -THRUST_HALF_WIDTH * 1.6);
+        c.lineTo(reach + 12, -3);
+        c.lineTo(reach + 22, 0);
+        c.lineTo(reach + 12, 3);
+        c.lineTo(bR * 0.3, THRUST_HALF_WIDTH * 1.6);
+        c.closePath();
+        c.fill();
+
+        // 主體花瓣尖刺
+        c.globalAlpha = 0.95 * fade;
+        c.fillStyle = '#ffa6c9';
+        c.shadowColor = '#ff8fb3';
+        c.shadowBlur = 14;
+        c.beginPath();
+        c.moveTo(bR * 0.4, -THRUST_HALF_WIDTH * 0.9);
+        c.lineTo(reach, -4);
+        c.lineTo(reach + 16, 0);
+        c.lineTo(reach, 4);
+        c.lineTo(bR * 0.4, THRUST_HALF_WIDTH * 0.9);
+        c.closePath();
+        c.fill();
+
+        // 內層亮芯
+        c.globalAlpha = 1;
+        c.fillStyle = '#ffe0eb';
+        c.shadowBlur = 8;
+        c.beginPath();
+        c.moveTo(bR * 0.5, -3);
+        c.lineTo(reach + 4, -1);
+        c.lineTo(reach + 10, 0);
+        c.lineTo(reach + 4, 1);
+        c.lineTo(bR * 0.5, 3);
+        c.closePath();
+        c.fill();
+
+        // 沿刺擊方向的殘影花瓣
+        c.globalAlpha = 0.55 * fade;
+        c.fillStyle = '#ff8fb3';
+        for (let i = 1; i <= 3; i++) {
+          const px = bR * 0.4 + (reach - bR * 0.4) * (i / 4);
+          const py = Math.sin(i * 1.4) * 4;
+          c.beginPath();
+          c.ellipse(px, py, 6 - i * 0.6, 3 - i * 0.3, 0, 0, Math.PI * 2);
+          c.fill();
+        }
+
+        // 命中綻放
+        if (b._sakuraThrustHit && t > 0.35 && t < 0.75) {
+          const flash = Math.sin(((t - 0.35) / 0.4) * Math.PI);
+          c.globalAlpha = flash * 0.9;
+          c.fillStyle = '#fff0f5';
+          c.shadowColor = '#ffa6c9'; c.shadowBlur = 20;
+          c.beginPath();
+          c.arc(reach + 6, 0, 8 + flash * 10, 0, Math.PI * 2);
+          c.fill();
+          c.globalAlpha = flash * 0.7;
+          c.strokeStyle = '#ffd6e6'; c.lineWidth = 2;
+          for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * Math.PI * 2;
+            c.beginPath();
+            c.moveTo(reach + 6, 0);
+            c.lineTo(reach + 6 + Math.cos(a) * (14 + flash * 10), Math.sin(a) * (14 + flash * 10));
+            c.stroke();
+          }
+        }
+
+        c.restore();
+      }
+
+      // 花瓣環繞
       if (petals > 0) {
         c.save();
         const spin = elapsed * 1.4;
-        const orbitR = getRadius(b) + 14 + petals * 0.7;
+        const orbitR = bR + 14 + petals * 0.7;
         for (let i = 0; i < petals; i++) {
           const angle = spin + (i / petals) * Math.PI * 2;
           const rWob = orbitR + Math.sin(spin * 1.8 + i) * 3;
@@ -632,10 +726,11 @@
         c.textBaseline = 'bottom';
         c.fillStyle = '#ffe0eb';
         c.shadowColor = '#000'; c.shadowBlur = 3;
-        c.fillText(`🌸${petals}/${PETAL_MAX}`, b.x, b.y - getRadius(b) - 8);
+        c.fillText(`🌸${petals}/${PETAL_MAX}`, b.x, b.y - bR - 8);
         c.restore();
       }
 
+      // 八重櫻充能
       if ((b.sakuraYaeCharges || 0) < YAE_MAX) {
         c.save();
         c.font = 'bold 9px sans-serif';
@@ -646,12 +741,12 @@
         const label = b.sakuraYaeRecharging
           ? `八重櫻 重充 ${Math.ceil(b.sakuraYaeRechargeTimer)}s`
           : `八重櫻 ${b.sakuraYaeCharges}/${YAE_MAX}`;
-        c.fillText(label, b.x, b.y + getRadius(b) + 8);
+        c.fillText(label, b.x, b.y + bR + 8);
         c.restore();
       }
     }
 
-    // 櫻印標記：五瓣花圖案
+    // 櫻印標記
     for (const b of balls) {
       if (!b || b.hp <= 0 || !(b.sakuraMarkedTimer > 0)) continue;
       c.save();
@@ -670,31 +765,6 @@
       c.beginPath(); c.arc(0, 0, 3, 0, Math.PI * 2); c.fill();
       c.restore();
     }
-
-    // 花刃投射物
-    if (root._sakuraProjectiles) {
-      for (const p of root._sakuraProjectiles) {
-        c.save();
-        c.translate(p.x, p.y);
-        c.rotate(p.angle + Math.PI / 2);
-        c.globalAlpha = 0.4;
-        c.fillStyle = '#ffd6e6';
-        c.beginPath();
-        c.ellipse(-14, 0, 10, 2.5, 0, 0, Math.PI * 2);
-        c.fill();
-        c.globalAlpha = 1;
-        c.fillStyle = '#ffa6c9';
-        c.shadowColor = '#ff8fb3'; c.shadowBlur = 12;
-        c.beginPath();
-        c.ellipse(0, 0, 11, 5, 0, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = '#ffe0eb';
-        c.beginPath();
-        c.ellipse(-2, -1, 5, 2, 0, 0, Math.PI * 2);
-        c.fill();
-        c.restore();
-      }
-    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -703,7 +773,19 @@
   function cleanupRoot(root) {
     if (!root) return;
     delete root.sakuraFubunZones;
-    delete root._sakuraProjectiles;
+  }
+
+  // 判斷戰鬥畫面是否仍在顯示：
+  //   - 選角畫面顯示中（game-screen 被隱藏）→ 不是戰鬥
+  //   - 結算 overlay 顯示中（已分出勝負）→ 不是戰鬥
+  // 這兩種情況都必須完全停掉櫻的邏輯與音效，否則退出後仍會一直響攻擊音。
+  function isBattleActive() {
+    const gameScreen = document.getElementById('game-screen');
+    if (!gameScreen) return false;
+    if (window.getComputedStyle(gameScreen).display === 'none') return false;
+    const overlay = document.getElementById('overlay');
+    if (overlay && overlay.classList.contains('show')) return false;
+    return true;
   }
 
   function frame(t) {
@@ -721,12 +803,20 @@
       return;
     }
 
+    // 不在戰鬥畫面：整段跳過邏輯與繪製，只維持迴圈存活
+    if (!isBattleActive()) {
+      syncOverlay(false);
+      // 重置計時基準，避免下次進戰鬥時 dt 暴衝
+      ov.lastTime = t;
+      requestAnimationFrame(frame);
+      return;
+    }
+
     const dt = Math.min(0.05, Math.max(0, (t - (ov.lastTime || t)) / 1000));
     ov.lastTime = t;
 
     const elapsed = root.elapsed || (t / 1000);
 
-    // 蒐集櫻花，逐一處理技能
     const sakuras = root.balls.filter(b => b && b.hp > 0 && b.char && b.char.type === TYPE);
     for (const b of sakuras) {
       ensureState(b);
@@ -736,26 +826,18 @@
 
     updateFubunZones(dt, root);
     updateMarks(dt, root);
-    updateProjectiles(dt, root);
 
-    // 該玩家死亡時清掉他的殘留
+    // 該玩家死亡時清掉他的領域
     const deadPlayers = new Set();
     for (const b of root.balls) {
       if (b && b.char && b.char.type === TYPE && b.hp <= 0) deadPlayers.add(b.player);
     }
-    if (deadPlayers.size) {
-      if (root._sakuraProjectiles) {
-        root._sakuraProjectiles = root._sakuraProjectiles.filter(p => !deadPlayers.has(p.owner));
-      }
-      if (root.sakuraFubunZones) {
-        root.sakuraFubunZones = root.sakuraFubunZones.filter(z => !deadPlayers.has(z.owner));
-      }
+    if (deadPlayers.size && root.sakuraFubunZones) {
+      root.sakuraFubunZones = root.sakuraFubunZones.filter(z => !deadPlayers.has(z.owner));
     }
 
-    // overlay 顯示條件：有任何櫻花、領域、投射物或印記就開
     const active = sakuras.length > 0
       || (root.sakuraFubunZones && root.sakuraFubunZones.length > 0)
-      || (root._sakuraProjectiles && root._sakuraProjectiles.length > 0)
       || root.balls.some(b => b && b.sakuraMarkedTimer > 0);
 
     syncOverlay(active);
