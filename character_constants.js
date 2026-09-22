@@ -1483,15 +1483,15 @@ const SAKURA_PETAL_MAX = 12;
 // 被動「千本櫻」：自身周圍傷害 + 緩速
 const SAKURA_SENBON_TICK_INTERVAL       = 0.3;
 const SAKURA_SENBON_BASE_DAMAGE         = 5;
-const SAKURA_SENBON_DAMAGE_PER_3_PETALS = 2;
+const SAKURA_SENBON_DAMAGE_PER_3_PETALS = 1;
 const SAKURA_SENBON_RADIUS_MULT         = 4;
-const SAKURA_SENBON_SLOW_FACTOR         = 0.30;
+const SAKURA_SENBON_SLOW_FACTOR         = 0.50;
 const SAKURA_SENBON_SLOW_DURATION       = 0.4;
 
 // 被動「八重櫻」：受到傷害時固定減傷
-const SAKURA_YAE_DAMAGE_REDUCE      = 20;
+const SAKURA_YAE_DAMAGE_REDUCE      = 10;
 const SAKURA_YAE_MAX_CHARGES        = 6;
-const SAKURA_YAE_RECHARGE_TIME      = 5.0;
+const SAKURA_YAE_RECHARGE_TIME      = 6.0;
 const SAKURA_YAE_RECHARGE_PER_PETAL = 0.2;
 
 // 普攻「花刃」
