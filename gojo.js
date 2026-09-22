@@ -1,14 +1,6 @@
 /* ============================================================================
- * gojo.js v3 — 現代最強視覺特效補丁
- * 獨立 overlay canvas：不會干擾主引擎渲染
- *
- * 效果：
- *   1. 無下限範圍光環（常駐，量條越低越暗）
- *   2. 無下限消耗時的波紋脈衝
- *   3. 紫球蓄力（藍紅球從兩側聚攏融合 0.8 秒）+ 發射爆發
- *   4. 紫球主體增強（螺旋粒子 + 三層旋轉光環 + 電場短刺 + 中心白閃）
- *   5. 蒼拳命中特效（拳頭軌跡 + 引力收縮圈 + 放射拳壓線）
- *   6. 無限制虛式紫爆炸（多層衝擊波 + 放射光線 + 粒子飛散）
+ * gojo.js v4 — 現代最強視覺特效（強化版）
+ * 紫球蓄力修復 + 無量空處華麗 + 虛式紫炸裂 + 紫球路徑毀滅感
  * ============================================================================ */
 (() => {
   'use strict';
@@ -18,90 +10,165 @@
     clashBursts: [],
     fistBursts: [],
     purpleCharges: [],
+    domainTears: [],     // 無量空處螢幕裂痕
+    purpleTrails: [],    // 紫球路徑裂痕
     lastTime: 0,
   };
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
 
-  // ───────── Hook gojoClashExplode ─────────
+  // ═══════════════════════════════════════════════
+  // Hook 1：gojoClashExplode → 無限制虛式紫爆炸
+  // ═══════════════════════════════════════════════
   let hookedClashExplode = null;
   function tryHookClashExplode() {
     if (hookedClashExplode) return;
-    if (typeof window.gojoClashExplode === 'function') {
-      hookedClashExplode = window.gojoClashExplode;
-      window.gojoClashExplode = function (b, cx, cy) {
-        hookedClashExplode(b, cx, cy);
-        spawnClashFX(cx, cy);
-      };
-      console.log('[gojo_vfx] gojoClashExplode hooked');
-    }
+    if (typeof window.gojoClashExplode !== 'function') return;
+    hookedClashExplode = window.gojoClashExplode;
+    window.gojoClashExplode = function (b, cx, cy) {
+      hookedClashExplode(b, cx, cy);
+      spawnClashFX(cx, cy);
+    };
+    console.log('[gojo_vfx] gojoClashExplode hooked');
   }
 
   function spawnClashFX(cx, cy) {
     FX.clashBursts.push({
       x: cx, y: cy,
-      life: 1.0, maxLife: 1.0,
+      life: 1.4, maxLife: 1.4,
       seed: Math.random() * 1000,
       rings: [
-        { maxR: 220, w: 6, color: '#bf00ff', delay: 0 },
-        { maxR: 180, w: 4, color: '#e0b0ff', delay: 0.08 },
-        { maxR: 280, w: 2, color: '#ffffff', delay: 0.15 }
+        { maxR: 260, w: 9, color: '#bf00ff', delay: 0 },
+        { maxR: 210, w: 5, color: '#e0b0ff', delay: 0.06 },
+        { maxR: 320, w: 3, color: '#ffffff', delay: 0.12 },
+        { maxR: 380, w: 2, color: '#7a2cb8', delay: 0.20 }
       ],
-      rays: Array.from({ length: 14 }, () => ({
-        angle: Math.random() * Math.PI * 2,
-        len: rand(100, 220)
-      })),
-      particles: Array.from({ length: 36 }, () => {
+      // 空間碎裂：從中心向外飛散的紫色方塊
+      shards: Array.from({ length: 22 }, () => {
         const a = Math.random() * Math.PI * 2;
-        const sp = rand(80, 340);
+        const sp = rand(120, 420);
+        return {
+          x: cx, y: cy,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+          rot: Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 8,
+          size: rand(6, 16),
+          life: rand(0.7, 1.3), maxLife: 1.3,
+          color: Math.random() < 0.5 ? '#bf00ff' : '#e0b0ff'
+        };
+      }),
+      // 白色裂痕線
+      rays: Array.from({ length: 20 }, () => ({
+        angle: Math.random() * Math.PI * 2,
+        len: rand(140, 320),
+        w: rand(2, 5)
+      })),
+      particles: Array.from({ length: 50 }, () => {
+        const a = Math.random() * Math.PI * 2;
+        const sp = rand(100, 480);
         const roll = Math.random();
         return {
           x: cx, y: cy,
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-          life: rand(0.4, 0.9), maxLife: 0.9,
-          r: rand(2, 6),
-          color: roll < 0.4 ? '#bf00ff' : (roll < 0.8 ? '#e0b0ff' : '#ffffff')
+          life: rand(0.5, 1.2), maxLife: 1.2,
+          r: rand(2, 7),
+          color: roll < 0.35 ? '#bf00ff' : (roll < 0.7 ? '#e0b0ff' : '#ffffff')
         };
       })
     });
   }
 
-  // ───────── Hook fireGojoAttack（偵測紫球發射 → 觸發蓄力）─────────
+  // ═══════════════════════════════════════════════
+  // Hook 2：fireGojoAttack → 紫球蓄力
+  // ═══════════════════════════════════════════════
   let hookedFire = null;
   function tryHookFire() {
     if (hookedFire) return;
-    if (typeof window.fireGojoAttack === 'function') {
-      hookedFire = window.fireGojoAttack;
-      window.fireGojoAttack = function (b, enemy) {
-        const before = (b.gojoBalls || []).length;
-        hookedFire(b, enemy);
-        const after = b.gojoBalls || [];
-        for (let i = before; i < after.length; i++) {
-          const ball = after[i];
-          if (ball && ball.type === 'purple') {
-            ball.gojoCharging = 0.8;
-            ball.gojoChargeMax = 0.8;
-            ball.gojoOriginalVx = ball.vx;
-            ball.gojoOriginalVy = ball.vy;
-            ball.vx = 0;
-            ball.vy = 0;
-            ball.gojoChargingVisual = true;
-            FX.purpleCharges.push({
-              ball: ball,
-              x: ball.x,
-              y: ball.y,
-              seed: Math.random() * 1000
-            });
-            FX.infinityPulses.push({ x: ball.x, y: ball.y, life: 0.35, maxLife: 0.35, color: '#bf00ff', big: true });
-          }
+    if (typeof window.fireGojoAttack !== 'function') return;
+    hookedFire = window.fireGojoAttack;
+    window.fireGojoAttack = function (b, enemy) {
+      const before = (b.gojoBalls || []).length;
+      hookedFire(b, enemy);
+      const after = b.gojoBalls || [];
+      for (let i = before; i < after.length; i++) {
+        const ball = after[i];
+        if (ball && ball.type === 'purple') {
+          ball.gojoCharging = 0.8;
+          ball.gojoChargeMax = 0.8;
+          ball.gojoOriginalVx = ball.vx;
+          ball.gojoOriginalVy = ball.vy;
+          ball.vx = 0;
+          ball.vy = 0;
+          ball.gojoChargingVisual = true;
+          FX.purpleCharges.push({
+            ball: ball,
+            x: ball.x,
+            y: ball.y,
+            seed: Math.random() * 1000
+          });
+          FX.infinityPulses.push({ x: ball.x, y: ball.y, life: 0.35, maxLife: 0.35, color: '#bf00ff', big: true });
         }
-      };
-      console.log('[gojo_vfx] fireGojoAttack hooked');
-    }
+      }
+    };
+    console.log('[gojo_vfx] fireGojoAttack hooked');
   }
 
-  // 更新紫球蓄力
+  // ═══════════════════════════════════════════════
+  // Hook 3：updateGojoBalls → 蓄力中的紫球不要被推進
+  // ═══════════════════════════════════════════════
+  let hookedUpdateBalls = null;
+  function tryHookUpdateBalls() {
+    if (hookedUpdateBalls) return;
+    if (typeof window.updateGojoBalls !== 'function') return;
+    hookedUpdateBalls = window.updateGojoBalls;
+    window.updateGojoBalls = function (b, dt) {
+      // 記住蓄力中的紫球，處理完後從 b.gojoBalls 暫時移除，
+      // 避免原函式把它們當一般投射物推進
+      if (!Array.isArray(b.gojoBalls)) return hookedUpdateBalls.call(this, b, dt);
+      const paused = [];
+      for (let i = b.gojoBalls.length - 1; i >= 0; i--) {
+        const ball = b.gojoBalls[i];
+        if (ball && ball.gojoChargingVisual) {
+          paused.push(ball);
+          b.gojoBalls.splice(i, 1);
+        }
+      }
+      hookedUpdateBalls.call(this, b, dt);
+      // 把它們放回
+      for (const p of paused) b.gojoBalls.push(p);
+    };
+    console.log('[gojo_vfx] updateGojoBalls hooked');
+  }
+
+  // ═══════════════════════════════════════════════
+  // Hook 4：applyGojoProjectilePull → 蒼吸收保留原始傷害
+  // ═══════════════════════════════════════════════
+  let hookedPull = null;
+  function tryHookPull() {
+    if (hookedPull) return;
+    if (typeof window.applyGojoProjectilePull !== 'function') return;
+    hookedPull = window.applyGojoProjectilePull;
+    window.applyGojoProjectilePull = function (ball, projectiles, ownerPlayer, storage) {
+      const restoreList = [];
+      if (Array.isArray(projectiles)) {
+        for (const p of projectiles) {
+          if (p && p.gojoSlowing && Number.isFinite(p.gojoOriginalDamage) && p.damage === 0) {
+            restoreList.push({ p: p, saved: p.damage });
+            p.damage = p.gojoOriginalDamage;
+          }
+        }
+      }
+      try {
+        hookedPull(ball, projectiles, ownerPlayer, storage);
+      } finally {
+        for (const entry of restoreList) entry.p.damage = entry.saved;
+      }
+    };
+    console.log('[gojo_vfx] applyGojoProjectilePull hooked');
+  }
+
+  // ───────── 更新紫球蓄力 + 生成路徑裂痕 ─────────
   function updatePurpleCharges(dt) {
     for (let i = FX.purpleCharges.length - 1; i >= 0; i--) {
       const c = FX.purpleCharges[i];
@@ -120,38 +187,46 @@
         ball.vy = ball.gojoOriginalVy || 0;
         ball.gojoCharging = 0;
         ball.gojoChargingVisual = false;
-        FX.infinityPulses.push({ x: c.x, y: c.y, life: 0.5, maxLife: 0.5, color: '#bf00ff', big: true });
+        FX.infinityPulses.push({ x: c.x, y: c.y, life: 0.6, maxLife: 0.6, color: '#bf00ff', big: true });
         FX.purpleCharges.splice(i, 1);
       }
     }
   }
-  
-  // ───────── 修復：蒼吸收的投射物會保留原始傷害 ─────────
-  let hookedPull = null;
-  function tryHookPull() {
-    if (hookedPull) return;
-    if (typeof window.applyGojoProjectilePull === 'function') {
-      hookedPull = window.applyGojoProjectilePull;
-      window.applyGojoProjectilePull = function (ball, projectiles, ownerPlayer, storage) {
-        // 暫存被無下限歸零的 damage，還原成原始值
-        const restoreList = [];
-        if (Array.isArray(projectiles)) {
-          for (const p of projectiles) {
-            if (p && p.gojoSlowing && Number.isFinite(p.gojoOriginalDamage) && p.damage === 0) {
-              restoreList.push({ p: p, saved: p.damage });
-              p.damage = p.gojoOriginalDamage;
-            }
+
+  // 追蹤紫球的軌跡，讓它們路過留下裂痕
+  const purpleTrailMap = new WeakMap();
+  function trackPurpleTrails(dt) {
+    if (!state || !state.balls) return;
+    for (const b of state.balls) {
+      if (!b || !b.char || b.char.type !== 'gojo') continue;
+      if (!Array.isArray(b.gojoBalls)) continue;
+      for (const ball of b.gojoBalls) {
+        if (!ball || ball.type !== 'purple' || !ball.active || ball.gojoChargingVisual) continue;
+        // 每 0.05 秒生成一個裂痕
+        const last = purpleTrailMap.get(ball) || 0;
+        if (performance.now() - last > 50) {
+          purpleTrailMap.set(ball, performance.now());
+          const spd = Math.hypot(ball.vx, ball.vy);
+          const ang = spd > 1 ? Math.atan2(ball.vy, ball.vx) : 0;
+          FX.purpleTrails.push({
+            x: ball.x, y: ball.y,
+            angle: ang,
+            life: 0.75, maxLife: 0.75,
+            seed: Math.random() * 1000,
+            size: 22 + Math.random() * 10
+          });
+        }
+        // 拉近附近的敵人
+        for (const t of (typeof window.getAllCombatTargets === 'function' ? window.getAllCombatTargets() : [])) {
+          if (!t || t.hp <= 0 || t.player === b.player) continue;
+          const dx = ball.x - t.x, dy = ball.y - t.y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d < 70 && d > 1) {
+            t.vx += (dx / d) * 6;
+            t.vy += (dy / d) * 6;
           }
         }
-        try {
-          hookedPull(ball, projectiles, ownerPlayer, storage);
-        } finally {
-          for (const entry of restoreList) {
-            entry.p.damage = entry.saved;
-          }
-        }
-      };
-      console.log('[gojo_vfx] applyGojoProjectilePull hooked');
+      }
     }
   }
 
@@ -177,7 +252,7 @@
     }
   }
 
-  // ───────── 偵測蒼拳出拳 ─────────
+  // ───────── 蒼拳偵測 ─────────
   const prevFistCd = new WeakMap();
   function detectFistAttack() {
     if (!state || !state.balls) return;
@@ -186,37 +261,25 @@
       const prev = prevFistCd.get(b) || 0;
       const curr = b.gojoFistCooldown || 0;
       if (curr > prev + 0.2 && prev < 0.5) {
-        spawnFistFX(b);
+        const target = (typeof window.getNearestEnemyTo === 'function')
+          ? window.getNearestEnemyTo(b.x, b.y, b.player) : null;
+        if (target) {
+          const angle = Math.atan2(target.y - b.y, target.x - b.x);
+          FX.fistBursts.push({
+            x: target.x, y: target.y,
+            originX: b.x, originY: b.y, angle: angle,
+            life: 0.42, maxLife: 0.42, seed: Math.random() * 1000
+          });
+        }
       }
       prevFistCd.set(b, curr);
     }
   }
 
-  function spawnFistFX(b) {
-    const target = (typeof window.getNearestEnemyTo === 'function')
-      ? window.getNearestEnemyTo(b.x, b.y, b.player)
-      : null;
-    if (!target) return;
-    const angle = Math.atan2(target.y - b.y, target.x - b.x);
-    FX.fistBursts.push({
-      x: target.x,
-      y: target.y,
-      originX: b.x,
-      originY: b.y,
-      angle: angle,
-      life: 0.42,
-      maxLife: 0.42,
-      seed: Math.random() * 1000
-    });
-  }
-
-  // ───────── Overlay canvas ─────────
+  // ───────── Overlay ─────────
   let overlayCanvas = null;
   let overlayCtx = null;
-  let lastRectW = 0;
-  let lastRectH = 0;
-  let lastLeft = 0;
-  let lastTop = 0;
+  let lastRectW = 0, lastRectH = 0, lastLeft = 0, lastTop = 0;
 
   function ensureOverlay() {
     if (overlayCanvas && document.body.contains(overlayCanvas)) return;
@@ -243,6 +306,7 @@
       || FX.clashBursts.length > 0
       || FX.fistBursts.length > 0
       || FX.purpleCharges.length > 0
+      || FX.purpleTrails.length > 0
       || hasGojo();
     if (!active) {
       overlayCanvas.style.display = 'none';
@@ -250,9 +314,7 @@
     }
     const rect = arena.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-
-    const needResize = rect.width !== lastRectW || rect.height !== lastRectH;
-    if (needResize) {
+    if (rect.width !== lastRectW || rect.height !== lastRectH) {
       overlayCanvas.width = Math.max(1, Math.round(rect.width * dpr));
       overlayCanvas.height = Math.max(1, Math.round(rect.height * dpr));
       lastRectW = rect.width;
@@ -280,16 +342,76 @@
     overlayCtx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
     overlayCtx.clearRect(0, 0, W, H);
 
+    drawPurpleTrails();
     drawInfinityAura();
     drawInfinityPulses();
     drawPurpleChargingEffects();
     drawPurpleEnhancements();
     drawFistBursts();
     drawClashBursts();
+    drawDomainEnhancements();
   }
 
   // ═══════════════════════════════════════════════
-  // 1. 無下限範圍光環
+  // 紫球路徑裂痕
+  // ═══════════════════════════════════════════════
+  function drawPurpleTrails() {
+    const time = performance.now() / 1000;
+    for (const t of FX.purpleTrails) {
+      const fade = clamp(t.life / t.maxLife, 0, 1);
+      const prog = 1 - fade;
+
+      overlayCtx.save();
+      overlayCtx.globalCompositeOperation = 'lighter';
+      overlayCtx.translate(t.x, t.y);
+      overlayCtx.rotate(t.angle);
+
+      // 中央撕裂線（會逐漸拉長）
+      const len = t.size * (0.6 + prog * 0.8);
+      overlayCtx.globalAlpha = fade * 0.9;
+      overlayCtx.strokeStyle = '#bf00ff';
+      overlayCtx.shadowColor = '#bf00ff';
+      overlayCtx.shadowBlur = 20;
+      overlayCtx.lineWidth = 3 * fade;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(-len, 0);
+      overlayCtx.lineTo(len, 0);
+      overlayCtx.stroke();
+
+      // 白色高亮芯
+      overlayCtx.globalAlpha = fade * 0.85;
+      overlayCtx.strokeStyle = '#ffffff';
+      overlayCtx.shadowColor = '#e0b0ff';
+      overlayCtx.shadowBlur = 12;
+      overlayCtx.lineWidth = 1.2;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(-len * 0.7, 0);
+      overlayCtx.lineTo(len * 0.7, 0);
+      overlayCtx.stroke();
+
+      // 上下兩道鋸齒裂口
+      overlayCtx.globalAlpha = fade * 0.7;
+      overlayCtx.strokeStyle = '#e0b0ff';
+      overlayCtx.shadowColor = '#bf00ff';
+      overlayCtx.lineWidth = 1.8;
+      for (let side = -1; side <= 1; side += 2) {
+        overlayCtx.beginPath();
+        const segs = 5;
+        for (let i = 0; i <= segs; i++) {
+          const px = -len + (len * 2) * (i / segs);
+          const py = side * (2 + Math.sin(time * 12 + i + t.seed) * 2);
+          if (i === 0) overlayCtx.moveTo(px, py);
+          else overlayCtx.lineTo(px, py);
+        }
+        overlayCtx.stroke();
+      }
+
+      overlayCtx.restore();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 無下限光環
   // ═══════════════════════════════════════════════
   function drawInfinityAura() {
     if (!state || !state.balls) return;
@@ -374,7 +496,7 @@
   }
 
   // ═══════════════════════════════════════════════
-  // 2. 無下限消耗波紋
+  // 無下限波紋
   // ═══════════════════════════════════════════════
   function drawInfinityPulses() {
     for (const p of FX.infinityPulses) {
@@ -397,17 +519,15 @@
       overlayCtx.globalAlpha = fade * 0.7;
       overlayCtx.lineWidth = 1.5;
       overlayCtx.beginPath();
-      overlayCtx.moveTo(p.x - r, p.y);
-      overlayCtx.lineTo(p.x + r, p.y);
-      overlayCtx.moveTo(p.x, p.y - r);
-      overlayCtx.lineTo(p.x, p.y + r);
+      overlayCtx.moveTo(p.x - r, p.y); overlayCtx.lineTo(p.x + r, p.y);
+      overlayCtx.moveTo(p.x, p.y - r); overlayCtx.lineTo(p.x, p.y + r);
       overlayCtx.stroke();
       overlayCtx.restore();
     }
   }
 
   // ═══════════════════════════════════════════════
-  // 3. 紫球蓄力：藍紅球從兩側聚攏融合
+  // 紫球蓄力：藍紅球聚攏
   // ═══════════════════════════════════════════════
   function drawPurpleChargingEffects() {
     const time = performance.now() / 1000;
@@ -418,6 +538,17 @@
 
       overlayCtx.save();
       overlayCtx.globalCompositeOperation = 'lighter';
+
+      // 地面預警圓
+      overlayCtx.globalAlpha = 0.35 * (1 - prog);
+      overlayCtx.strokeStyle = '#bf00ff';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.setLineDash([6, 6]);
+      overlayCtx.lineDashOffset = time * 30;
+      overlayCtx.beginPath();
+      overlayCtx.arc(c.x, c.y, 70 - prog * 30, 0, Math.PI * 2);
+      overlayCtx.stroke();
+      overlayCtx.setLineDash([]);
 
       const mergeProg = clamp(prog / 0.75, 0, 1);
       const offsetDist = 60 * (1 - mergeProg);
@@ -447,79 +578,51 @@
       if (mergeProg < 0.98) {
         overlayCtx.shadowColor = '#00eaff';
         overlayCtx.shadowBlur = 22;
-        const blueGrad = overlayCtx.createRadialGradient(
-          blueX - orbR * 0.3, blueY - orbR * 0.3, 1,
-          blueX, blueY, orbR
-        );
-        blueGrad.addColorStop(0, '#ffffff');
-        blueGrad.addColorStop(0.4, '#aaf0ff');
-        blueGrad.addColorStop(0.7, '#00cfff');
-        blueGrad.addColorStop(1, '#0066aa');
-        overlayCtx.fillStyle = blueGrad;
+        const bg = overlayCtx.createRadialGradient(blueX - orbR * 0.3, blueY - orbR * 0.3, 1, blueX, blueY, orbR);
+        bg.addColorStop(0, '#ffffff');
+        bg.addColorStop(0.4, '#aaf0ff');
+        bg.addColorStop(0.7, '#00cfff');
+        bg.addColorStop(1, '#0066aa');
+        overlayCtx.fillStyle = bg;
         overlayCtx.beginPath();
         overlayCtx.arc(blueX, blueY, orbR, 0, Math.PI * 2);
         overlayCtx.fill();
-        overlayCtx.strokeStyle = 'rgba(200,250,255,0.8)';
-        overlayCtx.lineWidth = 1.5;
-        overlayCtx.shadowBlur = 0;
-        overlayCtx.stroke();
       }
-
       if (mergeProg < 0.98) {
         overlayCtx.shadowColor = '#ff4444';
         overlayCtx.shadowBlur = 22;
-        const redGrad = overlayCtx.createRadialGradient(
-          redX - orbR * 0.3, redY - orbR * 0.3, 1,
-          redX, redY, orbR
-        );
-        redGrad.addColorStop(0, '#ffffff');
-        redGrad.addColorStop(0.4, '#ffb0b0');
-        redGrad.addColorStop(0.7, '#ff4444');
-        redGrad.addColorStop(1, '#8a0000');
-        overlayCtx.fillStyle = redGrad;
+        const rg = overlayCtx.createRadialGradient(redX - orbR * 0.3, redY - orbR * 0.3, 1, redX, redY, orbR);
+        rg.addColorStop(0, '#ffffff');
+        rg.addColorStop(0.4, '#ffb0b0');
+        rg.addColorStop(0.7, '#ff4444');
+        rg.addColorStop(1, '#8a0000');
+        overlayCtx.fillStyle = rg;
         overlayCtx.beginPath();
         overlayCtx.arc(redX, redY, orbR, 0, Math.PI * 2);
         overlayCtx.fill();
-        overlayCtx.strokeStyle = 'rgba(255,220,220,0.8)';
-        overlayCtx.lineWidth = 1.5;
-        overlayCtx.shadowBlur = 0;
-        overlayCtx.stroke();
       }
 
       if (mergeProg > 0.85) {
         const flashProg = (mergeProg - 0.85) / 0.15;
         const flashAlpha = 1 - flashProg;
-        const flashR = 20 + 30 * flashProg;
-
+        const flashR = 25 + 40 * flashProg;
+        const fg = overlayCtx.createRadialGradient(c.x, c.y, 0, c.x, c.y, flashR);
+        fg.addColorStop(0, 'rgba(255,255,255,' + (flashAlpha * 0.95) + ')');
+        fg.addColorStop(0.4, 'rgba(224,176,255,' + (flashAlpha * 0.7) + ')');
+        fg.addColorStop(1, 'rgba(191,0,255,0)');
         overlayCtx.shadowColor = '#ffffff';
         overlayCtx.shadowBlur = 30 * flashAlpha;
-        const flashGrad = overlayCtx.createRadialGradient(
-          c.x, c.y, 0, c.x, c.y, flashR
-        );
-        flashGrad.addColorStop(0, 'rgba(255,255,255,' + (flashAlpha * 0.95) + ')');
-        flashGrad.addColorStop(0.4, 'rgba(224,176,255,' + (flashAlpha * 0.7) + ')');
-        flashGrad.addColorStop(1, 'rgba(191,0,255,0)');
-        overlayCtx.fillStyle = flashGrad;
+        overlayCtx.fillStyle = fg;
         overlayCtx.beginPath();
         overlayCtx.arc(c.x, c.y, flashR, 0, Math.PI * 2);
         overlayCtx.fill();
-
-        const ringR = 15 + flashProg * 45;
-        overlayCtx.globalAlpha = flashAlpha * 0.85;
-        overlayCtx.strokeStyle = '#bf00ff';
-        overlayCtx.lineWidth = 3 * flashAlpha + 1;
-        overlayCtx.shadowColor = '#bf00ff';
-        overlayCtx.shadowBlur = 20;
-        overlayCtx.beginPath();
-        overlayCtx.arc(c.x, c.y, ringR, 0, Math.PI * 2);
-        overlayCtx.stroke();
-        overlayCtx.globalAlpha = 1;
       }
 
-      const sparkCount = Math.round(6 + prog * 10);
+      // 環繞粒子
+      const sparkCount = Math.round(8 + prog * 14);
       for (let i = 0; i < sparkCount; i++) {
         const a = time * 3 + (i / sparkCount) * Math.PI * 2 + c.seed;
-        const sparkR = 30 - prog * 15 + Math.sin(time * 8 + i) * 4;
+        const sparkR = 40 - prog * 20 + Math.sin(time * 8 + i) * 5;
         const sx = c.x + Math.cos(a) * sparkR;
         const sy = c.y + Math.sin(a) * sparkR;
         overlayCtx.globalAlpha = 0.5 + prog * 0.5;
@@ -536,7 +639,7 @@
   }
 
   // ═══════════════════════════════════════════════
-  // 4. 紫球主體增強
+  // 紫球主體
   // ═══════════════════════════════════════════════
   function drawPurpleEnhancements() {
     if (!state || !state.balls) return;
@@ -553,12 +656,13 @@
         overlayCtx.save();
         overlayCtx.globalCompositeOperation = 'lighter';
 
+        // 額外拖尾
         const trail = ball.trail || [];
         for (let i = 0; i < trail.length; i++) {
           const t = trail[i];
           const frac = (i + 1) / trail.length;
           const angle = time * 8 + i * 0.7;
-          const offset = 12 * (1 - frac);
+          const offset = 14 * (1 - frac);
           for (let k = 0; k < 2; k++) {
             const side = k === 0 ? 1 : -1;
             const px = t.x + Math.cos(angle + k * Math.PI) * offset * side;
@@ -574,10 +678,19 @@
         }
 
         const pulse = 0.85 + 0.15 * Math.sin(time * 10);
-        const coreGrad = overlayCtx.createRadialGradient(
-          ball.x - 3, ball.y - 3, 1,
-          ball.x, ball.y, ball.r * 1.2
-        );
+        // 外光暈
+        const auraGrad = overlayCtx.createRadialGradient(ball.x, ball.y, ball.r * 0.4, ball.x, ball.y, ball.r * 2.6);
+        auraGrad.addColorStop(0, 'rgba(191,0,255,0.4)');
+        auraGrad.addColorStop(0.5, 'rgba(191,0,255,0.15)');
+        auraGrad.addColorStop(1, 'rgba(75,0,102,0)');
+        overlayCtx.globalAlpha = pulse;
+        overlayCtx.fillStyle = auraGrad;
+        overlayCtx.beginPath();
+        overlayCtx.arc(ball.x, ball.y, ball.r * 2.6, 0, Math.PI * 2);
+        overlayCtx.fill();
+
+        // 主體
+        const coreGrad = overlayCtx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, ball.r * 1.2);
         coreGrad.addColorStop(0, '#ffffff');
         coreGrad.addColorStop(0.25, '#f0d0ff');
         coreGrad.addColorStop(0.6, '#bf00ff');
@@ -585,34 +698,32 @@
         overlayCtx.globalAlpha = 1;
         overlayCtx.fillStyle = coreGrad;
         overlayCtx.shadowColor = '#bf00ff';
-        overlayCtx.shadowBlur = 35 * pulse;
+        overlayCtx.shadowBlur = 40 * pulse;
         overlayCtx.beginPath();
         overlayCtx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
         overlayCtx.fill();
 
+        // 三層旋轉環
         for (let ring = 0; ring < 3; ring++) {
           const ringR = ball.r * (1.7 + ring * 0.55) * pulse;
-          const alpha = 0.55 - ring * 0.15;
-          overlayCtx.globalAlpha = alpha;
+          overlayCtx.globalAlpha = 0.6 - ring * 0.15;
           overlayCtx.strokeStyle = ring === 1 ? '#e0b0ff' : '#bf00ff';
           overlayCtx.lineWidth = 2.8 - ring * 0.7;
           overlayCtx.shadowColor = '#bf00ff';
           overlayCtx.shadowBlur = 22 - ring * 5;
           overlayCtx.beginPath();
-          overlayCtx.arc(
-            ball.x, ball.y, ringR,
+          overlayCtx.arc(ball.x, ball.y, ringR,
             time * (1 + ring * 0.4),
-            time * (1 + ring * 0.4) + Math.PI * 1.55
-          );
+            time * (1 + ring * 0.4) + Math.PI * 1.55);
           overlayCtx.stroke();
         }
 
-        const spikeCount = 10;
-        for (let i = 0; i < spikeCount; i++) {
-          const a = time * 3 + (i / spikeCount) * Math.PI * 2;
+        // 電場短刺
+        for (let i = 0; i < 12; i++) {
+          const a = time * 3 + (i / 12) * Math.PI * 2;
           const inner = ball.r * 1.55;
-          const outer = ball.r * (2.1 + 0.5 * Math.sin(time * 12 + i));
-          overlayCtx.globalAlpha = 0.75;
+          const outer = ball.r * (2.2 + 0.6 * Math.sin(time * 12 + i));
+          overlayCtx.globalAlpha = 0.8;
           overlayCtx.strokeStyle = '#e0b0ff';
           overlayCtx.lineWidth = 1.8;
           overlayCtx.shadowColor = '#bf00ff';
@@ -623,21 +734,13 @@
           overlayCtx.stroke();
         }
 
-        overlayCtx.globalAlpha = 0.95;
-        overlayCtx.fillStyle = '#ffffff';
-        overlayCtx.shadowColor = '#ffffff';
-        overlayCtx.shadowBlur = 18;
-        overlayCtx.beginPath();
-        overlayCtx.arc(ball.x, ball.y, ball.r * 0.4 * pulse, 0, Math.PI * 2);
-        overlayCtx.fill();
-
         overlayCtx.restore();
       }
     }
   }
 
   // ═══════════════════════════════════════════════
-  // 5. 蒼拳命中特效
+  // 蒼拳
   // ═══════════════════════════════════════════════
   function drawFistBursts() {
     for (const fx of FX.fistBursts) {
@@ -663,19 +766,9 @@
       overlayCtx.lineTo(fx.originX + dx * trailLen, fx.originY + dy * trailLen);
       overlayCtx.stroke();
 
-      overlayCtx.globalAlpha = fade * 0.7;
-      overlayCtx.strokeStyle = '#ffffff';
-      overlayCtx.lineWidth = 2;
-      overlayCtx.shadowBlur = 10;
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(fx.originX, fx.originY);
-      overlayCtx.lineTo(fx.originX + dx * trailLen, fx.originY + dy * trailLen);
-      overlayCtx.stroke();
-
       if (prog < 0.7) {
         const hitProg = prog / 0.7;
         const flashR = 20 + hitProg * 35;
-
         const flashGrad = overlayCtx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, flashR);
         flashGrad.addColorStop(0, 'rgba(255,255,255,' + ((1 - hitProg) * fade) + ')');
         flashGrad.addColorStop(0.3, 'rgba(170,240,255,' + ((1 - hitProg) * fade * 0.7) + ')');
@@ -702,9 +795,8 @@
           overlayCtx.stroke();
         }
 
-        const rayCount = 8;
-        for (let i = 0; i < rayCount; i++) {
-          const a = (i / rayCount) * Math.PI * 2 + fx.seed;
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + fx.seed;
           const inner = 12;
           const outer = 30 + hitProg * 40;
           overlayCtx.globalAlpha = (1 - hitProg) * fade * 0.75;
@@ -730,7 +822,7 @@
   }
 
   // ═══════════════════════════════════════════════
-  // 6. 無限制虛式紫爆炸
+  // 無限制虛式紫爆炸
   // ═══════════════════════════════════════════════
   function drawClashBursts() {
     for (const fx of FX.clashBursts) {
@@ -740,6 +832,7 @@
       overlayCtx.save();
       overlayCtx.globalCompositeOperation = 'lighter';
 
+      // 衝擊波環
       for (const ring of fx.rings) {
         const localProg = Math.max(0, (prog - ring.delay) / (1 - ring.delay));
         if (localProg <= 0) continue;
@@ -750,18 +843,20 @@
         overlayCtx.strokeStyle = ring.color;
         overlayCtx.lineWidth = ring.w * (1 - localProg * 0.6);
         overlayCtx.shadowColor = ring.color;
-        overlayCtx.shadowBlur = 30;
+        overlayCtx.shadowBlur = 35;
         overlayCtx.beginPath();
         overlayCtx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
         overlayCtx.stroke();
       }
 
-      if (prog < 0.35) {
-        const flashAlpha = (1 - prog / 0.35) * fade;
-        const flashR = 60 + prog * 120;
+      // 中心白閃
+      if (prog < 0.4) {
+        const flashAlpha = (1 - prog / 0.4) * fade;
+        const flashR = 80 + prog * 180;
         const g = overlayCtx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, flashR);
         g.addColorStop(0, 'rgba(255,255,255,' + flashAlpha + ')');
-        g.addColorStop(0.3, 'rgba(224,176,255,' + (flashAlpha * 0.6) + ')');
+        g.addColorStop(0.25, 'rgba(224,176,255,' + (flashAlpha * 0.8) + ')');
+        g.addColorStop(0.6, 'rgba(191,0,255,' + (flashAlpha * 0.4) + ')');
         g.addColorStop(1, 'rgba(191,0,255,0)');
         overlayCtx.globalAlpha = 1;
         overlayCtx.fillStyle = g;
@@ -770,31 +865,188 @@
         overlayCtx.fill();
       }
 
-      for (let ri = 0; ri < fx.rays.length; ri++) {
-        const ray = fx.rays[ri];
-        const inner = 20 + prog * 30;
+      // 白色裂痕線
+      for (const ray of fx.rays) {
+        const inner = 30 + prog * 40;
         const outer = inner + ray.len * Math.min(1, prog / 0.6);
         overlayCtx.globalAlpha = (1 - prog) * fade * 0.9;
-        overlayCtx.strokeStyle = (ri % 2 === 0) ? '#e0b0ff' : '#bf00ff';
-        overlayCtx.lineWidth = 2.5;
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.lineWidth = ray.w * (1 - prog * 0.5);
         overlayCtx.shadowColor = '#bf00ff';
-        overlayCtx.shadowBlur = 16;
+        overlayCtx.shadowBlur = 18;
         overlayCtx.beginPath();
         overlayCtx.moveTo(fx.x + Math.cos(ray.angle) * inner, fx.y + Math.sin(ray.angle) * inner);
         overlayCtx.lineTo(fx.x + Math.cos(ray.angle) * outer, fx.y + Math.sin(ray.angle) * outer);
         overlayCtx.stroke();
       }
 
+      // 空間碎片
+      for (const shard of fx.shards) {
+        const shAlpha = clamp(shard.life / shard.maxLife, 0, 1);
+        overlayCtx.save();
+        overlayCtx.globalAlpha = shAlpha * 0.95;
+        overlayCtx.translate(shard.x, shard.y);
+        overlayCtx.rotate(shard.rot);
+        overlayCtx.fillStyle = shard.color;
+        overlayCtx.shadowColor = '#bf00ff';
+        overlayCtx.shadowBlur = 18;
+        overlayCtx.fillRect(-shard.size / 2, -shard.size / 2, shard.size, shard.size);
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.lineWidth = 1;
+        overlayCtx.strokeRect(-shard.size / 2, -shard.size / 2, shard.size, shard.size);
+        overlayCtx.restore();
+      }
+
+      // 粒子
       for (const p of fx.particles) {
-        const particleAlpha = clamp(p.life / p.maxLife, 0, 1);
-        overlayCtx.globalAlpha = particleAlpha;
+        const pa = clamp(p.life / p.maxLife, 0, 1);
+        overlayCtx.globalAlpha = pa;
         overlayCtx.fillStyle = p.color;
         overlayCtx.shadowColor = p.color;
         overlayCtx.shadowBlur = 14;
         overlayCtx.beginPath();
-        overlayCtx.arc(p.x, p.y, p.r * particleAlpha, 0, Math.PI * 2);
+        overlayCtx.arc(p.x, p.y, p.r * pa, 0, Math.PI * 2);
         overlayCtx.fill();
       }
+
+      overlayCtx.restore();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // 無量空處強化
+  // ═══════════════════════════════════════════════
+  function drawDomainEnhancements() {
+    if (!state || !state.balls) return;
+    const time = performance.now() / 1000;
+
+    for (const b of state.balls) {
+      if (!b || b.hp <= 0 || !b.char || b.char.type !== 'gojo') continue;
+      if (!b.gojoDomainActive) continue;
+
+      const dur = (typeof GOJO_DOMAIN_DURATION === 'number') ? GOJO_DOMAIN_DURATION : 5;
+      const remain = Math.max(0, b.gojoDomainTimer || 0);
+      const entered = 1 - remain / dur;
+      const safeR = (typeof GOJO_DOMAIN_SAFE_RADIUS === 'number') ? GOJO_DOMAIN_SAFE_RADIUS : 120;
+      const maxR = Math.max(
+        (typeof W !== 'undefined' ? W : 350),
+        (typeof H !== 'undefined' ? H : 350)
+      );
+
+      overlayCtx.save();
+      overlayCtx.globalCompositeOperation = 'lighter';
+
+      // 1. 中心無量空處核心光
+      const coreR = safeR * (0.8 + 0.2 * Math.sin(time * 4));
+      const coreGrad = overlayCtx.createRadialGradient(b.x, b.y, 0, b.x, b.y, coreR);
+      coreGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+      coreGrad.addColorStop(0.35, 'rgba(191,0,255,0.25)');
+      coreGrad.addColorStop(0.7, 'rgba(120,40,200,0.15)');
+      coreGrad.addColorStop(1, 'rgba(60,0,100,0)');
+      overlayCtx.fillStyle = coreGrad;
+      overlayCtx.beginPath();
+      overlayCtx.arc(b.x, b.y, coreR, 0, Math.PI * 2);
+      overlayCtx.fill();
+
+      // 2. 旋轉符文環（三層反向）
+      for (let ring = 0; ring < 3; ring++) {
+        const r = safeR * (0.65 + ring * 0.28) + 10 * Math.sin(time * 2 + ring);
+        const spin = time * (0.8 + ring * 0.35) * (ring % 2 ? -1 : 1);
+        overlayCtx.globalAlpha = 0.55 - ring * 0.12;
+        overlayCtx.strokeStyle = ring % 2 ? '#e0b0ff' : '#bf00ff';
+        overlayCtx.lineWidth = 2.5;
+        overlayCtx.shadowColor = '#bf00ff';
+        overlayCtx.shadowBlur = 20;
+        overlayCtx.setLineDash([10, 6]);
+        overlayCtx.lineDashOffset = spin * 20;
+        overlayCtx.beginPath();
+        overlayCtx.arc(b.x, b.y, r, spin, spin + Math.PI * 1.6);
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.arc(b.x, b.y, r, spin + Math.PI, spin + Math.PI * 2.6);
+        overlayCtx.stroke();
+        overlayCtx.setLineDash([]);
+      }
+
+      // 3. 向外擴散的多重能量波
+      const waveCount = 4;
+      for (let i = 0; i < waveCount; i++) {
+        const t = (entered + i / waveCount) % 1;
+        const wr = 40 + t * maxR * 0.9;
+        overlayCtx.globalAlpha = (1 - t) * 0.5;
+        overlayCtx.strokeStyle = i % 2 ? '#e0b0ff' : '#bf00ff';
+        overlayCtx.lineWidth = 4;
+        overlayCtx.shadowColor = '#bf00ff';
+        overlayCtx.shadowBlur = 25;
+        overlayCtx.beginPath();
+        overlayCtx.arc(b.x, b.y, wr, 0, Math.PI * 2);
+        overlayCtx.stroke();
+      }
+
+      // 4. 螢幕邊緣咒力流
+      overlayCtx.globalAlpha = 0.35;
+      overlayCtx.strokeStyle = '#bf00ff';
+      overlayCtx.lineWidth = 3;
+      overlayCtx.shadowColor = '#bf00ff';
+      overlayCtx.shadowBlur = 20;
+      const Wv = (typeof W !== 'undefined' ? W : 350);
+      const Hv = (typeof H !== 'undefined' ? H : 350);
+      const edgeMargin = 6;
+      overlayCtx.beginPath();
+      // 上
+      for (let i = 0; i <= 20; i++) {
+        const x = edgeMargin + (Wv - edgeMargin * 2) * (i / 20);
+        const y = edgeMargin + Math.sin(time * 4 + i * 0.8) * 3;
+        if (i === 0) overlayCtx.moveTo(x, y); else overlayCtx.lineTo(x, y);
+      }
+      // 下
+      for (let i = 20; i >= 0; i--) {
+        const x = edgeMargin + (Wv - edgeMargin * 2) * (i / 20);
+        const y = Hv - edgeMargin + Math.sin(time * 4 + i * 0.8 + Math.PI) * 3;
+        overlayCtx.lineTo(x, y);
+      }
+      overlayCtx.stroke();
+
+      // 5. 每個受影響敵人頭上標記
+      if (typeof window.getAllCombatTargets === 'function') {
+        for (const t of window.getAllCombatTargets()) {
+          if (!t || t.hp <= 0 || t.player === b.player) continue;
+          const isSafe = b.gojoDomainSafeSet && b.gojoDomainSafeSet.has(t);
+          const dd = Math.hypot(t.x - b.x, t.y - b.y);
+          const inSafe = dd <= safeR + (t.r || 25);
+          const state2 = isSafe || inSafe ? 'safe' : 'afflicted';
+
+          overlayCtx.globalAlpha = 0.9;
+          overlayCtx.font = 'bold 16px sans-serif';
+          overlayCtx.textAlign = 'center';
+          overlayCtx.textBaseline = 'middle';
+          if (state2 === 'afflicted') {
+            overlayCtx.fillStyle = '#ff88ff';
+            overlayCtx.shadowColor = '#bf00ff';
+            overlayCtx.shadowBlur = 14;
+            overlayCtx.fillText('無量空處', t.x, t.y - (t.r || 25) - 24);
+          } else {
+            overlayCtx.fillStyle = '#9ef09e';
+            overlayCtx.shadowColor = '#9ef09e';
+            overlayCtx.shadowBlur = 10;
+            overlayCtx.font = 'bold 12px sans-serif';
+            overlayCtx.fillText('安全', t.x, t.y - (t.r || 25) - 20);
+          }
+        }
+      }
+
+      // 6. 剩餘時間大字
+      overlayCtx.globalAlpha = 0.95;
+      overlayCtx.font = 'bold 28px Cinzel, sans-serif';
+      overlayCtx.textAlign = 'center';
+      overlayCtx.textBaseline = 'middle';
+      overlayCtx.fillStyle = '#e0b0ff';
+      overlayCtx.shadowColor = '#bf00ff';
+      overlayCtx.shadowBlur = 20;
+      overlayCtx.fillText('無量空處', Wv / 2, Hv - 40);
+      overlayCtx.font = 'bold 20px sans-serif';
+      overlayCtx.fillStyle = '#ffffff';
+      overlayCtx.fillText(remain.toFixed(1) + 's', Wv / 2, Hv - 12);
 
       overlayCtx.restore();
     }
@@ -807,17 +1059,20 @@
     if (state && state.dioWorldGlobalActive) return;
 
     updatePurpleCharges(dt);
+    trackPurpleTrails(dt);
 
     for (let i = FX.infinityPulses.length - 1; i >= 0; i--) {
       FX.infinityPulses[i].life -= dt;
       if (FX.infinityPulses[i].life <= 0) FX.infinityPulses.splice(i, 1);
     }
-
     for (let i = FX.fistBursts.length - 1; i >= 0; i--) {
       FX.fistBursts[i].life -= dt;
       if (FX.fistBursts[i].life <= 0) FX.fistBursts.splice(i, 1);
     }
-
+    for (let i = FX.purpleTrails.length - 1; i >= 0; i--) {
+      FX.purpleTrails[i].life -= dt;
+      if (FX.purpleTrails[i].life <= 0) FX.purpleTrails.splice(i, 1);
+    }
     for (let i = FX.clashBursts.length - 1; i >= 0; i--) {
       const fx = FX.clashBursts[i];
       fx.life -= dt;
@@ -827,6 +1082,14 @@
         p.vx *= 0.94;
         p.vy *= 0.94;
         p.life -= dt;
+      }
+      for (const shard of fx.shards) {
+        shard.x += shard.vx * dt;
+        shard.y += shard.vy * dt;
+        shard.vx *= 0.92;
+        shard.vy *= 0.92;
+        shard.rot += shard.rotV * dt;
+        shard.life -= dt;
       }
       if (fx.life <= 0) FX.clashBursts.splice(i, 1);
     }
@@ -842,6 +1105,7 @@
 
     tryHookClashExplode();
     tryHookFire();
+    tryHookUpdateBalls();
     tryHookPull();
     detectInfinityConsume();
     detectFistAttack();
@@ -854,12 +1118,10 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      requestAnimationFrame(loop);
-    }, { once: true });
+    document.addEventListener('DOMContentLoaded', function () { requestAnimationFrame(loop); }, { once: true });
   } else {
     requestAnimationFrame(loop);
   }
 
-  console.log('[gojo_vfx] 現代最強視覺特效 v3 已載入');
+  console.log('[gojo_vfx] v4 已載入');
 })();

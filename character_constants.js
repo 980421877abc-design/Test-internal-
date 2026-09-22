@@ -49,9 +49,9 @@ const OPM_WALL_REDUCE          = 0.5; // 撞牆時減少的怒氣值倒數秒數
 // ── 被動「無下限」 ──
 const GOJO_INFINITY_MAX          = 8;    // 無下限量條上限
 const GOJO_INFINITY_RADIUS       = 70;    // 偵測投射物半徑（px）
-const GOJO_INFINITY_REGEN_TIME   = 12.0;   // 每 8 秒補滿一次
+const GOJO_INFINITY_REGEN_TIME   = 10.0;   // 每 8 秒補滿一次
 const GOJO_INFINITY_SLOW_TIME    = 0.3;   // 投射物從原速減到 0 的時間（秒）
-const GOJO_INFINITY_LINGER       = 0.2;   // 停止後多久消失（秒）
+const GOJO_INFINITY_LINGER       = 0.1;   // 停止後多久消失（秒）
 
 // ── 蒼／赫交替發射 ──
 const GOJO_COOLDOWN              = 2.0;   // 基礎發射間隔（秒）
@@ -65,7 +65,7 @@ const GOJO_BLUE_RADIUS           = 13;
 const GOJO_BLUE_RING_R           = 32;
 const GOJO_BLUE_RAY_RANGE        = 100;
 const GOJO_BLUE_RAY_FORCE        = 10;
-const GOJO_BLUE_LIFESPAN         = 2.0;
+const GOJO_BLUE_LIFESPAN         = 2.5;
 const GOJO_BLUE_PROJECTILE_PULL_RANGE = 250;
 const GOJO_BLUE_PROJECTILE_PULL_FORCE = 8;
 const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8;
@@ -73,28 +73,28 @@ const GOJO_BLUE_PROJECTILE_CAPTURE_MAX = 8;
 // ── 赫（斥力球）──
 const GOJO_RED_DAMAGE            = 120;
 const GOJO_RED_KNOCKBACK         = 320;
-const GOJO_RED_SPEED             = 4.5;
-const GOJO_RED_STORED_HOMING_TURN = 5.5;
+const GOJO_RED_SPEED             = 8;
+const GOJO_RED_STORED_HOMING_TURN = 7;
 const GOJO_RED_STORED_HOMING_DURATION = 4.0;
 
 // ── 紫（穿透高傷球）──
 const GOJO_PURPLE_DAMAGE         = 250;   // 命中單一敵人傷害
-const GOJO_PURPLE_SPEED          = 12.0;  // 極快（*60 → 720px/s）
-const GOJO_PURPLE_RADIUS         = 18;
+const GOJO_PURPLE_SPEED          = 20.0;  // 極快（*60 → 720px/s）
+const GOJO_PURPLE_RADIUS         = 25;
 const GOJO_PURPLE_LIFESPAN       = 1.2;   // 存在時間（秒）
 // 紫不再反彈、不再吸附、不再反射，穿透路徑上所有敵人（同一敵人只打一次）
 const GOJO_PURPLE_EVERY_N        = 6;     // 每發射 6 發蒼/赫後，下一發為紫（僅六眼覺醒後）
-const GOJO_DOMAIN_HOMING_TURN    = 3.0;   // 領域展開期間，蒼/赫球的追蹤轉向速率（rad/s）
+const GOJO_DOMAIN_HOMING_TURN    = 5.0;   // 領域展開期間，蒼/赫球的追蹤轉向速率（rad/s）
 
 // ── 無限制虛式紫（蒼+赫碰撞）──
-const GOJO_CLASH_RADIUS          = 40;    // 蒼赫距離 < 此值 → 觸發爆炸
+const GOJO_CLASH_RADIUS          = 50;    // 蒼赫距離 < 此值 → 觸發爆炸
 const GOJO_CLASH_DAMAGE          = 200;   // 爆炸傷害
-const GOJO_CLASH_AOE_RADIUS      = 180;   // 爆炸範圍半徑（px）—— 想更大就調大這個
-const GOJO_CLASH_SELF_REDUCE     = 0.7;   // 對 Gojo 自己的減傷比例（減 70%）
+const GOJO_CLASH_AOE_RADIUS      = 200;   // 爆炸範圍半徑（px）—— 想更大就調大這個
+const GOJO_CLASH_SELF_REDUCE     = 0.8;   // 對 Gojo 自己的減傷比例（減 70%）
 
 // ── 蒼拳（近戰）──
 const GOJO_FIST_RANGE            = 60;    // 觸發距離（px）
-const GOJO_FIST_DAMAGE           = 20;
+const GOJO_FIST_DAMAGE           = 30;
 const GOJO_FIST_COOLDOWN         = 0.8;
 const GOJO_FIST_PULL_FORCE       = 250;   // 引力（拉向 Gojo）
 
@@ -102,7 +102,7 @@ const GOJO_FIST_PULL_FORCE       = 250;   // 引力（拉向 Gojo）
 const GOJO_DOMAIN_HP_REQ         = 700;   // 血量 >= 此值才能展開
 const GOJO_DOMAIN_DURATION       = 3.0;   // 持續秒數
 const GOJO_DOMAIN_CD             = 10.0;  // 冷卻秒數
-const GOJO_DOMAIN_SAFE_RADIUS    = 60;   // 展開時站在 Gojo 此範圍內免疫
+const GOJO_DOMAIN_SAFE_RADIUS    = 50;   // 展開時站在 Gojo 此範圍內免疫
 const GOJO_DOMAIN_DPS            = 30;    // 每秒傷害（只對「不安全」的敵人）
 const GOJO_DOMAIN_PARALYZE       = 3.0;   // 展開瞬間麻痺持續時間
 
@@ -604,7 +604,7 @@ const SAKIKO_ORGAN_DAMAGE        = 13;    // 🎺管風琴模式：音符基礎�
 const SAKIKO_ORGAN_INTERVAL      = 0.45;  // 管風琴模式：發射間隔（攻速大幅提升）
 const SAKIKO_ORGAN_SPEED         = 290;   // 管風琴模式：音符移動速度（較快）
 const SAKIKO_NOTE_RADIUS         = 7;     // 音符判定半徑
-const SAKIKO_NOTE_TURN_RATE      = 3.0;   // 音符追蹤轉向速率（弧度/秒）
+const SAKIKO_NOTE_TURN_RATE      = 5.0;   // 音符追蹤轉向速率（弧度/秒）
 const SAKIKO_NOTE_LIFESPAN       = 6.0;   // 音符最長存在時間（秒）
 
 const SAKIKO_FEVER_MAX           = 450;   // Fever值上限
@@ -1568,9 +1568,8 @@ const CUSTOM_PARTS = {
     { id: 'a_drunk',  name: '拋酒', emoji: '🍾', from: '酒鬼',   desc: `每 ${CUSTOM_BASIC_DRUNK_INTERVAL}s 投擲酒瓶，造成 ${BOTTLE_DAMAGE} 傷害。` },
     { id: 'a_gunner', name: '連射', emoji: '💥', from: '無名槍手', desc: `撞牆裝彈，每次+${GUNNER_MAG_count}發（上限${GUNNER_MAG_SIZE}發）；彈滿後停下連射，每發${GUNNER_BULLET_DAMAGE}傷害並擊退。` },
     { id: 'a_smith', name: '鍛造', emoji: '🔨', from: '鍛造師', desc: `每 ${CUSTOM_SMITH_FORGE_INTERVAL}s 鍛造一次近身武器，對近距離敵人造成 ${CUSTOM_SMITH_FORGE_DAMAGE} 傷害並擊退。` },
-    { id: 'a_yi', name: '本手／圍斃', emoji: '⚫', from: '奕', desc: `普攻週期在最近敵人腳下放置黑棋，造成${YI_BLACK_DAMAGE}傷害；累積${YI_BLACK_MAX}顆後發白旗，黑棋齊飛引爆。` },
-  ],
-  skill1: [
+   ],
+	  skill1: [
     { id: 's1_vampire', name: '蝙蝠狂襲', emoji: '🦇', from: '暗夜領主', desc: `每 ${CUSTOM_SKILL1_VAMPIRE_INTERVAL}s 高速衝向最近的敵人，造成 ${CUSTOM_SKILL1_VAMPIRE_DAMAGE} 撞擊傷害。` },
     { id: 's1_trapper', name: '鎖鏈',     emoji: '⛓️', from: '陷阱大師', desc: `每 ${CUSTOM_SKILL1_TRAPPER_INTERVAL}s 對最近敵人射出鎖鏈，將其拉向自己並造成 ${CUSTOM_SKILL1_TRAPPER_DAMAGE} 傷害。` },
     { id: 's1_gunner',  name: '閃光彈',   emoji: '💡', from: '無名槍手', desc: `每 ${GUNNER_FLASH_INTERVAL}s 對最近敵人投擲閃光彈，造成 ${GUNNER_FLASH_DAMAGE} 範圍傷害並凍結其攻擊與技能冷卻。` },
