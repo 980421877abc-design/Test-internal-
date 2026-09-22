@@ -1482,9 +1482,9 @@ const SAKURA_PETAL_MAX = 12;
 
 // 被動「千本櫻」：自身周圍傷害 + 緩速
 const SAKURA_SENBON_TICK_INTERVAL       = 0.3;
-const SAKURA_SENBON_BASE_DAMAGE         = 7;
+const SAKURA_SENBON_BASE_DAMAGE         = 5;
 const SAKURA_SENBON_DAMAGE_PER_3_PETALS = 2;
-const SAKURA_SENBON_RADIUS_MULT         = 3;
+const SAKURA_SENBON_RADIUS_MULT         = 4;
 const SAKURA_SENBON_SLOW_FACTOR         = 0.30;
 const SAKURA_SENBON_SLOW_DURATION       = 0.4;
 
@@ -1495,26 +1495,26 @@ const SAKURA_YAE_RECHARGE_TIME      = 5.0;
 const SAKURA_YAE_RECHARGE_PER_PETAL = 0.2;
 
 // 普攻「花刃」
-const SAKURA_BASIC_DAMAGE   = 70;
+const SAKURA_BASIC_DAMAGE   = 50;
 const SAKURA_BASIC_INTERVAL = 0.8;
 const SAKURA_BASIC_SPEED    = 520;
 
 // 技能一「落櫻繽紛」
 const SAKURA_FUBUN_RADIUS_MULT   = 2;
 const SAKURA_FUBUN_DURATION      = 3.0;
-const SAKURA_FUBUN_CD            = 5.0;
+const SAKURA_FUBUN_CD            = 6.0;
 const SAKURA_FUBUN_TICK_INTERVAL = 0.3;
 
 // 技能二「櫻印」
 const SAKURA_MARK_DURATION   = 5.0;
 const SAKURA_MARK_CD         = 9.0;
-const SAKURA_MARK_DAMAGE_AMP = 0.5;
+const SAKURA_MARK_DAMAGE_AMP = 0.3;
 
 // 滿開「樱吹雪」
-const SAKURA_FULL_BLOOM_DURATION           = 10.0;
-const SAKURA_FULL_BLOOM_CD                 = 8.0;
+const SAKURA_FULL_BLOOM_DURATION           = 8.0;
+const SAKURA_FULL_BLOOM_CD                 = 10.0;
 const SAKURA_FULL_BLOOM_SPEED_MULT         = 2.0;
-const SAKURA_FULL_BLOOM_TICK_INTERVAL      = 0.1;
+const SAKURA_FULL_BLOOM_TICK_INTERVAL      = 0.2;
 const SAKURA_FULL_BLOOM_DURATION_PER_PETAL = 0.2;
 
 
