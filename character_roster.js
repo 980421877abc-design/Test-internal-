@@ -714,7 +714,7 @@ vsQuotes: {
     stats: ['花筏', '千本櫻', '八重櫻', '落櫻繽紛', '櫻印', '樱吹雪'],
     skills: [
       `被動「花筏」：持有「花瓣」最多 ${SAKURA_PETAL_MAX} 層，用於強化千本櫻與樱吹雪；普攻命中、櫻印生效時各 +1 層。`,
-      `被動「千本櫻」：自身周圍（半徑 ${SAKURA_SENBON_RADIUS_MULT} 倍球半徑）的敵人每 ${SAKURA_SENBON_TICK_INTERVAL}s 受到 ${SAKURA_SENBON_BASE_DAMAGE} 點傷害（每 3 層花瓣 +${SAKURA_SENBON_DAMAGE_PER_3_PETALS}）並緩速 70%。`,
+      `被動「千本櫻」：自身周圍（半徑 ${SAKURA_SENBON_RADIUS_MULT} 倍球半徑）的敵人每 ${SAKURA_SENBON_TICK_INTERVAL}s 受到 ${SAKURA_SENBON_BASE_DAMAGE} 點傷害（每 3 層花瓣 +${SAKURA_SENBON_DAMAGE_PER_3_PETALS}）並緩速 50%。`,
       `被動「八重櫻」：受到傷害時固定減免 ${SAKURA_YAE_DAMAGE_REDUCE} 點，充能 ${SAKURA_YAE_MAX_CHARGES} 次；充能耗盡後 ${SAKURA_YAE_RECHARGE_TIME}s 重新獲得，每層花瓣縮短 ${SAKURA_YAE_RECHARGE_PER_PETAL}s。`,
       `普攻「花刃」：向前穿刺一片花瓣，造成 ${SAKURA_BASIC_DAMAGE} 傷害並 +1 花瓣層數，CD ${SAKURA_BASIC_INTERVAL}s。`,
       `技能「落櫻繽紛」：對最近敵人位置降下自身半徑 ${SAKURA_FUBUN_RADIUS_MULT} 倍大的千本櫻，持續 ${SAKURA_FUBUN_DURATION}s，CD ${SAKURA_FUBUN_CD}s。`,
