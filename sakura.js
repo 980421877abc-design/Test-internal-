@@ -68,7 +68,7 @@
   const BLOOM_DUR_PER_PETAL    = SAKURA_FULL_BLOOM_DURATION_PER_PETAL;
 
   // ── 刺擊參數（判定與視覺共用同一組座標）──
-  const THRUST_LENGTH        = 110;   // 從「球邊緣」算起的攻擊距離
+  const THRUST_LENGTH        = 80;   // 從「球邊緣」算起的攻擊距離
   const THRUST_HALF_WIDTH    = 18;    // 判定半寬；也是視覺刀鋒的最大半寬基準
   const THRUST_ANIM_DURATION = 0.26;  // 動畫時長
 
