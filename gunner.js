@@ -129,26 +129,16 @@
   //      cannonBalls、oniichanTrackBalls、gojoBalls、johnnyAct4Projectiles）
   // 一律不算投射物，不列入清除。
   // ══════════════════════════════════════════════════════════
-  function getAllProjectileArrays() {
-    const root = getRoot();
-    if (!root) return [];
-    const list = [];
-    const push = (arr) => { if (Array.isArray(arr)) list.push({ arr }); };
-    push(root.projectiles);
-    push(root.otisMagicBullets);
-    push(root.getoUltimateProjectiles);
-    push(root.tigerNovaNeedles);
-    push(root.oniichanSpikes);
-    push(root.fisherOceanWaves);
-    push(root.starSmallStars);
-    for (const b of (root.balls || [])) {
-      if (!b) continue;
-      if (Array.isArray(b.sansBones)) list.push({ arr: b.sansBones });
-      if (Array.isArray(b.emBullets)) list.push({ arr: b.emBullets });
+   function getAllProjectileArrays() {
+    // 投射物統一清單（定義於 index.html 主引擎）。
+    // 本檔內部使用 { arr } 包裝形式（見 clearProjectilesInRadius），
+    // 因此這裡做一層轉換；未來要改格式只需動這一處。
+    if (typeof window.getProjectileArrays === 'function') {
+      return window.getProjectileArrays().map(arr => ({ arr }));
     }
-    return list;
+    return [];
   }
-
+  
   function getProjectileOwner(p) {
     if (!p) return null;
     if (p.owner != null) return p.owner;
