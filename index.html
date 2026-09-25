@@ -19580,9 +19580,10 @@ waypoints.push({
           foe.pucciGravityOwnerPlayer = b.player;
           state.hitFlashes.push({ x: foe.x, y: foe.y, r: 26, alpha: 0.9, color: '#c9d6ff', t: 0.4 });
         }
-        // 敵方投射物進入重力圈：直接扭轉飛行方向（上下左右隨機），速度大小不變
-        if (state.projectiles) {
-          for (const p of state.projectiles) {
+        // 敵方投射物進入重力圈：直接扭轉飛行方向（上下左右隨機），速度大小不變。
+        // 使用投射物統一清單，涵蓋所有類型的投射物，不再逐陣列手寫。
+        for (const arr of (typeof window.getProjectileArrays === 'function' ? window.getProjectileArrays() : [])) {
+          for (const p of arr) {
             if (!p || p.owner === b.player) continue;
             if (Math.hypot(p.x - b.x, p.y - b.y) > PUCCI_MOON_RADIUS) continue;
             const spd = Math.hypot(p.vx, p.vy) || 0;
@@ -19596,23 +19597,7 @@ waypoints.push({
             state.hitFlashes.push({ x: p.x, y: p.y, r: 16, alpha: 0.8, color: '#c9d6ff', t: 0.3 });
           }
         }
-        // 夏油奧義使用獨立陣列，因此在這裡同步套用新月的重力改向，不合併陣列。
-        if (state.getoUltimateProjectiles) {
-          for (const p of state.getoUltimateProjectiles) {
-            if (!p || p.owner === b.player) continue;
-            if (Math.hypot(p.x - b.x, p.y - b.y) > PUCCI_MOON_RADIUS) continue;
-            const spd = Math.hypot(p.vx, p.vy) || 0;
-            if (spd <= 0) continue;
-            const dirs = ['up', 'down', 'left', 'right'];
-            const dir = dirs[Math.floor(Math.random() * 4)];
-            const gx = (dir === 'left') ? -1 : (dir === 'right') ? 1 : 0;
-            const gy = (dir === 'up') ? -1 : (dir === 'down') ? 1 : 0;
-            p.vx = gx * spd; p.vy = gy * spd;
-            state.hitFlashes.push({ x: p.x, y: p.y, r: 18, alpha: 0.8, color: '#c9d6ff', t: 0.3 });
-          }
-        }
-      }
-
+        
       // 新月降臨一段時間後，場地正中央生成🚀
       if (!b.pucciRocketSpawned && b.pucciMoonTimer >= PUCCI_MOON_ROCKET_DELAY) {
         b.pucciRocketSpawned = true;
