@@ -403,7 +403,7 @@
     }
     const current = new Set();
     const wall = getWall(), Wd = getW(), Hd = getH();
-    const WALL_SNAP = 6;
+    const WALL_SNAP = 6; // 慢速/靜止投射物的最小偵測窗（下限，避免動態值算出來反而更小）
 
     for (const p of root.projectiles) {
       if (!p || !p._gunnerBullet) continue;
@@ -418,9 +418,15 @@
       if (prev._gunnerSplitChild) continue;
       const px = prev._gunnerPrevX ?? prev.x;
       const py = prev._gunnerPrevY ?? prev.y;
+      // 偵測窗要跟子彈實際每幀移動距離連動：槍手子彈 700px/s，60fps下一幀約移動
+      // 11~12px，固定 6px 的窗口一半以上機率會漏抓（撞牆那一幀「上一幀座標」
+      // 早就超出窗口），這正是分裂觸發率偏低的原因。改成用該顆子彈上一幀的
+      // 速度換算出的實際步進距離（留 1.3 倍緩衝），下限維持 WALL_SNAP。
+      const stepDist = Math.hypot(prev.vx || 0, prev.vy || 0) * dt;
+      const snap = Math.max(WALL_SNAP, stepDist * 1.3 + 2);
       const nearWall =
-        px <= wall + WALL_SNAP || px >= Wd - wall - WALL_SNAP ||
-        py <= wall + WALL_SNAP || py >= Hd - wall - WALL_SNAP;
+        px <= wall + snap || px >= Wd - wall - snap ||
+        py <= wall + snap || py >= Hd - wall - snap;
       if (!nearWall) continue;
       spawnSplitBullets(prev, px, py, root);
     }
