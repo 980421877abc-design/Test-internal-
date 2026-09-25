@@ -10014,6 +10014,34 @@ function isAmeliaCombatAbsent(b) {
 function getAllCombatTargets() {
   return state ? state.balls.filter(b => !(b && b.dragonCometAirborne) && !isAmeliaCombatAbsent(b) && !b.phantomDomainSuppressed).concat(getTargetableSummons().filter(s => !s.phantomDomainSuppressed)) : [];
 }
+  // ═══════════════════════════════════════════════════════════════════
+// 投射物統一清單 —— 唯一真理來源
+//
+// 所有「可被反投射物機制處理的投射物」都必須列在這裡。
+// 新增角色若有新的投射物陣列，只需在這個函式加一行；
+// 四個使用方（gojo 無限、boshi 電磁場、gunner 轉槍、普奇新月）
+// 自動涵蓋，不必再各自維護一份副本。
+//
+// 目前認定的投射物（共 5 項）：
+//   state.projectiles / state.tigerNovaNeedles / state.starSmallStars
+//   + 掛在球上：b.sansBones / b.emBullets
+// ═══════════════════════════════════════════════════════════════════
+function getProjectileArrays() {
+  const list = [];
+  if (!state) return list;
+  const push = (a) => { if (Array.isArray(a)) list.push(a); };
+  push(state.projectiles);
+  push(state.tigerNovaNeedles);
+  push(state.starSmallStars);
+  for (const b of (state.balls || [])) {
+    if (!b) continue;
+    push(b.sansBones);
+    push(b.emBullets);
+  }
+  return list;
+}
+if (typeof window !== 'undefined') window.getProjectileArrays = getProjectileArrays;
+  
 // 每秒傷害統一以一秒離散 tick 結算；每幀只倒數，不把 DPS 當成每幀傷害。
 function consumeStandardDotTick(target, timerField, dt) {
   if (!target) return false;
@@ -13648,6 +13676,8 @@ if (enemy) {
       (b0.char.type === 'obito' && (['ghost','teleporting','in_space','grabbing','returning'].includes(b0.obitoKamuiPhase) || b0.obitoFireballDashing || b0.obitoPhasing)) ||
       (b1.char.type === 'obito' && (['ghost','teleporting','in_space','grabbing','returning'].includes(b1.obitoKamuiPhase) || b1.obitoFireballDashing || b1.obitoPhasing)) ||
       b0.obitoInSpace || b1.obitoInSpace ||
+      (b0.char.type === 'yelan' && b0.yelanDashing) ||
+      (b1.char.type === 'yelan' && b1.yelanDashing) ||
       (b0.char.type === 'johnny' && b0.johnnyAct3Hiding) ||
       (b1.char.type === 'johnny' && b1.johnnyAct3Hiding) ||
       (b0.char.type === 'minato' && (b0.minatoStage2Active || (b0.minatoSlashPhase && b0.minatoSlashPhase !== 'idle') || (b0.minatoRasenganPhase === 'dashing' || b0.minatoRasenganPhase === 'grab'))) ||
@@ -40384,5 +40414,6 @@ function launchBossBattle(teamIds, boss, requestedDefinition = null) {
 <script src="sakura.js"></script>
 <script src="boshi.js"></script>
 <script src="gunner.js"></script>
+<script src="yelan.js"></script>
 </body>
 </html>
