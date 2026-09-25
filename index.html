@@ -13648,6 +13648,8 @@ if (enemy) {
       (b0.char.type === 'obito' && (['ghost','teleporting','in_space','grabbing','returning'].includes(b0.obitoKamuiPhase) || b0.obitoFireballDashing || b0.obitoPhasing)) ||
       (b1.char.type === 'obito' && (['ghost','teleporting','in_space','grabbing','returning'].includes(b1.obitoKamuiPhase) || b1.obitoFireballDashing || b1.obitoPhasing)) ||
       b0.obitoInSpace || b1.obitoInSpace ||
+      (b0.char.type === 'johnny' && b0.johnnyAct3Hiding) ||
+      (b1.char.type === 'johnny' && b1.johnnyAct3Hiding) ||
       (b0.char.type === 'minato' && (b0.minatoStage2Active || (b0.minatoSlashPhase && b0.minatoSlashPhase !== 'idle') || (b0.minatoRasenganPhase === 'dashing' || b0.minatoRasenganPhase === 'grab'))) ||
       (b1.char.type === 'minato' && (b1.minatoStage2Active || (b1.minatoSlashPhase && b1.minatoSlashPhase !== 'idle') || (b1.minatoRasenganPhase === 'dashing' || b1.minatoRasenganPhase === 'grab')))) continue;
   const dx = b1.x - b0.x, dy = b1.y - b0.y;
