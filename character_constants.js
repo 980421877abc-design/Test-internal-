@@ -1528,7 +1528,7 @@ const BOSHI_CRIT_LIGHTNING_PARA = 0.2;
 
 // 被動「高能電球」：4 顆電球環繞，每 2 秒齊射雷射
 const BOSHI_ORB_COUNT           = 4;
-const BOSHI_ORB_RADIUS          = 45;
+const BOSHI_ORB_RADIUS          = 42;
 const BOSHI_ORB_LASER_INTERVAL  = 2.0;
 const BOSHI_ORB_LASER_DAMAGE    = 25;
 const BOSHI_ORB_LASER_SPEED     = 600;
@@ -1545,7 +1545,7 @@ const BOSHI_EM_FIELD_DURATION   = 3.0;
 const BOSHI_EM_FIELD_CD         = 7.0;
 const BOSHI_EM_FIELD_THROW_SPEED= 400;
 const BOSHI_EM_FIELD_MAX_DIST   = 220;
-const BOSHI_EM_FIELD_DPS        = 10;
+const BOSHI_EM_FIELD_DPS        = 20;
 const BOSHI_EM_FIELD_RING_TOL   = 12;
 
 // 技能二「量子躍遷器」
@@ -1554,7 +1554,7 @@ const BOSHI_QUANTUM_STUN        = 1.0;
 const BOSHI_QUANTUM_DURATION    = 5.0;
 const BOSHI_QUANTUM_HALF_WIDTH  = 60;   // 單邊寬度（總寬 = 2 × 此值 = 2 × 球半徑）
 const BOSHI_QUANTUM_PULSE_CD    = 1.0;
-const BOSHI_QUANTUM_PULSE_RATIO = 0.10;
+const BOSHI_QUANTUM_PULSE_RATIO = 0.20;
 const BOSHI_QUANTUM_PULSE_DMG_CAP = 500; // 單次脈衝傷害上限，避免爆炸性堆疊
 
 
