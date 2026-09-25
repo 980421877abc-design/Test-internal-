@@ -746,5 +746,20 @@ vsQuotes: {
     color: '#4fd6ff', glowColor: 'rgba(79,214,255,0.7)', type: 'boshi',
     winQuote: '魔法也是能量,遵循能量守恆定律。',
     loseQuote: '參數錯誤,量子效應再次失去平衡。'
+  },
+  {
+    id: 'yelan', emoji: '🎲', weapon: '🏹', name: '夜蘭',
+    desc: '「運氣不是偶然，是實力的另一種形式。」行蹤飄忽的情報販子，一手玲瓏骰，一手破局箭，能在敵人的死角裡憑空出現，也能在一瞬間決定戰局。',
+    stats: ['破局矢', '妙轉隨心', '籠絡縱命索', '淵圖玲瓏骰'],
+    skills: [
+      `被動「破局」：普攻每發射 ${YELAN_BREAK_EVERY_N} 發普通箭，下一發改為「破局矢」（不蓄力、${YELAN_BREAK_DAMAGE} 傷害），命中敵人或牆壁時對半徑 ${YELAN_BREAK_RADIUS}px 內敵人造成 ${YELAN_BREAK_DAMAGE} 傷害，並掛上「浸水」（受到傷害 +${Math.round(YELAN_SOAK_VULN*100)}%，持續 ${YELAN_BREAK_SOAK_DURATION}s）。`,
+      `被動「妙轉隨心」：「玄擲玲瓏」存在期間，持有者造成傷害提升 ${Math.round(YELAN_MASTER_BASE_DMG*100)}%，每 ${YELAN_MASTER_GROWTH_TICK}s 額外提升 ${Math.round(YELAN_MASTER_GROWTH*100)}%（上限 ${Math.round(YELAN_MASTER_MAX*100)}%）。`,
+      `普攻「蓄力箭」：蓄力 ${YELAN_BASIC_CHARGE}s（速度減半但不停下），朝敵人發射箭矢，造成 ${YELAN_BASIC_DAMAGE} 傷害，CD ${YELAN_BASIC_CD}s。`,
+      `技能「籠絡縱命索」：加速 ${Math.round((YELAN_DASH_SPEED_MULT-1)*100)}% 並穿透敵人，沿途留下「絡命絲」。穿透敵人時標記該敵人，技能結束時對所有標記敵人造成 ${YELAN_DASH_MARK_DAMAGE} 傷害。敵人碰到絡命絲受到 ${YELAN_DASH_THREAD_DAMAGE} 傷害並緩速 50% 持續 ${YELAN_DASH_THREAD_SLOW_DUR}s（絲存在 ${YELAN_DASH_THREAD_LIFE}s）。技能持續 ${YELAN_DASH_DURATION}s，CD ${YELAN_DASH_CD}s。此技能結束後下一次普攻即為破局矢。`,
+      `技能「淵圖玲瓏骰」：對自身半徑 ${YELAN_DICE_RADIUS}px 內敵人造成 ${YELAN_DICE_DAMAGE} 傷害，並凝聚「玄擲玲瓏骰」給自己與所有同隊隊友。骰子存在期間，持有者造成傷害時骰子額外朝目標方向發射 ${YELAN_DICE_ARROW_COUNT} 根水箭（每根 ${YELAN_DICE_ARROW_DAMAGE} 傷害，散射 ${YELAN_DICE_ARROW_SPREAD}rad）。每顆骰子獨立計算 ${YELAN_DICE_TRIGGER_CD}s 觸發間隔，持續 ${YELAN_DICE_DURATION}s，CD ${YELAN_DICE_CD}s。`
+    ],
+    color: '#4cc9f0', glowColor: 'rgba(76,201,240,0.6)', type: 'yelan',
+    winQuote: '絲線交織。',
+    loseQuote: '……這次的骰子，沒擲出想要的點數。'
   }
 ];
