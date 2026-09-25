@@ -120,6 +120,14 @@
 
   // ══════════════════════════════════════════════════════════
   // 反投射物統一清單
+  // 以 gojo.js 為標準：只承認這 9 項是「投射物」。
+  //   - 全域陣列 7 項：projectiles / otisMagicBullets / getoUltimateProjectiles
+  //                     tigerNovaNeedles / oniichanSpikes / fisherOceanWaves / starSmallStars
+  //   - 掛在球上 2 項：sansBones / emBullets
+  // 其他（curseSlashFX、curseFireFX、obitoFireballs、starBigStars、starMeteors、
+  //      kashimoDeerOrbs、bossDryPowderExtinguishers、dioSteamroller、
+  //      cannonBalls、oniichanTrackBalls、gojoBalls、johnnyAct4Projectiles）
+  // 一律不算投射物，不列入清除。
   // ══════════════════════════════════════════════════════════
   function getAllProjectileArrays() {
     const root = getRoot();
@@ -133,22 +141,10 @@
     push(root.oniichanSpikes);
     push(root.fisherOceanWaves);
     push(root.starSmallStars);
-    push(root.curseSlashFX);
-    push(root.curseFireFX);
-    push(root.obitoFireballs);
-    push(root.starBigStars);
-    push(root.starMeteors);
-    push(root.kashimoDeerOrbs);
-    push(root.bossDryPowderExtinguishers);
-    if (root.dioSteamroller) list.push({ arr: [root.dioSteamroller] });
     for (const b of (root.balls || [])) {
       if (!b) continue;
-      if (Array.isArray(b.sansBones))            list.push({ arr: b.sansBones });
-      if (Array.isArray(b.emBullets))            list.push({ arr: b.emBullets });
-      if (Array.isArray(b.cannonBalls))          list.push({ arr: b.cannonBalls });
-      if (Array.isArray(b.oniichanTrackBalls))   list.push({ arr: b.oniichanTrackBalls });
-      if (Array.isArray(b.gojoBalls))            list.push({ arr: b.gojoBalls });
-      if (Array.isArray(b.johnnyAct4Projectiles)) list.push({ arr: b.johnnyAct4Projectiles });
+      if (Array.isArray(b.sansBones)) list.push({ arr: b.sansBones });
+      if (Array.isArray(b.emBullets)) list.push({ arr: b.emBullets });
     }
     return list;
   }
@@ -403,7 +399,7 @@
     }
     const current = new Set();
     const wall = getWall(), Wd = getW(), Hd = getH();
-    const WALL_SNAP = 6; // 慢速/靜止投射物的最小偵測窗（下限，避免動態值算出來反而更小）
+    const WALL_SNAP = 6;
 
     for (const p of root.projectiles) {
       if (!p || !p._gunnerBullet) continue;
@@ -412,17 +408,24 @@
       current.add(p);
     }
 
+    // 主引擎的實際步進距離 = 這裡的 stepDist × gameSpeed。
+    // 讀 gameSpeed 讓偵測窗與主引擎一致，否則 2x 時 snap 只有實際步進的一半。
+    let speedMul = 1;
+    try { if (typeof gameSpeed === 'number' && gameSpeed > 0) speedMul = gameSpeed; } catch (_) {}
+
     for (const prev of lastBullets) {
       if (current.has(prev)) continue;
       if (!prev._gunnerSplit) continue;
       if (prev._gunnerSplitChild) continue;
-      const px = prev._gunnerPrevX ?? prev.x;
-      const py = prev._gunnerPrevY ?? prev.y;
-      // 偵測窗要跟子彈實際每幀移動距離連動：槍手子彈 700px/s，60fps下一幀約移動
-      // 11~12px，固定 6px 的窗口一半以上機率會漏抓（撞牆那一幀「上一幀座標」
-      // 早就超出窗口），這正是分裂觸發率偏低的原因。改成用該顆子彈上一幀的
-      // 速度換算出的實際步進距離（留 1.3 倍緩衝），下限維持 WALL_SNAP。
-      const stepDist = Math.hypot(prev.vx || 0, prev.vy || 0) * dt;
+
+      // 關鍵修正：主引擎在 splice 之前已把 p.x 更新成撞牆點，
+      // 直接讀 prev.x / prev.y 才會拿到「撞牆瞬間」的座標。
+      // 讀 _gunnerPrevX 只會拿到撞牆前一幀的位置，常常差了一個 stepDist，
+      // 這正是分裂彈難以觸發的主因。
+      const px = Number.isFinite(prev.x) ? prev.x : (prev._gunnerPrevX ?? 0);
+      const py = Number.isFinite(prev.y) ? prev.y : (prev._gunnerPrevY ?? 0);
+
+      const stepDist = Math.hypot(prev.vx || 0, prev.vy || 0) * dt * speedMul;
       const snap = Math.max(WALL_SNAP, stepDist * 1.3 + 2);
       const nearWall =
         px <= wall + snap || px >= Wd - wall - snap ||
@@ -835,5 +838,5 @@
     start();
   }
 
-  console.log('[gunner.js] v2 已載入（轉槍 + 賞金標誌 + 分裂彈）');
+  console.log('[gunner.js] v3 已載入（gojo 投射物標準 + 分裂彈修正）');
 })();
