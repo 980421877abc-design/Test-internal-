@@ -14504,7 +14504,15 @@ function updateGojoInfinity(b, dt) {
     state.tigerNovaNeedles,
     state.oniichanSpikes,
     state.fisherOceanWaves,
+    state.starSmallStars,
   ].filter(a => Array.isArray(a));
+
+  // 掛在角色身上的投射物陣列：骨頭、魔法子彈
+  for (const owner of state.balls) {
+    if (!owner) continue;
+    if (Array.isArray(owner.sansBones)) arrays.push(owner.sansBones);
+    if (Array.isArray(owner.emBullets)) arrays.push(owner.emBullets);
+  }
 
   for (const arr of arrays) {
     for (let i = arr.length - 1; i >= 0; i--) {
@@ -15757,20 +15765,25 @@ function updateGojoDomain(b, dt) {
         const waterUltActive = b.emUltUsed && b.emUltElement === 'water';
         b.emBulletTimer = waterUltActive ? EM_WATER_ULT_BULLET_COOLDOWN : EM_BULLET_COOLDOWN;
         const angle = Math.atan2(enemy.y - b.y, enemy.x - b.x);
-        b.emBullets.push({
+               b.emBullets.push({
           x: b.x, y: b.y,
           vx: Math.cos(angle) * (waterUltActive ? EM_WATER_ULT_WAVE_SPEED : EM_BULLET_SPEED),
           vy: Math.sin(angle) * (waterUltActive ? EM_WATER_ULT_WAVE_SPEED : EM_BULLET_SPEED),
           life: EM_BULLET_LIFESPAN, active: true,
+          owner: b.player, ownerBall: b,
+          type: 'em_bullet', r: EM_BULLET_RADIUS,
           isWave: waterUltActive,
-          hitSet: waterUltActive ? new Set() : null // 海嘯：記錄已擊中過的目標，允許貫穿多名敵人
+          hitSet: waterUltActive ? new Set() : null
         });
         playHitSound('knife');
       }
       // 追蹤／推進 + 命中判定
-      b.emBullets = b.emBullets.filter(bl => bl.active);
+           b.emBullets = b.emBullets.filter(bl => bl.active);
       for (const bl of b.emBullets) {
+        // Gojo 無限攔截中：跳過追蹤、移動與傷害判定
+        if (bl.gojoSlowing) continue;
         if (!bl.isWave) {
+  
           const homeTarget = getNearestEnemyTo(bl.x, bl.y, b.player);
           if (homeTarget) {
             const desiredAng = Math.atan2(homeTarget.y - bl.y, homeTarget.x - bl.x);
@@ -17923,15 +17936,20 @@ waypoints.push({
     if (b.sansBoneTimer <= 0) {
       b.sansBoneTimer = SANS_BONE_INTERVAL;
       const angle = Math.atan2(enemy.y - b.y, enemy.x - b.x);
-      b.sansBones.push({
+          b.sansBones.push({
         x: b.x, y: b.y,
         vx: Math.cos(angle) * SANS_BONE_SPEED, vy: Math.sin(angle) * SANS_BONE_SPEED,
-        life: SANS_BONE_LIFESPAN, tickTimer: 0
+        life: SANS_BONE_LIFESPAN, tickTimer: 0,
+        owner: b.player, ownerBall: b,
+        type: 'sans_bone', r: 10
       });
+      
       playHitSound('knife');
     }
-    for (let boneI = b.sansBones.length - 1; boneI >= 0; boneI--) {
+       for (let boneI = b.sansBones.length - 1; boneI >= 0; boneI--) {
       const bone = b.sansBones[boneI];
+      // Gojo 無限攔截中：跳過所有更新與傷害判定，由 Gojo 無限負責最終移除
+      if (bone.gojoSlowing) continue;
       bone.x += bone.vx * dt; bone.y += bone.vy * dt;
       bone.life -= dt; bone.tickTimer -= dt;
       if (bone.life <= 0 || bone.x < -20 || bone.x > W + 20 || bone.y < -20 || bone.y > H + 20) {
@@ -20287,6 +20305,8 @@ waypoints.push({
   for (let i = 0; i < state.starSmallStars.length; i++) {
     if (starSmallToRemove.has(i)) continue;
     const s = state.starSmallStars[i];
+    // Gojo 無限攔截中：跳過移動與碰撞判定
+    if (s.gojoSlowing) continue;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
     s.angle += dt * 5;
