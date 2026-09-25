@@ -1619,6 +1619,8 @@ const YELAN_DICE_ARROW_SPREAD      = 0.4;
 const YELAN_DICE_ARROW_RADIUS      = 6;
 const YELAN_DICE_ARROW_LIFE        = 2.0;
 const YELAN_DICE_TRIGGER_CD        = 0.5;   // 每顆骰子獨立計算
+const YELAN_DICE_ARROW_SLOW_FACTOR = 0.5;   // 玲瓏水箭命中後速度降至 50%
+const YELAN_DICE_ARROW_SLOW_DUR    = 1.5;   // 緩速持續秒數
 
 
 const MIN_SPEED          = 100;   // 最低移動速度（技能停止中除外）
