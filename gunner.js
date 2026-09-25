@@ -52,6 +52,7 @@
   const SPIN_CLEAR_PARTICLE = GUNNER_SPIN_CLEAR_PARTICLE;
   // 賞金標誌
   const BOUNTY_CD           = GUNNER_BOUNTY_CD;
+  const BOUNTY_OPENING_CD   = (typeof GUNNER_BOUNTY_OPENING_CD === 'number') ? GUNNER_BOUNTY_OPENING_CD : GUNNER_BOUNTY_CD;
   const BOUNTY_DURATION     = GUNNER_BOUNTY_DURATION;
   const BOUNTY_HOMING_TURN  = GUNNER_BOUNTY_HOMING_TURN;
   const BOUNTY_MARK_R       = GUNNER_BOUNTY_MARK_R;
@@ -179,6 +180,18 @@
         const pr = Number.isFinite(p.r) ? p.r : 8;
         const reach = radius + pr;
         if (dx * dx + dy * dy <= reach * reach) {
+          // 廚神的刀是消耗資源：丟出當下 b.knives 就已扣除，正常只有撞牆才會變成
+          // 可回收的 wallKnives 等待飛回補回刀數。轉槍若直接刪除飛行中的刀，
+          // 會讓這把刀永遠進不了 wallKnives、b.knives 也補不回來，等於永久消失。
+          // 因此這裡比照「撞牆」的處理方式：轉成可回收的 wallKnives，而不是直接刪掉。
+          if (p.type === 'knife' && p.ownerBall && p.ownerBall.char &&
+              p.ownerBall.char.type === 'chef' && p.ownerBall.hp > 0) {
+            if (!Array.isArray(root.wallKnives)) root.wallKnives = [];
+            root.wallKnives.push({
+              x: p.x, y: p.y, angle: p.angle || 0,
+              owner: p.owner, ownerBall: p.ownerBall, color: p.color,
+            });
+          }
           if (typeof p.active === 'boolean') p.active = false;
           arr.splice(i, 1);
           count++;
@@ -194,8 +207,8 @@
   function ensureState(b) {
     if (b._gunnerInit) return;
     b._gunnerInit = true;
-    // 賞金標誌
-    b.gunnerBountyCd = 0;
+    // 賞金標誌：開局先進入冷卻，不會一開場就掛標誌
+    b.gunnerBountyCd = BOUNTY_OPENING_CD;
     // 轉槍（本體技能）
     b._gunnerPrevFiring     = undefined; // 上一帧的 gunnerFiring，用來偵測 6 發打完
     b._gunnerSpinTimer      = 0;
@@ -228,6 +241,40 @@
       return result;
     };
     console.log('[gunner.js] fireProjectile hooked');
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // Hook：addProjectile → 標記槍手子彈
+  // 槍手的主要連射（index.html「連射邏輯」段落）並不是走 fireProjectile()，
+  // 而是直接呼叫 addProjectile({...})，只 hook fireProjectile 的話，
+  // 槍手真正打出去的子彈永遠不會被貼上 _gunnerBullet / _gunnerHoming /
+  // _gunnerSplit，導致追蹤與分裂形同虛設。這裡另外 hook addProjectile，
+  // 用 owner 玩家編號反查槍手球本體，補上同一套標記。
+  // ══════════════════════════════════════════════════════════
+  let hookedAddProjectile = null;
+  function tryHookAddProjectile() {
+    if (hookedAddProjectile) return;
+    if (typeof window.addProjectile !== 'function') return;
+    hookedAddProjectile = window.addProjectile;
+    window.addProjectile = function (projectile) {
+      const result = hookedAddProjectile.call(this, projectile);
+      if (result && result.type === 'bullet' && result.owner != null && !result._gunnerBullet) {
+        const root = getRoot();
+        const ownerBall = root && Array.isArray(root.balls)
+          ? root.balls.find(b => b && b.player === result.owner && b.char && b.char.type === TYPE)
+          : null;
+        if (ownerBall) {
+          result._gunnerBullet = true;
+          if (!result.ownerBall) result.ownerBall = ownerBall;
+          result._gunnerPrevX = result.x;
+          result._gunnerPrevY = result.y;
+          if (hasVariant(ownerBall, 'gunner_bounty')) result._gunnerHoming = true;
+          if (hasVariant(ownerBall, 'gunner_split'))  result._gunnerSplit = true;
+        }
+      }
+      return result;
+    };
+    console.log('[gunner.js] addProjectile hooked');
   }
 
   // ══════════════════════════════════════════════════════════
@@ -718,6 +765,7 @@
     }
 
     tryHookFireProjectile();
+    tryHookAddProjectile();
 
     const dt = Math.min(0.05, Math.max(0, (t - (ov.lastTime || t)) / 1000));
     ov.lastTime = t;
@@ -771,6 +819,7 @@
   function start() {
     setupOverlay();
     tryHookFireProjectile();
+    tryHookAddProjectile();
     requestAnimationFrame(frame);
   }
 

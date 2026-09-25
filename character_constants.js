@@ -1747,6 +1747,7 @@ const DRUNK_INTOX_SPEED_MULT = 1.35;
 
 // 🎯 賞金標誌
 const GUNNER_BOUNTY_CD          = 6.0;    // 掛標誌間隔（秒）
+const GUNNER_BOUNTY_OPENING_CD  = 6.0;    // 開局冷卻（秒）：開場不會馬上掛出第一個標誌，可與 GUNNER_BOUNTY_CD 分開調整
 const GUNNER_BOUNTY_DURATION    = 3.0;    // 標誌持續（秒）
 const GUNNER_BOUNTY_HOMING_TURN = 2.0;    // 子彈追蹤轉向速率（弧度/秒）
 const GUNNER_BOUNTY_MARK_R      = 28;     // 標誌視覺半徑（px）
