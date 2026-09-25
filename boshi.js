@@ -81,13 +81,10 @@
     const L=[], push=a=>{ if(Array.isArray(a)) L.push(a); };
     push(s.projectiles); push(s.otisMagicBullets); push(s.getoUltimateProjectiles);
     push(s.tigerNovaNeedles); push(s.oniichanSpikes); push(s.fisherOceanWaves);
-    push(s.starSmallStars); push(s.curseSlashFX); push(s.curseFireFX);
-    push(s.obitoFireballs); push(s.starBigStars); push(s.starMeteors);
-    push(s.kashimoDeerOrbs); push(s.bossDryPowderExtinguishers);
+    push(s.starSmallStars);
     for (const b of (s.balls||[])) {
       if (!b) continue;
-      push(b.sansBones); push(b.emBullets); push(b.cannonBalls);
-      push(b.oniichanTrackBalls); push(b.gojoBalls); push(b.johnnyAct4Projectiles);
+      push(b.sansBones); push(b.emBullets);
     }
     return L;
   }
