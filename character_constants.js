@@ -1562,6 +1562,63 @@ const BOSHI_QUANTUM_HALF_WIDTH  = 60;   // 單邊寬度（總寬 = 2 × 此值 =
 const BOSHI_QUANTUM_PULSE_CD    = 1.0;
 const BOSHI_QUANTUM_PULSE_RATIO = 0.20;
 const BOSHI_QUANTUM_PULSE_DMG_CAP = 500; // 單次脈衝傷害上限，避免爆炸性堆疊
+// ============================================================================
+// 夜蘭🎲 專屬常數
+// ============================================================================
+
+// 普攻「蓄力箭」
+const YELAN_BASIC_DAMAGE           = 60;
+const YELAN_BASIC_CD               = 1.0;
+const YELAN_BASIC_CHARGE           = 0.5;
+const YELAN_BASIC_CHARGE_SLOW      = 0.5;   // 蓄力期間速度倍率（速度減半）
+const YELAN_BASIC_SPEED            = 620;
+const YELAN_BASIC_RADIUS           = 7;
+const YELAN_BASIC_LIFE             = 2.0;
+
+// 被動「破局」：每 3 發普通箭，第 4 發換成破局矢
+const YELAN_BREAK_EVERY_N          = 3;
+const YELAN_BREAK_DAMAGE           = 120;   // 主傷害＝範圍傷害（不二段）
+const YELAN_BREAK_SPEED            = 720;
+const YELAN_BREAK_RADIUS           = 80;    // 命中後爆炸半徑
+const YELAN_BREAK_SOAK_DURATION    = 2.0;   // 掛浸水的持續時間
+const YELAN_BREAK_RADIUS_BOLT      = 9;     // 破局矢投射物半徑
+const YELAN_BREAK_LIFE             = 2.0;
+
+// 「浸水」：通用減傷（受到傷害 +40%，取最強不疊加；沿用 emVuln 欄位）
+const YELAN_SOAK_VULN              = 0.40;
+
+// 被動「妙轉隨心」：持有玄擲玲瓏期間的增傷累積
+const YELAN_MASTER_BASE_DMG        = 0.01;
+const YELAN_MASTER_GROWTH          = 0.05;
+const YELAN_MASTER_GROWTH_TICK     = 0.5;
+const YELAN_MASTER_MAX             = 0.50;
+
+// 技能一「籠絡縱命索」
+const YELAN_DASH_CD                = 8.0;
+const YELAN_DASH_DURATION          = 2.0;
+const YELAN_DASH_SPEED_MULT        = 1.8;
+const YELAN_DASH_MARK_DAMAGE       = 150;
+const YELAN_DASH_THREAD_WIDTH      = 3;     // 絡命絲視覺寬度
+const YELAN_DASH_THREAD_HIT_RADIUS = 6;     // 絡命絲判定半徑（再加球半徑）
+const YELAN_DASH_THREAD_LIFE       = 3.0;
+const YELAN_DASH_THREAD_DAMAGE     = 60;
+const YELAN_DASH_THREAD_SLOW_FACTOR = 0.5;  // 緩速後速度倍率（剩 50%）
+const YELAN_DASH_THREAD_SLOW_DUR   = 3.0;
+const YELAN_DASH_THREAD_HIT_CD     = 1.2;   // 同一條絲對同一敵人的最低觸發間隔
+const YELAN_DASH_THREAD_SAMPLE_INTERVAL = 0.15; // 沿途取樣絲段間隔
+
+// 技能二「淵圖玲瓏骰」
+const YELAN_DICE_CD                = 12.0;
+const YELAN_DICE_DURATION          = 5.0;
+const YELAN_DICE_DAMAGE            = 60;
+const YELAN_DICE_RADIUS            = 130;
+const YELAN_DICE_ARROW_COUNT       = 3;
+const YELAN_DICE_ARROW_DAMAGE      = 20;
+const YELAN_DICE_ARROW_SPEED       = 400;
+const YELAN_DICE_ARROW_SPREAD      = 0.4;
+const YELAN_DICE_ARROW_RADIUS      = 6;
+const YELAN_DICE_ARROW_LIFE        = 2.0;
+const YELAN_DICE_TRIGGER_CD        = 0.5;   // 每顆骰子獨立計算
 
 
 const MIN_SPEED          = 100;   // 最低移動速度（技能停止中除外）
