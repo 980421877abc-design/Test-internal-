@@ -126,7 +126,7 @@ tiger:['你那同情我的態度真是令人作嘔，這只顯得你很懦弱。
   id: 'gunner', emoji: '🔫', weapon: '💥', name: '無名槍手',
   desc: '​「在我的槍口前，每個人都只有一秒的時間後悔。」​游走在法律與罪惡邊緣的頂尖槍手。沒有人知道他的真名，只知道當他的皮靴馬刺聲響起，就代表死神的腳步近了。',
   stats: [  '連射', '額外裝填', '閃光彈'],
-  skills: [`被動：每次撞牆裝彈${GUNNER_MAG_count}發，上限${GUNNER_MAG_SIZE}發；額外：每${GUNNER_EXTRA_RELOAD_INTERVAL}s裝填${GUNNER_EXTRA_RELOAD_COUNT}發，仍受彈夾上限限制。`, `原本連射：累積足夠子彈後停下連射，每發${GUNNER_BULLET_DAMAGE}傷害。`, `原本閃光彈：每${GUNNER_FLASH_INTERVAL}s投擲，造成${GUNNER_FLASH_DAMAGE}範圍傷害並凍結攻擊與技能冷卻${GUNNER_FLASH_COOLDOWN_FREEZE_DUR}s；額外附加速度降至${Math.round(GUNNER_FLASH_SLOW_FACTOR * 100)}%，持續${GUNNER_FLASH_SLOW_DURATION}s。`],
+  skills: [`被動：每次撞牆裝彈${GUNNER_MAG_count}發，上限${GUNNER_MAG_SIZE}發；額外：每${GUNNER_EXTRA_RELOAD_INTERVAL}s裝填${GUNNER_EXTRA_RELOAD_COUNT}發，仍受彈夾上限限制。`, `原本連射：累積足夠子彈後停下連射，每發${GUNNER_BULLET_DAMAGE}傷害。`, `閃光彈：每${GUNNER_FLASH_INTERVAL}s投擲，造成${GUNNER_FLASH_DAMAGE}範圍傷害並凍結攻擊與技能冷卻${GUNNER_FLASH_COOLDOWN_FREEZE_DUR}s；額外附加速度降至${Math.round(GUNNER_FLASH_SLOW_FACTOR * 100)}%，持續${GUNNER_FLASH_SLOW_DURATION}s。`,`轉槍：6 發子彈打完的瞬間，原地轉槍 ${GUNNER_SPIN_DURATION}s，期間消除半徑內所有敵方投射物（球半徑 ×${GUNNER_SPIN_RADIUS_MULT}）。`],
   color: '#f0c84a', glowColor: 'rgba(184,134,11,0.6)', type: 'gunner',
   winQuote: '顆秒！！！！！！。',
   loseQuote: '……看來這次，慢了半拍。',
