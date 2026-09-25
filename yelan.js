@@ -1,14 +1,16 @@
 /**
- * yelan.js — 夜蘭🎲 外部擴充模組（v5）
+ * yelan.js — 夜蘭🎲 外部擴充模組（v6）
  *
- * v5：
- *   - 絡命絲刪除，籠絡縱命索改為單純衝刺傷害招
- *   - 衝刺釋放時速度線特效、衝刺期間殘影
- *   - 玲瓏水箭附加緩速
- *   - FX 壽命獨立清理，避免夜蘭死亡／停手後殘留
+ * v6：
+ *   - 修正蓄力光暈在凍結狀態下卡住
+ *   - 籠絡縱命索改為「穿過全部敵人才收招」，碰過的敵人不重複觸發
+ *   - 淵圖玲瓏水箭改為從不同起始點瞄準同一目標，視覺匯聚
+ *   - pushFlash 加上限、破局矢防重複觸發、dt 非有限值保護、FX life 過濾
+ *   - 拔掉 DICE_SLOW_FACTOR / DICE_SLOW_DUR 的 fallback，缺常數就報錯停用
  *
  * 依賴：
  *   - character_constants.js 需提供 YELAN_* 常數
+ *     （含 YELAN_DICE_ARROW_SLOW_FACTOR、YELAN_DICE_ARROW_SLOW_DUR）
  *   - character_roster.js 需提供 { id:'yelan', type:'yelan', ... }
  *   - index.html 需加入 <script src="yelan.js"></script>
  *   - index.html 球球碰撞 skip 需加入 yelanDashing 條件
@@ -22,10 +24,9 @@
   const COLOR_YELAN_LT   = '#a8e6ff';
   const COLOR_YELAN_CORE = '#ffffff';
 
-  // 水箭緩速（常數找不到時用內建 fallback）
-  const DICE_SLOW_FACTOR = (typeof YELAN_DICE_ARROW_SLOW_FACTOR === 'number') ? YELAN_DICE_ARROW_SLOW_FACTOR : 0.5;
-  const DICE_SLOW_DUR    = (typeof YELAN_DICE_ARROW_SLOW_DUR === 'number') ? YELAN_DICE_ARROW_SLOW_DUR : 1.5;
   const DASH_SPEEDLINE_COUNT = 14;
+  const FX_HARD_CAP          = 250;   // yelan 自有 FX 硬上限
+  const HITFLASH_SOFT_CAP    = 60;    // 主動 push 的 hitFlash 上限
 
   // ══════════════════════════════════════════════════════════
   // 常數檢查
@@ -42,6 +43,7 @@
     'YELAN_DICE_ARROW_COUNT', 'YELAN_DICE_ARROW_DAMAGE', 'YELAN_DICE_ARROW_SPEED',
     'YELAN_DICE_ARROW_SPREAD', 'YELAN_DICE_ARROW_RADIUS', 'YELAN_DICE_ARROW_LIFE',
     'YELAN_DICE_TRIGGER_CD',
+    'YELAN_DICE_ARROW_SLOW_FACTOR', 'YELAN_DICE_ARROW_SLOW_DUR',
   ];
   const missingConstants = REQUIRED_CONSTANTS.filter(name => {
     try { return (0, eval)(`typeof ${name}`) === 'undefined'; }
@@ -52,6 +54,9 @@
       missingConstants.join('\n  '));
     return;
   }
+
+  const DICE_SLOW_FACTOR = YELAN_DICE_ARROW_SLOW_FACTOR;
+  const DICE_SLOW_DUR    = YELAN_DICE_ARROW_SLOW_DUR;
 
   // ══════════════════════════════════════════════════════════
   // 工具
@@ -98,6 +103,10 @@
   function pushFlash(x, y, r, color, t) {
     const root = getRoot();
     if (!root || !root.hitFlashes) return;
+    // 防止異常邏輯每幀 push 造成累積卡場
+    if (root.hitFlashes.length >= HITFLASH_SOFT_CAP) {
+      root.hitFlashes.splice(0, root.hitFlashes.length - HITFLASH_SOFT_CAP + 1);
+    }
     root.hitFlashes.push({ x, y, r, alpha: 1, color, t });
   }
   function playHit(type) {
@@ -140,6 +149,7 @@
     b.yelanDashing = false;
     b.yelanDashTimer = 0;
     b.yelanDashTrailTimer = 0;
+    b.yelanDashHitSet = new Set();      // v6：碰過的敵人，避免重複觸發
     b.yelanDiceCd = YELAN_DICE_CD;
     b.yelanDiceTimer = 0;
     b.yelanDiceStartAt = 0;
@@ -194,23 +204,32 @@
       ownerBall: b,
       damage: YELAN_BREAK_DAMAGE,
       angle,
+      _yelanExploded: false,
     });
     playHit('knife');
   }
 
+  // v6：三發從不同起始點瞄準同一目標點，視覺匯聚
   function fireDiceArrows(root, owner, target) {
     const count = YELAN_DICE_ARROW_COUNT;
-    const baseAngle = Math.atan2(target.y - owner.y, target.x - owner.x);
     const r = getRadius(owner);
+    const tx = target.x, ty = target.y;
+
+    const aim = Math.atan2(ty - owner.y, tx - owner.x);
+    const perpAngle = aim + Math.PI / 2;
+    const startSpread = r * 0.9;
+
     for (let i = 0; i < count; i++) {
-      const offset = count > 1
-        ? (i - (count - 1) / 2) * (YELAN_DICE_ARROW_SPREAD / (count - 1))
-        : 0;
-      const angle = baseAngle + offset + (Math.random() - 0.5) * 0.06;
+      const offset = count > 1 ? (i - (count - 1) / 2) : 0;
+      const sx = owner.x + Math.cos(perpAngle) * offset * startSpread;
+      const sy = owner.y + Math.sin(perpAngle) * offset * startSpread;
+      const dx = tx - sx, dy = ty - sy;
+      const d = Math.hypot(dx, dy) || 1;
+      const angle = Math.atan2(dy, dx);
+
       ensureProjectiles(root).push({
         kind: 'dice',
-        x: owner.x + Math.cos(angle) * (r + 6),
-        y: owner.y + Math.sin(angle) * (r + 6),
+        x: sx, y: sy,
         vx: Math.cos(angle) * YELAN_DICE_ARROW_SPEED,
         vy: Math.sin(angle) * YELAN_DICE_ARROW_SPEED,
         r: YELAN_DICE_ARROW_RADIUS,
@@ -228,6 +247,9 @@
   }
 
   function explodeBreak(root, p) {
+    if (p._yelanExploded) return;
+    p._yelanExploded = true;
+
     const radius = YELAN_BREAK_RADIUS;
     const damage = YELAN_BREAK_DAMAGE;
     for (const t of getAllTargets()) {
@@ -243,12 +265,14 @@
     }
     pushFlash(p.x, p.y, radius, COLOR_YELAN, 0.4);
     if (!Array.isArray(root._yelanFx)) root._yelanFx = [];
-    root._yelanFx.push({
-      kind: 'breakExplosion',
-      x: p.x, y: p.y, radius,
-      life: 0.5, maxLife: 0.5,
-      seed: Math.random() * 1000,
-    });
+    if (root._yelanFx.length < FX_HARD_CAP) {
+      root._yelanFx.push({
+        kind: 'breakExplosion',
+        x: p.x, y: p.y, radius,
+        life: 0.5, maxLife: 0.5,
+        seed: Math.random() * 1000,
+      });
+    }
     playHit('opm');
   }
 
@@ -353,43 +377,60 @@
   }
 
   // ══════════════════════════════════════════════════════════
-  // 籠絡縱命索（單純衝刺傷害招，無絡命絲）
+  // 籠絡縱命索：穿過全部敵人才收招，碰過的敵人不重複觸發
   // ══════════════════════════════════════════════════════════
   function updateDash(b, dt, root) {
     if (b.yelanDashing) {
       b.yelanDashTimer -= dt;
+      if (!b.yelanDashHitSet) b.yelanDashHitSet = new Set();
 
-      const enemy = getNearestEnemyTo(b.x, b.y, b.player);
-      if (enemy) {
-        const angle = Math.atan2(enemy.y - b.y, enemy.x - b.x);
+      // 目標選擇：優先朝「還沒碰過的敵人」移動
+      let nextTarget = null, bestD = Infinity;
+      for (const t of getAllTargets()) {
+        if (!t || t.hp <= 0) continue;
+        if ((t.player ?? t.ownerPlayer ?? t.owner) === b.player) continue;
+        if (b.yelanDashHitSet.has(t)) continue;
+        const d = (t.x - b.x) ** 2 + (t.y - b.y) ** 2;
+        if (d < bestD) { bestD = d; nextTarget = t; }
+      }
+
+      // 全部敵人都碰過 → 立刻收招
+      if (!nextTarget) {
+        b.yelanDashTimer = 0;
+      } else {
+        const angle = Math.atan2(nextTarget.y - b.y, nextTarget.x - b.x);
         const speed = getBaseSpeed() * YELAN_DASH_SPEED_MULT;
         b.vx = Math.cos(angle) * speed;
         b.vy = Math.sin(angle) * speed;
       }
 
-      // 衝刺殘影：每 0.06 秒留下一顆
+      // 衝刺殘影
       b.yelanDashTrailTimer -= dt;
       if (b.yelanDashTrailTimer <= 0) {
         b.yelanDashTrailTimer = 0.06;
         if (!Array.isArray(root._yelanFx)) root._yelanFx = [];
-        root._yelanFx.push({
-          kind: 'dashTrail',
-          x: b.x, y: b.y,
-          life: 0.35, maxLife: 0.35,
-        });
-      }
-
-      // 穿透標記
-      for (const t of getAllTargets()) {
-        if (!t || t.hp <= 0) continue;
-        if ((t.player ?? t.ownerPlayer ?? t.owner) === b.player) continue;
-        if (t.yelanMarkedBy === b.player) continue;
-        if (Math.hypot(t.x - b.x, t.y - b.y) <= getRadius(b) + getRadius(t) + 4) {
-          t.yelanMarkedBy = b.player;
+        if (root._yelanFx.length < FX_HARD_CAP) {
+          root._yelanFx.push({
+            kind: 'dashTrail',
+            x: b.x, y: b.y,
+            life: 0.35, maxLife: 0.35,
+          });
         }
       }
 
-      // 技能結束：引爆標記
+      // 穿透標記：碰過的敵人加入 Set，絕不重複觸發同一人
+      for (const t of getAllTargets()) {
+        if (!t || t.hp <= 0) continue;
+        if ((t.player ?? t.ownerPlayer ?? t.owner) === b.player) continue;
+        if (b.yelanDashHitSet.has(t)) continue;
+        if (Math.hypot(t.x - b.x, t.y - b.y) <= getRadius(b) + getRadius(t) + 4) {
+          b.yelanDashHitSet.add(t);
+          t.yelanMarkedBy = b.player;
+          pushFlash(t.x, t.y, 30, COLOR_YELAN, 0.28);
+        }
+      }
+
+      // 收招：時間到或已穿過全部敵人
       if (b.yelanDashTimer <= 0) {
         b.yelanDashing = false;
         for (const t of getAllTargets()) {
@@ -399,6 +440,7 @@
           t.yelanMarkedBy = null;
           pushFlash(t.x, t.y, 40, COLOR_YELAN, 0.4);
         }
+        b.yelanDashHitSet.clear();
         b.yelanBreakCounter = YELAN_BREAK_EVERY_N;
       }
       return;
@@ -413,18 +455,21 @@
     b.yelanDashTimer = YELAN_DASH_DURATION;
     b.yelanDashTrailTimer = 0;
     b.yelanDashCd = YELAN_DASH_CD;
+    b.yelanDashHitSet = new Set();
 
     // 釋放瞬間：速度線
     if (!Array.isArray(root._yelanFx)) root._yelanFx = [];
     const aim = Math.atan2(enemy.y - b.y, enemy.x - b.x);
-    root._yelanFx.push({
-      kind: 'dashBurst',
-      x: b.x, y: b.y,
-      angle: aim,
-      count: DASH_SPEEDLINE_COUNT,
-      life: 0.35, maxLife: 0.35,
-      seed: Math.random() * 1000,
-    });
+    if (root._yelanFx.length < FX_HARD_CAP) {
+      root._yelanFx.push({
+        kind: 'dashBurst',
+        x: b.x, y: b.y,
+        angle: aim,
+        count: DASH_SPEEDLINE_COUNT,
+        life: 0.35, maxLife: 0.35,
+        seed: Math.random() * 1000,
+      });
+    }
     pushFlash(b.x, b.y, getRadius(b) + 24, COLOR_YELAN, 0.35);
   }
 
@@ -688,7 +733,9 @@
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.char || b.char.type !== TYPE) continue;
       if (!b.yelanCharging) continue;
+      if (isFrozen(b, root)) continue;
       const prog = 1 - Math.max(0, b.yelanChargeTimer) / YELAN_BASIC_CHARGE;
+      if (!Number.isFinite(prog)) continue;
       const bR = getRadius(b);
       c.save();
       c.globalAlpha = 0.4 + prog * 0.4;
@@ -765,13 +812,28 @@
 
     const dt = Math.min(0.05, Math.max(0, (t - (ov.lastTime || t)) / 1000));
     ov.lastTime = t;
+
+    // dt 非有限值保護：避免 NaN 讓 life 永不遞減
+    if (!Number.isFinite(dt) || dt < 0) {
+      requestAnimationFrame(frame);
+      return;
+    }
+
     const elapsed = Number.isFinite(root.elapsed) ? root.elapsed : (t / 1000);
 
     // FX 壽命：獨立於夜蘭是否存活，避免夜蘭死亡後特效殘留
     if (root._yelanFx) {
       for (let i = root._yelanFx.length - 1; i >= 0; i--) {
-        root._yelanFx[i].life -= dt;
-        if (root._yelanFx[i].life <= 0) root._yelanFx.splice(i, 1);
+        const fx = root._yelanFx[i];
+        if (!Number.isFinite(fx.life) || !Number.isFinite(fx.maxLife)) {
+          root._yelanFx.splice(i, 1);
+          continue;
+        }
+        fx.life -= dt;
+        if (fx.life <= 0) root._yelanFx.splice(i, 1);
+      }
+      if (root._yelanFx.length > FX_HARD_CAP) {
+        root._yelanFx.splice(0, root._yelanFx.length - FX_HARD_CAP);
       }
     }
 
@@ -779,7 +841,15 @@
     const yelans = root.balls.filter(b => b && b.hp > 0 && b.char && b.char.type === TYPE);
     for (const b of yelans) {
       ensureState(b);
-      if (isFrozen(b, root)) continue;
+      if (isFrozen(b, root)) {
+        // 凍結時清掉蓄力狀態，避免光暈卡住
+        if (b.yelanCharging) {
+          b.yelanCharging = false;
+          b.yelanChargeTimer = 0;
+          b.yelanSlowRefreshTimer = 0;
+        }
+        continue;
+      }
       updateBasic(b, dt, root);
       updateDash(b, dt, root);
       updateDiceSkill(b, dt, root);
@@ -803,6 +873,15 @@
     }
     if (deadPlayers.size && Array.isArray(root.yelanProjectiles)) {
       root.yelanProjectiles = root.yelanProjectiles.filter(p => !deadPlayers.has(p.owner));
+    }
+    // 死亡時把衝刺狀態收乾淨（避免殘留 yelanDashing）
+    for (const b of root.balls) {
+      if (b && b.char && b.char.type === TYPE && b.hp <= 0) {
+        b.yelanDashing = false;
+        b.yelanCharging = false;
+        b.yelanChargeTimer = 0;
+        if (b.yelanDashHitSet) b.yelanDashHitSet.clear();
+      }
     }
 
     const active =
@@ -830,5 +909,5 @@
     start();
   }
 
-  console.log('[yelan.js] v5 已載入（無絡命絲 + 水箭緩速）');
+  console.log('[yelan.js] v6 已載入（蓄力/衝刺/水箭/特效累積 修正）');
 })();
