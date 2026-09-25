@@ -22598,8 +22598,7 @@ if (!b.sakikoDualActive) {
       b.dajiBurnTick = (b.dajiBurnTick || 0) - dt;
       if (b.dajiBurnTick <= 0) {
         b.dajiBurnTick += 1;
-        const targetMaxHp = (b.char && b.char.type === 'johnny') ? JOHNNY_MAX_HP : (b.char && b.char.type === 'sans') ? SANS_MAX_HP : MAX_HP;
-        dealDamage(b, targetMaxHp * DAJI_BURN_PCT, { attackerPlayer: b.dajiBurnOwnerPlayer });
+            dealDamage(b, getBallMaxHp(b) * DAJI_BURN_PCT, { attackerPlayer: b.dajiBurnOwnerPlayer });
         state.hitFlashes.push({ x: b.x, y: b.y, r: 12, alpha: 0.6, color: '#7cff8a', t: 0.2 });
       }
       if (b.dajiBurnTimer < 0) b.dajiBurnTimer = 0;
