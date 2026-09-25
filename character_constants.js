@@ -1516,6 +1516,46 @@ const SAKURA_FULL_BLOOM_CD                 = 10.0;
 const SAKURA_FULL_BLOOM_SPEED_MULT         = 2.0;
 const SAKURA_FULL_BLOOM_TICK_INTERVAL      = 0.2;
 const SAKURA_FULL_BLOOM_DURATION_PER_PETAL = 0.2;
+// ============================================================================
+// 博士📡 專屬常數
+// ============================================================================
+
+// 被動「磁暴電湧」：20% 爆擊，1.5 倍傷害，觸發時額外降下閃電
+const BOSHI_CRIT_CHANCE         = 0.20;
+const BOSHI_CRIT_MULT           = 1.5;
+const BOSHI_CRIT_LIGHTNING_DMG  = 30;
+const BOSHI_CRIT_LIGHTNING_PARA = 0.2;
+
+// 被動「高能電球」：4 顆電球環繞，每 2 秒齊射雷射
+const BOSHI_ORB_COUNT           = 4;
+const BOSHI_ORB_RADIUS          = 75;
+const BOSHI_ORB_LASER_INTERVAL  = 2.0;
+const BOSHI_ORB_LASER_DAMAGE    = 25;
+const BOSHI_ORB_LASER_SPEED     = 600;
+const BOSHI_ORB_LASER_LIFE      = 1.5;
+const BOSHI_ORB_ROTATE_SPEED    = 1.2;
+
+// 被動「護盾」：最多 3 層，受到攻擊消耗一層減傷 20%
+const BOSHI_SHIELD_MAX          = 3;
+const BOSHI_SHIELD_REDUCE       = 0.20;
+
+// 技能一「電磁場裝置」
+const BOSHI_EM_FIELD_RADIUS     = 75;
+const BOSHI_EM_FIELD_DURATION   = 3.0;
+const BOSHI_EM_FIELD_CD         = 7.0;
+const BOSHI_EM_FIELD_THROW_SPEED= 400;
+const BOSHI_EM_FIELD_MAX_DIST   = 220;
+const BOSHI_EM_FIELD_DPS        = 10;
+const BOSHI_EM_FIELD_RING_TOL   = 12;
+
+// 技能二「量子躍遷器」
+const BOSHI_QUANTUM_CD          = 8.0;
+const BOSHI_QUANTUM_STUN        = 1.0;
+const BOSHI_QUANTUM_DURATION    = 5.0;
+const BOSHI_QUANTUM_HALF_WIDTH  = 25;   // 單邊寬度（總寬 = 2 × 此值 = 2 × 球半徑）
+const BOSHI_QUANTUM_PULSE_CD    = 1.0;
+const BOSHI_QUANTUM_PULSE_RATIO = 0.10;
+const BOSHI_QUANTUM_PULSE_DMG_CAP = 500; // 單次脈衝傷害上限，避免爆炸性堆疊
 
 
 const MIN_SPEED          = 100;   // 最低移動速度（技能停止中除外）
