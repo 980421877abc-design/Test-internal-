@@ -232,6 +232,12 @@ const GUNNER_FLASH_SLOW_DURATION = 2.0; // 閃光彈額外緩速持續時間（�
 const GUNNER_EXTRA_RELOAD_INTERVAL = 2.5; // 額外裝填週期（秒）
 const GUNNER_EXTRA_RELOAD_COUNT = 2;       // 每次額外裝填子彈數
 const GUNNER_FLASH_SPEED       = 480;   // 閃光彈飛行速度（px/s）
+// ══════════════ 無名槍手本體技能：轉槍 ══════════════
+const GUNNER_SPIN_DURATION       = 1.0;   // 轉槍持續時間（秒）
+const GUNNER_SPIN_RADIUS_MULT    = 2.0;   // 消除投射物半徑 = 球半徑 × 此值
+const GUNNER_SPIN_ROTATE_SPEED   = 26;    // 視覺旋轉速度（弧度/秒）
+const GUNNER_SPIN_FLASH_INTERVAL = 0.08;  // 轉槍期間粒子噴射間隔
+const GUNNER_SPIN_CLEAR_PARTICLE = 5;     // 每次消除投射物噴出的火花數
 //武士常數
 
 const SAMURAI_PARRY_INTERVAL   = 2.0;  // 招架CD（秒）
