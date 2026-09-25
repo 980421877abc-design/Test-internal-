@@ -1737,4 +1737,17 @@ const DRUNK_INTOX_MAX = 10;
 const DRUNK_INTOX_DURATION = 10.0;
 const DRUNK_INTOX_ATTACK_REDUCE = 0.3;
 const DRUNK_INTOX_SPEED_MULT = 1.35;
+// ══════════════ 無名槍手海克斯科技 ══════════════
 
+// 🎯 賞金標誌
+const GUNNER_BOUNTY_CD          = 6.0;    // 掛標誌間隔（秒）
+const GUNNER_BOUNTY_DURATION    = 3.0;    // 標誌持續（秒）
+const GUNNER_BOUNTY_HOMING_TURN = 2.0;    // 子彈追蹤轉向速率（弧度/秒）
+const GUNNER_BOUNTY_MARK_R      = 28;     // 標誌視覺半徑（px）
+
+// 💥 分裂彈
+const GUNNER_SPLIT_COUNT        = 8;      // 散開子彈數
+const GUNNER_SPLIT_DAMAGE_RATIO = 0.5;   // 每顆傷害比（對原傷）
+const GUNNER_SPLIT_SPEED        = 500;    // 小子彈速度（px/s）
+const GUNNER_SPLIT_LIFE         = 1.2;    // 小子彈存活（秒）
+const GUNNER_SPLIT_RADIUS       = 8;      // 小子彈半徑（px）
