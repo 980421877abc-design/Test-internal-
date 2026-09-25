@@ -724,5 +724,19 @@ vsQuotes: {
     color: '#ffa6c9', glowColor: 'rgba(255,166,201,0.7)', type: 'sakura',
     winQuote: '在綻放的櫻花中，靜靜的睡去吧。',
     loseQuote: '櫻花…還不能在此刻凋零……'
+  },
+  {
+    id: 'boshi', emoji: '📡', weapon: '⚡', name: '博士',
+    desc: '我懷疑我們活在遊戲世界裡，電磁與量子的操控者。身旁環繞高能電球，因意外的實驗失誤，來到這裡。',
+    stats: ['磁暴電湧', '高能電球', '電磁場裝置', '量子躍遷器'],
+    skills: [
+      `被動「磁暴電湧」：攻擊時 ${Math.round(BOSHI_CRIT_CHANCE*100)}% 機率爆擊，傷害 ×${BOSHI_CRIT_MULT}；觸發爆擊時額外降下閃電造成 ${BOSHI_CRIT_LIGHTNING_DMG} 傷並麻痺 ${BOSHI_CRIT_LIGHTNING_PARA}s。`,
+      `被動「高能電球」：進場時自身環繞 ${BOSHI_ORB_COUNT} 顆電球與 ${BOSHI_SHIELD_MAX} 層護盾。每顆電球每 ${BOSHI_ORB_LASER_INTERVAL}s 對敵人發射雷射造成 ${BOSHI_ORB_LASER_DAMAGE} 傷害；受到攻擊時消耗一層護盾，該次傷害減免 ${Math.round(BOSHI_SHIELD_REDUCE*100)}%。`,
+      `技能「電磁場裝置」：朝敵人方向丟出一個電磁場（半徑 ${BOSHI_EM_FIELD_RADIUS}px），持續 ${BOSHI_EM_FIELD_DURATION}s、CD ${BOSHI_EM_FIELD_CD}s。敵人投射物觸碰到電磁場邊緣時被消除；敵人進入場內每秒受到 ${BOSHI_EM_FIELD_DPS} 傷（不爆擊）。博士每次進入自己的電磁場或量子領域，額外獲得 1 層護盾。`,
+      `技能「量子躍遷器」：朝敵人方向瞬移，創造寬 ${BOSHI_QUANTUM_HALF_WIDTH*2}px、長貫穿場地的矩形量子領域。生成時領域內的敵人麻痺 ${BOSHI_QUANTUM_STUN}s 並清除場內所有敵方投射物；領域持續 ${BOSHI_QUANTUM_DURATION}s，每秒由領域起點牆向終點牆釋放脈衝，脈衝傷害為博士與隊友在領域內造成傷害的 ${Math.round(BOSHI_QUANTUM_PULSE_RATIO*100)}%。開場冷卻 CD ${BOSHI_QUANTUM_CD}s。`
+    ],
+    color: '#4fd6ff', glowColor: 'rgba(79,214,255,0.7)', type: 'boshi',
+    winQuote: '魔法也是能量,遵循能量守恆定律。',
+    loseQuote: '參數錯誤,量子效應再次失去平衡。'
   }
 ];
