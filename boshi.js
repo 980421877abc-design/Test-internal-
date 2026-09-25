@@ -76,17 +76,12 @@
   // ══════════════════════════════════════════════════════════
   // 反投射物清單
   // ══════════════════════════════════════════════════════════
-  function projArrays() {
-    const s=$S(); if (!s) return [];
-    const L=[], push=a=>{ if(Array.isArray(a)) L.push(a); };
-    push(s.projectiles); push(s.otisMagicBullets); push(s.getoUltimateProjectiles);
-    push(s.tigerNovaNeedles); push(s.oniichanSpikes); push(s.fisherOceanWaves);
-    push(s.starSmallStars);
-    for (const b of (s.balls||[])) {
-      if (!b) continue;
-      push(b.sansBones); push(b.emBullets);
+   function projArrays() {
+    // 投射物統一清單（定義於 index.html 主引擎）
+    if (typeof window.getProjectileArrays === 'function') {
+      return window.getProjectileArrays();
     }
-    return L;
+    return [];
   }
   const pOwner = p => p?.owner ?? p?.ownerBall?.player ?? null;
   function clearProj(fn) {
