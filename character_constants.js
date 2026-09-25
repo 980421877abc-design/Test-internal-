@@ -94,7 +94,7 @@ const GOJO_CLASH_SELF_REDUCE     = 0.8;   // 對 Gojo 自己的減傷比例（�
 
 // ── 蒼拳（近戰）──
 const GOJO_FIST_RANGE            = 60;    // 觸發距離（px）
-const GOJO_FIST_DAMAGE           = 30;
+const GOJO_FIST_DAMAGE           = 25;
 const GOJO_FIST_COOLDOWN         = 0.8;
 const GOJO_FIST_PULL_FORCE       = 250;   // 引力（拉向 Gojo）
 
@@ -193,7 +193,7 @@ const YI_LINK_MAX_STACKS    = 3;     // 料敵先機最多三層
 const YI_ADVANTAGE_SLOW_FACTOR = 0.5; // 取勢：敵人速度降至50%
 const YI_ADVANTAGE_SLOW_DURATION = 2.0;
 const YI_HEAVEN_COUNT        = 5;    // 天下劫每次五枚神之一手
-const YI_HEAVEN_DAMAGE       = 70;   // 神之一手範圍爆炸傷害
+const YI_HEAVEN_DAMAGE       = 60...;   // 神之一手範圍爆炸傷害
 const YI_HEAVEN_RADIUS       = 55;   // 神之一手引爆範圍
 const YI_HEAVEN_ARM_OFFSET   = 2;    // 中心到四方附棋的棋盤步數；中間保留一格空交叉點
 const YI_HEAVEN_STONE_INTERVAL = 0.18; // 同一組內，中心棋與四方附棋的逐顆落子間隔
@@ -639,7 +639,7 @@ const JOSEPH_CONTACT_DMG_BASE    = 5;     // 未開啟波紋呼吸法，碰觸�
 const JOSEPH_CONTACT_CD          = 0.45;  // 碰觸觸發CD（避免同一次貼身重複計算）
 const JOSEPH_HP_REGEN_INTERVAL   = 1.0;   // 波紋呼吸法：定時回血間隔
 const JOSEPH_HP_REGEN_AMOUNT     = 10;     // 定時回血量
-const JOSEPH_HP_REGEN_ON_HIT     = 35;     // 每次造成傷害，額外回血量
+const JOSEPH_HP_REGEN_ON_HIT     = 30;     // 每次造成傷害，額外回血量
 const JOSEPH_DASH_COOLDOWN       = 4.0;   // 波紋疾走CD
 const JOSEPH_DASH_RANGE          = 170;   // 波紋疾走觸發距離
 const JOSEPH_DASH_DAMAGE         = 50;    // 波紋疾走傷害
@@ -710,7 +710,7 @@ const DAJI_MELEE_DMG         = 60;    // 強化普攻（一般）傷害
 const DAJI_MELEE_DMG_ENH     = 100;    // 強化普攻（被動強化後）傷害
 const DAJI_MELEE_STUN_ENH    = 1.0;    // 被動強化後的暈眩時間（秒）
 const DAJI_MELEE_KNOCKBACK   = 240;    // 強化普攻擊退力道
-const DAJI_MELEE_RANGE       = RADIUS * 2 + 4; // 魅惑近戰可攻擊距離（需大於球球碰撞分離距離 RADIUS*2，否則永遠碰不到）
+const DAJI_MELEE_RANGE       = RADIUS * 2 + 10; // 魅惑近戰可攻擊距離（需大於球球碰撞分離距離 RADIUS*2，否則永遠碰不到）
 const DAJI_TAILSWING_DUR     = 0.35;   // 揮尾巴特效持續時間
 const DAJI_SKILL2_CD         = 8.0;    // 技能二CD
 const DAJI_BALL_BASE_DMG     = 90;     // 法術球基礎傷害
@@ -826,7 +826,7 @@ const BAIE_KINDLING_ON_HIT_DEAL  = 1;  // 造成傷害＋1火種
 const BAIE_KINDLING_ON_HIT_TAKEN = 1;  // 受到傷害＋1火種
 const BAIE_KINDLING_ON_COLLIDE   = 2;  // 碰撞到對方＋2火種
 const BAIE_KINDLING_ON_EXIT      = 3;  // 退出愛上雷神＋3火種
-const BAIE_LOVE_HP_BONUS      = 0.5;   // 愛上雷神：血量上限+
+const BAIE_LOVE_HP_BONUS      = 0.4;   // 愛上雷神：血量上限+
 const BAIE_LOVE_DURATION      = 8;     // 愛上雷神持續秒數（原作為回合制，此為即時戰鬥版本自訂時長）
 const BAIE_LOVE_MIN_INTERVAL  = 9;    // 愛上雷神最短再次觸發間隔（秒）
 const BAIE_ZAIE_DURATION      = 1;     // 灾厄•弑魂焚诏：原地不動秒數
@@ -1468,8 +1468,8 @@ const BOUNDARY_BLACK_HOLE_MAX = 3;
 const BOUNDARY_BLACK_HOLE_RADIUS = 18;
 const BOUNDARY_BLACK_HOLE_BLAST_RADIUS = 50;
 const BOUNDARY_BLACK_HOLE_BLAST_DAMAGE = 50;
-const BOUNDARY_CAMOUFLAGE_NORMAL = 1.8;
-const BOUNDARY_CAMOUFLAGE_DURATION = 1.2;
+const BOUNDARY_CAMOUFLAGE_NORMAL = 2.0;
+const BOUNDARY_CAMOUFLAGE_DURATION = 1.0;
 const BOUNDARY_WARP_TRIGGER_HP = 400;
 const BOUNDARY_WARP_TRIGGER_TIME = 20;
 const BOUNDARY_WARP_DURATION = 6;
@@ -1502,7 +1502,7 @@ const SAKURA_YAE_RECHARGE_PER_PETAL = 0.2;
 
 // 普攻「花刃」
 const SAKURA_BASIC_DAMAGE   = 50;
-const SAKURA_BASIC_INTERVAL = 0.8;
+const SAKURA_BASIC_INTERVAL = 1.0;
 const SAKURA_BASIC_SPEED    = 520;
 
 // 技能一「落櫻繽紛」
