@@ -1,7 +1,7 @@
 /* 模擬手札獨立模組。此檔以 classic script 載入，保留既有全域函式名稱，供主引擎與 inline callback 使用。 */
 
 // ══════════════ 模擬手札（3選1重複闖關） ══════════════
-let handbookMode = false;
+var handbookMode = false;
 let handbookStage = 1;
 let handbookRerolls = 3;
 let handbookSessionId = 0;
