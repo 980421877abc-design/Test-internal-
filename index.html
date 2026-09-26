@@ -7825,6 +7825,9 @@ function dealDamage(target, dmg, options = {}) {
     if (atkBallForWeaken && !trueDamage) dmg *= atkBallForWeaken.weakenMult;
     const atkBallForBossBoost = state.balls.find(x => x.player === options.attackerPlayer && x.bossBattleDamageBoostTimer > 0);
     if (atkBallForBossBoost) dmg *= BOSS_BATTLE_DAMAGE_BOOST_MULT;
+      // 夜蘭玄擲玲瓏骰：持有者傷害提升（外部模組寫入欄位，主引擎只讀）
+  const atkBallForYelan = state.balls.find(x => x.player === options.attackerPlayer && x.yelanDiceTimer > 0);
+  if (atkBallForYelan && !trueDamage) dmg *= (1 + (atkBallForYelan.yelanAllyBuffPct || 0));
   }
   // 彗星升空期間：無敵、無法鎖定、沒有碰撞體積；只有系統級 codeKill 可穿透。
   if (target.dragonCometAirborne && !options.codeKill && !otisSureHit) return;
