@@ -1,12 +1,16 @@
 /**
- * yelan.js — 夜蘭🎲 外部擴充模組（v9，從頭重寫）
+ * yelan.js — 夜蘭🎲 外部擴充模組（v10）
  *
- * 架構完全對齊 sakura.js / boshi.js：
+ * 設計原則（對齊 sakura.js / boshi.js）：
+ *   - 完全不 hook window.dealDamage
+ *   - 水箭只在夜蘭自己造成傷害時觸發
+ *   - 骰子給隊友增傷：寫入球上的 yelanDiceTimer + yelanAllyBuffPct，主引擎自動讀取
  *   - frame() 有 try/catch，例外不斷 rAF 鏈
  *   - 完全不用 state.hitFlashes
- *   - FX 掛 state.yelanFx、投射物掛 state.yelanProjectiles
- *   - 對局結束（matchEnded / overlay / 只剩一隊）三條件強制清空
- *   - 常數單一來源，缺就報錯停用，無 fallback
+ *
+ * 主引擎需要加一行（dealDamage 加成讀取區塊）：
+ *   const atkBallForYelan = state.balls.find(x => x.player === options.attackerPlayer && x.yelanDiceTimer > 0);
+ *   if (atkBallForYelan && !trueDamage) dmg *= (1 + (atkBallForYelan.yelanAllyBuffPct || 0));
  *
  * 依賴：
  *   - character_constants.js 需提供 YELAN_* 常數
@@ -103,21 +107,22 @@
   function ensure(b) {
     if (b._yelanInit) return;
     b._yelanInit = true;
-    b.yelanBasicTimer  = 0;              // 普攻冷卻
-    b.yelanBasicCounter = 0;             // 破局計數（0-based；累積到 YELAN_BREAK_EVERY_N 時下一發為破局矢）
-    b.yelanForceBreak  = false;          // 籠絡縱命索結束後強制下一發為破局矢
-    b.yelanCharging    = false;          // 是否蓄力中
-    b.yelanChargeTimer = 0;              // 蓄力剩餘秒數
-    b.yelanSlowTick    = 0;              // 蓄力減速刷新計時
-    b.yelanDashCd      = YELAN_DASH_CD;  // 籠絡縱命索 CD（開局冷卻）
+    b.yelanBasicTimer  = 0;
+    b.yelanBasicCounter = 0;
+    b.yelanForceBreak  = false;
+    b.yelanCharging    = false;
+    b.yelanChargeTimer = 0;
+    b.yelanSlowTick    = 0;
+    b.yelanDashCd      = YELAN_DASH_CD;
     b.yelanDashing     = false;
     b.yelanDashTimer   = 0;
     b.yelanDashTrailTimer = 0;
-    b.yelanDashHitSet  = new Set();      // 已標記敵人（避免重複）
-    b.yelanDiceCd      = YELAN_DICE_CD;  // 淵圖玲瓏骰 CD（開局冷卻）
-    b.yelanDiceTimer   = 0;              // 玄擲玲瓏剩餘時間
-    b.yelanDiceStartAt = 0;              // 妙轉隨心起始時刻
-    b.yelanDiceArrowCd = 0;              // 水箭觸發間隔
+    b.yelanDashHitSet  = new Set();
+    b.yelanDiceCd      = YELAN_DICE_CD;
+    b.yelanDiceTimer   = 0;
+    b.yelanDiceStartAt = 0;
+    b.yelanDiceArrowCd = 0;
+    b.yelanAllyBuffPct = 0;
   }
 
   const frozen = (b, s) => {
@@ -201,19 +206,38 @@
     }
   }
 
+  // ══════════════════════════════════════════════════════════
+  // 水箭觸發（只在夜蘭自己造成傷害時呼叫）
+  // ══════════════════════════════════════════════════════════
+  function triggerDiceArrows(s, b, target) {
+    if (!s || !b || !target) return;
+    if (b.char?.type !== TYPE) return;
+    if (!(b.yelanDiceTimer > 0)) return;
+    if ((b.yelanDiceArrowCd || 0) > 0) return;
+    if (target.hp <= 0 || target === b) return;
+    b.yelanDiceArrowCd = YELAN_DICE_TRIGGER_CD;
+    fireDiceArrows(s, b, target);
+  }
+
+  // ══════════════════════════════════════════════════════════
   // 破局矢命中：範圍傷害 + 浸水
+  // ══════════════════════════════════════════════════════════
   function explodeBreak(s, p) {
     if (p._yelanExploded) return;
     p._yelanExploded = true;
     const radius = YELAN_BREAK_RADIUS;
+    let firstHit = null;
     for (const t of targets()) {
       if (!t || t.hp <= 0) continue;
       if ((t.player ?? t.ownerPlayer ?? t.owner) === p.owner) continue;
       if (Math.hypot(t.x - p.x, t.y - p.y) <= radius + $R(t)) {
         deal(t, YELAN_BREAK_DAMAGE, { attackerPlayer: p.owner, attackerBall: p.ownerBall });
         applySoak(t, YELAN_BREAK_SOAK_DURATION);
+        if (!firstHit) firstHit = t;
       }
     }
+    // 破局矢也算夜蘭自己的傷害，觸發水箭
+    if (firstHit && p.ownerBall) triggerDiceArrows(s, p.ownerBall, firstHit);
     pushFx(s, { kind: 'breakExplosion', x: p.x, y: p.y, radius, life: 0.5, maxLife: 0.5, seed: Math.random() * 1000 });
     snd('opm');
   }
@@ -248,6 +272,8 @@
             } else {
               deal(t, p.damage, { attackerPlayer: p.owner, attackerBall: p.ownerBall });
               if (p.slowFactor && p.slowDur) applySlow(t, p.slowDur, p.slowFactor);
+              // 普通箭命中：觸發水箭（水箭自己命中不再觸發，避免遞迴）
+              if (p.kind === 'basic') triggerDiceArrows(s, p.ownerBall, t);
             }
             dead = true;
             break;
@@ -264,10 +290,8 @@
   // 普攻：蓄力箭 / 破局矢交替
   // ══════════════════════════════════════════════════════════
   function updateBasic(b, dt, s) {
-    // 蓄力中
     if (b.yelanCharging) {
       b.yelanChargeTimer -= dt;
-      // 蓄力期間週期性施加短暫 slow，讓主引擎的速度系統處理減速
       b.yelanSlowTick -= dt;
       if (b.yelanSlowTick <= 0) {
         b.yelanSlowTick = 0.1;
@@ -277,7 +301,6 @@
         b.yelanCharging = false;
         const e = nearest(b.x, b.y, b.player);
         if (e) {
-          // 判斷這一發是不是破局矢
           const forceBreak = b.yelanForceBreak;
           const byCounter = b.yelanBasicCounter >= YELAN_BREAK_EVERY_N;
           if (forceBreak || byCounter) {
@@ -294,14 +317,12 @@
       return;
     }
 
-    // CD 倒數
     b.yelanBasicTimer -= dt;
     if (b.yelanBasicTimer > 0) return;
 
     const e = nearest(b.x, b.y, b.player);
     if (!e) { b.yelanBasicTimer = 0.2; return; }
 
-    // 進入蓄力
     b.yelanCharging = true;
     b.yelanChargeTimer = YELAN_BASIC_CHARGE;
     b.yelanSlowTick = 0;
@@ -315,7 +336,6 @@
       b.yelanDashTimer -= dt;
       if (!b.yelanDashHitSet) b.yelanDashHitSet = new Set();
 
-      // 目標：優先朝「還沒碰過的敵人」移動；全碰過就立刻收招
       let next = null, bd = Infinity;
       for (const t of targets()) {
         if (!t || t.hp <= 0) continue;
@@ -333,14 +353,12 @@
         b.vy = Math.sin(ang) * spd;
       }
 
-      // 殘影
       b.yelanDashTrailTimer -= dt;
       if (b.yelanDashTrailTimer <= 0) {
         b.yelanDashTrailTimer = 0.06;
         pushFx(s, { kind: 'dashTrail', x: b.x, y: b.y, life: 0.35, maxLife: 0.35 });
       }
 
-      // 穿透標記：碰過的加入 Set，絕不重複
       for (const t of targets()) {
         if (!t || t.hp <= 0) continue;
         if ((t.player ?? t.ownerPlayer ?? t.owner) === b.player) continue;
@@ -352,24 +370,24 @@
         }
       }
 
-      // 收招
       if (b.yelanDashTimer <= 0) {
         b.yelanDashing = false;
+        let firstBurst = null;
         for (const t of targets()) {
           if (!t || t.hp <= 0) continue;
           if (t.yelanMarkedBy !== b.player) continue;
           deal(t, YELAN_DASH_MARK_DAMAGE, { attackerPlayer: b.player, attackerBall: b });
           t.yelanMarkedBy = null;
           pushFx(s, { kind: 'markBurst', x: t.x, y: t.y, r: 40, life: 0.4, maxLife: 0.4 });
+          if (!firstBurst) firstBurst = t;
         }
+        if (firstBurst) triggerDiceArrows(s, b, firstBurst);
         b.yelanDashHitSet.clear();
-        // 釋放後下一發換破局矢
         b.yelanForceBreak = true;
       }
       return;
     }
 
-    // CD
     b.yelanDashCd -= dt;
     if (b.yelanDashCd > 0) return;
     const e = nearest(b.x, b.y, b.player);
@@ -396,27 +414,33 @@
 
     b.yelanDiceCd = YELAN_DICE_CD;
 
-    // 對範圍內敵人造成傷害
+    // 範圍傷害
+    let firstHit = null;
     for (const t of targets()) {
       if (!t || t.hp <= 0) continue;
       if ((t.player ?? t.ownerPlayer ?? t.owner) === b.player) continue;
       if (Math.hypot(t.x - b.x, t.y - b.y) <= YELAN_DICE_RADIUS + $R(t)) {
         deal(t, YELAN_DICE_DAMAGE, { attackerPlayer: b.player, attackerBall: b });
+        if (!firstHit) firstHit = t;
       }
     }
     pushFx(s, { kind: 'diceBurst', x: b.x, y: b.y, r: YELAN_DICE_RADIUS, life: 0.5, maxLife: 0.5, seed: Math.random() * 1000 });
 
-    // 給自己與隊友上玄擲玲瓏
+    // 給自己與隊友上骰子 + 增傷
     const now = Number.isFinite(s.elapsed) ? s.elapsed : 0;
     const teamMode = isTeamMode();
     for (const ally of (s.balls || [])) {
       if (!ally || ally.hp <= 0) continue;
       if (ally.player !== b.player) continue;
-      if (!teamMode && ally !== b) continue;   // 非隊友模式只給自己
+      if (!teamMode && ally !== b) continue;
       ally.yelanDiceTimer = Math.max(ally.yelanDiceTimer || 0, YELAN_DICE_DURATION);
       ally.yelanDiceStartAt = now;
+      if (ally.yelanAllyBuffPct == null) ally.yelanAllyBuffPct = 0;
       if (ally.yelanDiceArrowCd == null) ally.yelanDiceArrowCd = 0;
     }
+
+    // 骰子傷害也算夜蘭自己的傷害，觸發水箭
+    if (firstHit) triggerDiceArrows(s, b, firstHit);
   }
 
   function tickDiceBuff(b, dt) {
@@ -424,41 +448,20 @@
     if ((b.yelanDiceArrowCd || 0) > 0) b.yelanDiceArrowCd = Math.max(0, b.yelanDiceArrowCd - dt);
   }
 
-  // ══════════════════════════════════════════════════════════
-  // dealDamage hook：妙轉隨心 + 水箭觸發
-  // ══════════════════════════════════════════════════════════
-  let _hookDmg = null;
-  function hookDealDamage() {
-    if (_hookDmg) return;
-    if (typeof window.dealDamage !== 'function') return;
-    _hookDmg = window.dealDamage;
-    window.dealDamage = function (target, dmg, options) {
-      const o = options || {};
-      const attacker = o.attackerBall;
-      try {
-        if (attacker && attacker.char && attacker.char.type === TYPE && dmg > 0 && !o.yelanDiceArrow) {
-          if ((attacker.yelanDiceTimer || 0) > 0) {
-            // 妙轉隨心：基礎 1% + 每 0.5s 額外 5%，上限 YELAN_MASTER_MAX
-            const s = $S();
-            const now = (s && Number.isFinite(s.elapsed)) ? s.elapsed : 0;
-            const el = Math.max(0, now - (attacker.yelanDiceStartAt || 0));
-            const ticks = Math.floor(el / YELAN_MASTER_GROWTH_TICK);
-            const bonus = Math.min(YELAN_MASTER_MAX, YELAN_MASTER_BASE_DMG + ticks * YELAN_MASTER_GROWTH);
-            dmg = dmg * (1 + bonus);
-
-            // 水箭觸發（每次造成傷害間隔 YELAN_DICE_TRIGGER_CD）
-            if ((attacker.yelanDiceArrowCd || 0) <= 0
-                && target && target !== attacker && target.hp > 0) {
-              attacker.yelanDiceArrowCd = YELAN_DICE_TRIGGER_CD;
-              const s2 = $S();
-              if (s2) fireDiceArrows(s2, attacker, target);
-            }
-          }
-        }
-      } catch (_) {}
-      return _hookDmg.call(this, target, dmg, options);
-    };
-    console.log('[yelan.js] dealDamage hooked');
+  // 每幀更新持有骰子者的增傷百分比（妙轉隨心）
+  function updateAllyBuff(s, dt) {
+    const now = Number.isFinite(s.elapsed) ? s.elapsed : 0;
+    for (const b of (s.balls || [])) {
+      if (!b || b.hp <= 0) continue;
+      if (!(b.yelanDiceTimer > 0)) {
+        b.yelanAllyBuffPct = 0;
+        continue;
+      }
+      const el = Math.max(0, now - (b.yelanDiceStartAt || 0));
+      const ticks = Math.floor(el / YELAN_MASTER_GROWTH_TICK);
+      const pct = Math.min(YELAN_MASTER_MAX, YELAN_MASTER_BASE_DMG + ticks * YELAN_MASTER_GROWTH);
+      b.yelanAllyBuffPct = pct;
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -528,7 +531,7 @@
 
     const balls = s.balls || [];
 
-    // ── FX（最底層，畫在角色之前）──
+    // ── FX ──
     if (s.yelanFx) for (const fx of s.yelanFx) {
       const fade = Math.max(0, Math.min(1, fx.life / fx.maxLife));
       const prog = 1 - fade;
@@ -577,7 +580,7 @@
       }
     }
 
-    // ── 玄擲玲瓏骰（環繞持有者）──
+    // ── 玄擲玲瓏骰（環繞持有者） ──
     for (const b of balls) {
       if (!b || b.hp <= 0 || !(b.yelanDiceTimer > 0)) continue;
       const bR = $R(b);
@@ -588,7 +591,7 @@
     // ── 投射物 ──
     if (s.yelanProjectiles) for (const p of s.yelanProjectiles) drawArrow(c, p);
 
-    // ── 蓄力光暈（凍結中不畫）──
+    // ── 蓄力光暈（凍結中不畫） ──
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.char || b.char.type !== TYPE) continue;
       if (!b.yelanCharging) continue;
@@ -601,7 +604,7 @@
       c.restore();
     }
 
-    // ── 被標記敵人（脈動虛線圈）──
+    // ── 被標記敵人 ──
     for (const b of balls) {
       if (!b || b.hp <= 0 || !b.yelanMarkedBy) continue;
       const bR = $R(b);
@@ -648,7 +651,7 @@
       return;
     }
 
-    // 對局結束保險（三條件任一成立就全清）
+    // 對局結束保險
     const aliveTeams = (() => {
       const set = new Set();
       for (const b of s.balls) if (b && b.hp > 0) set.add(b.player);
@@ -671,7 +674,6 @@
     }
 
     ensureArrays(s);
-    hookDealDamage();
 
     const dt = Math.min(0.05, Math.max(0, (t - (ov.lastT || t)) / 1000));
     ov.lastT = t;
@@ -686,6 +688,9 @@
       if (fx.life <= 0) s.yelanFx.splice(i, 1);
     }
     if (s.yelanFx.length > FX_CAP) s.yelanFx.splice(0, s.yelanFx.length - FX_CAP);
+
+    // 更新持有骰子者的增傷比例
+    updateAllyBuff(s, dt);
 
     // 球上邏輯
     const bodies = s.balls.filter(b => b && b.hp > 0 && b.char && b.char.type === TYPE);
@@ -733,12 +738,11 @@
 
   function start() {
     setup();
-    hookDealDamage();
     requestAnimationFrame(frame);
   }
 
   document.readyState === 'loading'
     ? document.addEventListener('DOMContentLoaded', start, { once: true })
     : start();
-  console.log('[yelan.js] v9 已載入（從頭重寫）');
+  console.log('[yelan.js] v10 已載入（無 hook、水箭只自己觸發、骰子隊友增傷）');
 })();
