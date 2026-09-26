@@ -3137,7 +3137,7 @@ let playerModeCount = 2; // 對戰人數：2 / 3 / 4
 // ──────────────── 車輪戰 (3v3 RELAY) STATE ────────────────
 let wheelPicks = [null, null, null, null, null, null]; // 0-2:隊伍A 3-5:隊伍B
 let wheelPickStep = 0;
-let wheelState = null; // { teamA:[id,id,id], teamB:[id,id,id], idxA:0, idxB:0, active:true }
+var wheelState = null; // { teamA:[id,id,id], teamB:[id,id,id], idxA:0, idxB:0, active:true }
 
 function setPlayerMode(count) {
   playerModeCount = count;
