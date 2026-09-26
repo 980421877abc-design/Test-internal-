@@ -33513,7 +33513,7 @@ const loseQuote = loser.char && loser.char.loseQuote ? pickQuote(loser.char.lose
 // 保留此標記方便維護；主引擎的 showResult / dealDamage 會在執行時呼叫外部模組提供的全域狀態與函式。
 
 // ══════════════ 組裝模式（自組機器人闖關） ══════════════
-let assembleMode = false;
+var assembleMode = false;
 let assembleStage = 1;
 let assembleSessionId = 0;
 let assembleBest = parseInt(localStorage.getItem('assembleBest') || '0');
