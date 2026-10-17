@@ -119,72 +119,17 @@
   }
 
   // ══════════════════════════════════════════════════════════
-  // 反投射物統一清單
-  // 以 gojo.js 為標準：只承認這 9 項是「投射物」。
-  //   - 全域陣列 7 項：projectiles / otisMagicBullets / getoUltimateProjectiles
-  //                     tigerNovaNeedles / oniichanSpikes / fisherOceanWaves / starSmallStars
-  //   - 掛在球上 2 項：sansBones / emBullets
-  // 其他（curseSlashFX、curseFireFX、obitoFireballs、starBigStars、starMeteors、
-  //      kashimoDeerOrbs、bossDryPowderExtinguishers、dioSteamroller、
-  //      cannonBalls、oniichanTrackBalls、gojoBalls、johnnyAct4Projectiles）
-  // 一律不算投射物，不列入清除。
+  // 反投射物：清單與清除邏輯統一由 projectile_registry.js 提供
+  // （廚神的刀會自動掉地上等回收，不會蒸發）
   // ══════════════════════════════════════════════════════════
-   function getAllProjectileArrays() {
-    // 投射物統一清單（定義於 index.html 主引擎）。
-    // 本檔內部使用 { arr } 包裝形式（見 clearProjectilesInRadius），
-    // 因此這裡做一層轉換；未來要改格式只需動這一處。
-    if (typeof window.getProjectileArrays === 'function') {
-      return window.getProjectileArrays().map(arr => ({ arr }));
-    }
-    return [];
-  }
-  
-  function getProjectileOwner(p) {
-    if (!p) return null;
-    if (p.owner != null) return p.owner;
-    if (p.ownerBall && p.ownerBall.player != null) return p.ownerBall.player;
-    return null;
-  }
-
-  // 清除圓形範圍內的敵方投射物
   function clearProjectilesInRadius(cx, cy, radius, ownerPlayer) {
-    const root = getRoot();
-    if (!root) return 0;
-    let count = 0;
-    const arrays = getAllProjectileArrays();
-    const r2 = radius * radius;
-    for (const entry of arrays) {
-      const arr = entry.arr;
-      if (!Array.isArray(arr)) continue;
-      for (let i = arr.length - 1; i >= 0; i--) {
-        const p = arr[i];
-        if (!p) continue;
-        const pOwner = getProjectileOwner(p);
-        if (pOwner === ownerPlayer) continue;
-        const dx = (Number(p.x) || 0) - cx;
-        const dy = (Number(p.y) || 0) - cy;
-        const pr = Number.isFinite(p.r) ? p.r : 8;
-        const reach = radius + pr;
-        if (dx * dx + dy * dy <= reach * reach) {
-          // 廚神的刀是消耗資源：丟出當下 b.knives 就已扣除，正常只有撞牆才會變成
-          // 可回收的 wallKnives 等待飛回補回刀數。轉槍若直接刪除飛行中的刀，
-          // 會讓這把刀永遠進不了 wallKnives、b.knives 也補不回來，等於永久消失。
-          // 因此這裡比照「撞牆」的處理方式：轉成可回收的 wallKnives，而不是直接刪掉。
-          if (p.type === 'knife' && p.ownerBall && p.ownerBall.char &&
-              p.ownerBall.char.type === 'chef' && p.ownerBall.hp > 0) {
-            if (!Array.isArray(root.wallKnives)) root.wallKnives = [];
-            root.wallKnives.push({
-              x: p.x, y: p.y, angle: p.angle || 0,
-              owner: p.owner, ownerBall: p.ownerBall, color: p.color,
-            });
-          }
-          if (typeof p.active === 'boolean') p.active = false;
-          arr.splice(i, 1);
-          count++;
-        }
-      }
-    }
-    return count;
+    return window.ProjectileRegistry.clear((p, pOwner) => {
+      if (pOwner === ownerPlayer) return false;
+      const dx = (Number(p.x) || 0) - cx;
+      const dy = (Number(p.y) || 0) - cy;
+      const reach = radius + (Number.isFinite(p.r) ? p.r : 8);
+      return dx * dx + dy * dy <= reach * reach;
+    }, { mode: 'drop' });
   }
 
   // ══════════════════════════════════════════════════════════

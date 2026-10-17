@@ -76,24 +76,10 @@
   // ══════════════════════════════════════════════════════════
   // 反投射物清單
   // ══════════════════════════════════════════════════════════
-   function projArrays() {
-    // 投射物統一清單（定義於 index.html 主引擎）
-    if (typeof window.getProjectileArrays === 'function') {
-      return window.getProjectileArrays();
-    }
-    return [];
-  }
-  const pOwner = p => p?.owner ?? p?.ownerBall?.player ?? null;
+  // 投射物清單與清除全部交給 projectile_registry.js（廚神的刀會自動掉地上等回收，不會蒸發）
+  const pOwner = p => window.ProjectileRegistry.ownerOf(p);
   function clearProj(fn) {
-    let n=0;
-    for (const a of projArrays()) {
-      if (!Array.isArray(a)) continue;
-      for (let i=a.length-1; i>=0; i--) {
-        const p=a[i]; if (!p) continue;
-        if (fn(p, pOwner(p))) { if (typeof p.active==='boolean') p.active=false; a.splice(i,1); n++; }
-      }
-    }
-    return n;
+    return window.ProjectileRegistry.clear((p, o) => fn(p, o), { mode: 'drop' });
   }
 
   // ══════════════════════════════════════════════════════════

@@ -254,15 +254,11 @@
     }
   }
 
-
-   // ───────── 偵測無下限消耗 ─────────
+  // ───────── 偵測無下限消耗 ─────────
   const seenSlowingProjectiles = new WeakSet();
   function detectInfinityConsume() {
     if (!state || !state.balls) return;
-    // 投射物統一清單（定義於 index.html 主引擎）
-    const arrays = (typeof window.getProjectileArrays === 'function')
-      ? window.getProjectileArrays()
-      : [];
+    const arrays = window.ProjectileRegistry.arrays().map(function (e) { return e.arr; });
     for (const arr of arrays) {
       for (const p of arr) {
         if (p && p.gojoSlowing && !seenSlowingProjectiles.has(p)) {
