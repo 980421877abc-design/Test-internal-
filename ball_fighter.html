@@ -319,16 +319,16 @@ function update(dt){
   const dd=Math.hypot(o.x-tg.x,o.y-tg.y);if(dd<o.range&&dd>1){const a=Math.atan2(o.y-tg.y,o.x-tg.x),kk=o.pull*(1-dd/o.range);tg.kx+=Math.cos(a)*kk*dt;tg.ky+=Math.sin(a)*kk*dt}
   if(o.t>=o.life)G.orbs.splice(i,1)}
  for(let i=G.sched.length-1;i>=0;i--){const z=G.sched[i];z.t-=dt;if(z.t<=0){G.sched.splice(i,1);z.fn()}}
- for(let i=G.domains.length-1;i>=0;i--){const d=G.domains[i],tg=d.own===p?e:p,cl=d.clash;d.t+=dt;   // 領域：範圍內敵人受效果；領域碰撞時雙方效果全失效；結束後施放者術式熔斷
+ for(let i=G.domains.length-1;i>=0;i--){const d=G.domains[i],tg=d.own===p?e:p,cl=d.clash;if(!cl)d.t+=dt;else d.ct=(d.ct||0)+dt;   // 碰撞期間領域尚未「出現」：持續時間暫停   // 領域：範圍內敵人受效果；領域碰撞時雙方效果全失效；結束後施放者術式熔斷
   if(cl){const cc=cl.own.c.clash;if(cc&&cc.decay)d.integ-=cc.decay*100*dt}           // 碰撞中：對方（宿儺）每秒削減我方領域完整度
   else if(Math.hypot(tg.x-d.x,tg.y-d.y)<d.r+CFG.r&&!tg.dd){                             // tg.dd = 正在用彌虛葛籠 / 簡易領域，免疫領域效果
    if(d.bind)addStatus(tg,{k:'bind',dur:.2});
    if(d.tick){d.tk+=dt;while(d.tk>=d.tick.dt){d.tk-=d.tick.dt;tg.hp-=d.tick.dmg;d.acc+=d.tick.dmg}   // 必中持續傷害（無視格擋 / 無下限）
     if((d.pa+=dt)>=.4){d.pa=0;if(d.acc>0)pop(tg,Math.round(d.acc),d.col);d.acc=0;spark(tg.x,tg.y,d.col,5,300,.3,3)}
     if(tg.hp<=0){tg.hp=0;endRound(tg);return}}}
-  const pri=x=>(x.own.c.clash&&x.own.c.clash.priority)||0,lost=cl&&d.integ<=0&&(cl.integ>0||pri(d)<=pri(cl));   // 完整度歸零 = 被覆蓋；同時歸零由優先級高者勝
-  if(lost||d.t>=d.life||d.own.hp<=0){G.domains.splice(i,1);if(cl)cl.clash=null;addStatus(d.own,{k:'burnout',dur:d.bo});d.own.rct=false;d.own.ext=false;
-   if(lost)say(d.name+' 被覆蓋！',1.3);G.fx.push({k:'ring',x:d.x,y:d.y,t:.5,m:.5,r:d.r,col:'#fff'})}}
+  const pri=x=>(x.own.c.clash&&x.own.c.clash.priority)||0,lost=cl&&((d.integ<=0&&(cl.integ>0||pri(d)<=pri(cl)))||(d.ct>=CFG.clash.maxTime&&(d.integ<cl.integ||(d.integ===cl.integ&&pri(d)<=pri(cl)))));   // 完整度歸零 = 被覆蓋；同時歸零由優先級高者勝
+  if(lost||d.t>=d.life||d.own.hp<=0){G.domains.splice(i,1);if(cl){cl.clash=null;G.fx.push({k:'ring',x:cl.x,y:cl.y,t:.7,m:.7,r:cl.r,col:cl.col});G.fx.push({k:'flash',t:.4,m:.4,col:cl.col});shake(10);say(cl.name+' 展開！',1.2)}addStatus(d.own,{k:'burnout',dur:d.bo});d.own.rct=false;d.own.ext=false;
+   if(lost)pop(d.own,d.name+' 被覆蓋','#ffb44a');G.fx.push({k:'ring',x:d.x,y:d.y,t:.5,m:.5,r:d.r,col:'#fff'})}}
  for(let i=G.fx.length-1;i>=0;i--){const x=G.fx[i];x.t-=dt;if(x.vx!==undefined){x.x+=x.vx*dt;x.y+=x.vy*dt;if(x.dr){const dd=Math.exp(-x.dr*dt);x.vx*=dd;x.vy*=dd}}if(x.t<=0)G.fx.splice(i,1)}
  G.t-=dt;if(G.t<=0){
   if(!G.ot){const a=p.hp/p.c.hp,b=e.hp/e.c.hp;if(Math.abs(a-b)>1e-4)endRound(a>b?e:p);else{G.ot=true;G.t=CFG.overtime;say('延長賽！',1.5)}}
@@ -392,6 +392,13 @@ function drawProj(q){const s=q.s,c=q.col,r=s.r,T=performance.now()/1000,tr=q.tr;
 function drawMotes(vw,vh){cx.save();cx.globalCompositeOperation='lighter';cx.lineCap='round';cx.strokeStyle='#cfe6ff'; // 背景飄塵：鏡頭移動時拉成速度線（視差）
  for(const m of MOTES){const u=(((m.x*vw-cam.x*m.z)%vw)+vw)%vw,v=(((m.y*vh-cam.y*m.z)%vh)+vh)%vh,wx=cam.x+u,wy=cam.y+v,L=m.z*4*(1.3-m.z);
   cx.globalAlpha=.1+.22*m.z;cx.lineWidth=1+m.z*1.5;cx.beginPath();cx.moveTo(wx,wy);cx.lineTo(wx-(cam.vx||0)*L+.1,wy-(cam.vy||0)*L);cx.stroke()}cx.restore()}
+function drawClashFx(d){const T=performance.now()/1000,f=d.own,o=d.clash.own;cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle=d.col;cx.lineWidth=4;cx.globalAlpha=.8;   // 領域碰撞：領域尚未出現，只有施放者身上的光環與雙方之間的對衝電弧
+ cx.setLineDash([14,10]);cx.lineDashOffset=-T*60;cx.beginPath();cx.arc(f.x,f.y,CFG.r*(2.2+.2*Math.sin(T*12)),0,7);cx.stroke();cx.setLineDash([]);
+ if(f===G.p)for(let j=0;j<3;j++){cx.strokeStyle=j%2?d.col:d.clash.col;cx.lineWidth=2+j;cx.globalAlpha=.5+.4*Math.random();cx.beginPath();cx.moveTo(f.x,f.y);
+  for(let i=1;i<=8;i++){const t=i/8,w=Math.sin(t*Math.PI);cx.lineTo(f.x+(o.x-f.x)*t+(Math.random()-.5)*60*w,f.y+(o.y-f.y)*t+(Math.random()-.5)*60*w)}cx.stroke()}
+ cx.restore()}
+function drawFan(x,y,ang,arc,R,al,col){cx.save();cx.globalCompositeOperation='lighter';const g=cx.createRadialGradient(x,y,CFG.r,x,y,R);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,col);   // 扇形攻擊範圍
+ cx.globalAlpha=al*.55;cx.fillStyle=g;cx.beginPath();cx.moveTo(x,y);cx.arc(x,y,R,ang-arc/2,ang+arc/2);cx.closePath();cx.fill();cx.globalAlpha=Math.min(1,al*1.2);cx.strokeStyle=col;cx.lineWidth=3;cx.stroke();cx.restore()}
 function drawFace(f){const im=Assets.get(f.c.img);
  if(im){cx.save();cx.beginPath();cx.arc(f.x,f.y,CFG.r-2,0,7);cx.clip();const k=Math.max(2*CFG.r/im.width,2*CFG.r/im.height);cx.drawImage(im,f.x-im.width*k/2,f.y-im.height*k/2,im.width*k,im.height*k);cx.restore()}
  else{cx.fillStyle='#0b1020';cx.font='bold 38px system-ui';cx.textAlign='center';cx.fillText(f.c.glyph,f.x,f.y+13)}}
@@ -421,7 +428,7 @@ function draw(){
  cx.strokeStyle='#e8c25a';cx.lineWidth=5;cx.strokeRect(0,0,CFG.W,CFG.H);drawMotes(vw,vh);
  for(const z of G.zones){const k=Math.min(1,z.t/z.s.delay);cx.strokeStyle=z.col;cx.fillStyle=z.col+'30';cx.lineWidth=3;
   cx.beginPath();cx.arc(z.x,z.y,z.s.rad,0,7);cx.stroke();cx.beginPath();cx.arc(z.x,z.y,z.s.rad*k,0,7);cx.fill();const zi=Assets.get(z.s.zoneSprite);if(zi){cx.globalAlpha=.35+.5*k;cx.drawImage(zi,z.x-z.s.rad,z.y-z.s.rad,z.s.rad*2,z.s.rad*2);cx.globalAlpha=1}}
- for(const d of G.domains){const k=Math.min(1,d.t/.5);cx.fillStyle=(d.style==='shrine'?'rgba(120,10,10,':'rgba(60,20,110,')+((d.clash?.14:.28)*k)+')';cx.beginPath();cx.arc(d.x,d.y,d.r,0,7);cx.fill();cx.strokeStyle=d.col;cx.lineWidth=6;cx.stroke();
+ for(const d of G.domains){if(d.clash){drawClashFx(d);continue}const k=Math.min(1,d.t/.5);cx.fillStyle=(d.style==='shrine'?'rgba(120,10,10,':'rgba(60,20,110,')+((d.clash?.14:.28)*k)+')';cx.beginPath();cx.arc(d.x,d.y,d.r,0,7);cx.fill();cx.strokeStyle=d.col;cx.lineWidth=6;cx.stroke();
   cx.strokeStyle='rgba(255,255,255,.25)';cx.lineWidth=2;for(let i=0;i<24;i++){const a=i/24*Math.PI*2+d.t*.8;cx.beginPath();cx.moveTo(d.x+Math.cos(a)*d.r*.2,d.y+Math.sin(a)*d.r*.2);cx.lineTo(d.x+Math.cos(a+.6)*d.r*.95,d.y+Math.sin(a+.6)*d.r*.95);cx.stroke()}
   if(d.style==='shrine'){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#ff4a3a';cx.lineCap='round';const sd=Math.floor(d.t*12),R=n=>{const v=Math.sin(n*127.1+sd*311.7)*43758.5453;return v-Math.floor(v)};   // 伏魔御廚子：閃爍的斬擊刻痕
    for(let i=0;i<12;i++){const a=R(i)*6.283,L=d.r*(.3+R(i+50)*.5),px=d.x+Math.cos(R(i+90)*6.283)*d.r*.7*R(i+20),py=d.y+Math.sin(R(i+90)*6.283)*d.r*.7*R(i+20);cx.globalAlpha=k*(.25+.4*R(i+7))*(d.clash?.4:1);cx.lineWidth=2+R(i+3)*4;cx.beginPath();cx.moveTo(px,py);cx.lineTo(px+Math.cos(a)*L,py+Math.sin(a)*L);cx.stroke()}
@@ -445,6 +452,7 @@ function draw(){
   if(f.blocking){cx.strokeStyle='#8ad';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+9,0,7);cx.stroke();
    if(f.c.infinity&&!stat(f,'burnout',0)){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#8fd6ff';cx.lineWidth=2;cx.setLineDash([10,14]);   // 無下限：三層旋轉結界
     for(let j=0;j<3;j++){cx.lineDashOffset=(j%2?1:-1)*performance.now()/18;cx.globalAlpha=.7-.18*j;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16+j*10,0,7);cx.stroke()}cx.restore()}}
+  if(f.act){const q=f.act.v||f.c.sk[f.act.k];if(q.showRange&&q.arc&&q.range&&!sureHit(f))drawFan(f.x,f.y,f.act.ang,q.arc,q.range+CFG.r,.35+.65*(1-f.act.t/q.wind),f.c.color)}   // 前搖：預示範圍
   if(f.act){cx.strokeStyle='#ffb44a';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+8,0,7*(1-f.act.t/f.c.sk[f.act.k].wind));cx.stroke()}
   if(f.hold){const q=f.c.sk[f.hold.k];if(q.type!=='toggle'){drawTelegraph(f,q);
    if(f.hold.t>=q.hold.start){const pr=Math.min(1,(f.hold.t-q.hold.start)/(q.hold.full-q.hold.start));cx.strokeStyle=pr>=1?'#ffd77a':'#8fd6ff';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16,-Math.PI/2,-Math.PI/2+pr*Math.PI*2);cx.stroke()}}}
@@ -457,6 +465,7 @@ function draw(){
   else if(e.k==='ring'){cx.globalAlpha=k;cx.strokeStyle=e.col||'#fff';cx.lineWidth=2+5*k;cx.beginPath();cx.arc(e.x,e.y,e.r*(1.2-k*.5),0,7);cx.stroke()}
   else if(e.k==='arc'){const pg=Math.min(1,(1-k)*3.2),a0=e.a-e.w/2,a1=a0+e.w*pg;cx.globalCompositeOperation='lighter';cx.globalAlpha=k;cx.strokeStyle=e.col;cx.lineCap='round';cx.lineWidth=18*k+4;   // 揮砍：弧線快速掃出，前端留白色亮刃
    cx.beginPath();cx.arc(e.x,e.y,e.r*.85,a0,a1);cx.stroke();cx.strokeStyle='#fff';cx.lineWidth=4;cx.beginPath();cx.arc(e.x,e.y,e.r*.85,Math.max(a0,a1-e.w*.45),a1);cx.stroke();cx.globalCompositeOperation='source-over';cx.lineCap='butt'}
+  else if(e.k==='fan'){drawFan(e.x,e.y,e.a,e.w,e.r,Math.min(1,k*1.3),e.col)}
   else if(e.k==='sl'){cx.globalCompositeOperation='lighter';cx.globalAlpha=k;cx.strokeStyle=e.col;cx.lineCap='round';cx.lineWidth=10*k+2;const sx=Math.cos(e.a)*e.L/2,sy=Math.sin(e.a)*e.L/2;
    cx.beginPath();cx.moveTo(e.x-sx,e.y-sy);cx.lineTo(e.x+sx,e.y+sy);cx.stroke();cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();cx.globalCompositeOperation='source-over';cx.lineCap='butt'}
   else if(e.k==='sp'){cx.globalCompositeOperation='lighter';cx.globalAlpha=k*(e.al||1);cx.strokeStyle=e.col;cx.lineWidth=e.w;cx.lineCap='round';cx.beginPath();cx.moveTo(e.x,e.y);cx.lineTo(e.x-e.vx*.05,e.y-e.vy*.05);cx.stroke();cx.globalCompositeOperation='source-over';cx.lineCap='butt'}

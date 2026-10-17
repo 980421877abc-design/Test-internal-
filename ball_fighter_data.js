@@ -16,7 +16,7 @@ const CFG={
                         //   dashCost 閃避消耗 · blockDrain 格擋每秒消耗（上限很小的資源，例如 5 格氣，要把這兩個一起改小）
  dash:{cd:1.3,dist:320,dur:.16,inv:.16},                                   // 閃避：冷卻 / 距離 / 持續 / 無敵時間
  block:{cut:.65,speed:.45,hitCost:.012,breakStun:.8,heavyMul:.7,kbMul:.3}, // 格擋：減傷 / 移速倍率 / 被打耗能係數 / 被破防硬直 / 破防時承傷倍率 / 擊退倍率
- clash:{dmgScale:.03}, // 領域碰撞：受到的傷害 × 0.03 = 自身領域完整度減少的百分點（100 傷害 = -3%；待定）
+ clash:{dmgScale:.03,maxTime:8}, // 領域碰撞：受到的傷害 × 0.03 = 自身領域完整度減少的百分點（100 傷害 = -3%）；maxTime 秒內分不出勝負 → 完整度較高者勝（同分看優先級）（待定）
  maxOrbs:2,             // 場上同時存在的引力球上限（蒼）
  hitStun:.14,kbDecay:8, // 受擊硬直 / 擊退衰減
  ai:{think:.1,dodge:.85,aggr:.9}};  // 電腦：思考間隔 / 閃避機率 / 出招積極度
@@ -34,6 +34,7 @@ const CFG={
  * 特效：投射物技能加 fx:'ao'|'aka'|'mu' 可套用專屬光效（拖尾、旋繞、閃光）
  * 領域：type:'domain' + domain:{r,life,burnout,name,col,style:'void'|'shrine',bind:1 範圍內敵人無法行動,tick:{dt,dmg} 範圍內持續傷害}；lockMove:1 施放時不能移動
  * 角色層：domDef:{name,drain,lock} 敵方領域內防禦鍵改為領域防禦（免疫領域效果；drain 每秒耗資源；lock:1 發動時不能移動/用技能）；clash:{priority,decay} 領域優先級 / 碰撞時每秒削減敵方領域完整度（比例）
+ * 範圍預示：近戰技能加 showRange:1 → 前搖時畫出扇形範圍（fire 內可再推 {k:'fan'} 特效讓扇形在連擊期間保留）
  * AI：aiDist 偏好距離 · 技能 aiGap 電腦兩次使用的最短間隔 · aiBurst:[連發次數,休息秒數]
  * 技能層：lockAim:1 開始蓄力後瞄準方向鎖定（放開時也不會改向）· noExt:1 領域展延時禁用 · needFull:1 必須蓄滿才能放 · autoAim:1 蓄力時自動瞄準 · autoRelease:1 蓄滿自動發射 · burnOk:1 熔斷中仍可按 · repair:{rate,drain} 熔斷中長按修復（rate=每秒額外縮短的熔斷秒數）
  * type:'channel'：按住期間每 interval 秒發一次斬擊（每次耗 cost）；type:'toggle'+flag:'ext' = 領域展延（drain 每秒耗資源，攻擊無視減傷）
@@ -78,8 +79,8 @@ const CHARS={
       ai:(e,p,c)=>(e.rct?(e.hp>e.c.hp*.95||e.en<150):(e.hp<e.c.hp*.65&&e.en>500))?p:null},
    b:{name:'解',type:'channel',noExt:1,hold:{start:.05,full:99},interval:.3,cost:30,cd:0,wind:.05,dmg:120,speed:1500,r:40,life:99,kb:110,col:'#ff5a4a',fx:'slash',noMuzzle:1,aiGap:.3,aiBurst:[5,1.4],   // 劍氣：按住每 0.3 秒一道、持續耗咒力；射程無上限（飛出場外才消失）；拖曳決定方向；領域內自動瞄準
       pv:()=>({k:'line',len:3000,w:80})},
-   c:{name:'捌',noExt:1,type:'melee',cost:100,cd:7,wind:.25,dmg:110,range:330,arc:2,kb:120,kbEnd:700,hits:8,gap:.06,       // 前方扇形 8 段米字斬；領域內必中（碰撞期間失效）
-      fire(f,o,a,s){const x0=f.x,y0=f.y;
+   c:{name:'捌',noExt:1,type:'melee',showRange:1,cost:100,cd:7,wind:.25,dmg:110,range:330,arc:2,kb:120,kbEnd:700,hits:8,gap:.06,       // 前方扇形 8 段米字斬；領域內必中（碰撞期間失效）
+      fire(f,o,a,s){const x0=f.x,y0=f.y,T=s.hits*s.gap+.2;G.fx.push({k:'fan',x:x0,y:y0,a:a.ang,w:s.arc,r:s.range+CFG.r,t:T,m:T,col:'#ff5a4a'});if(sureHit(f))pop(f,'必中','#ffd77a');   // 畫出攻擊範圍（扇形）
        for(let i=0;i<s.hits;i++)later(i*s.gap,()=>{if(G.state!=='fight')return;
         const dd=Math.hypot(o.x-x0,o.y-y0);let da=Math.abs(Math.atan2(o.y-y0,o.x-x0)-a.ang);da=Math.min(da,Math.PI*2-da);
         const inn=sureHit(f)||(dd<=s.range+CFG.r&&da<=s.arc/2),an=a.ang+(i%4)*Math.PI/4,px=inn?o.x:x0+Math.cos(a.ang)*s.range*.55,py=inn?o.y:y0+Math.sin(a.ang)*s.range*.55;
