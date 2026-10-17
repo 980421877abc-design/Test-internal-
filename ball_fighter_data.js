@@ -1,98 +1,455 @@
-/* ═══════════════════════════════════════════════════════════════
- * ball_fighter_data.js —— 所有「數值 / 內容」都在這個檔案，戰鬥邏輯在 ball_fighter.html
- * 換作品：只改這個檔（角色、技能、資源名稱、全域平衡）；需要新機制才去動 html 裡的 ST（技能類型註冊表）。
- * 兩個檔案要放同一個資料夾。
- * ═══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+ *  ball_fighter_data.js — 全部「數值」都在這裡，直接改數字就好。
+ *  （要跟 ball_fighter.html 放同一個資料夾；改完存檔、重新整理遊戲即可）
+ *
+ *  ■ 尺度參考（改數字時拿來比較）
+ *    場地 1600 × 900 像素；球的半徑 48 像素（直徑約 96）
+ *    速度單位 = 像素／秒：speed 600 ≈ 一秒走 600 像素（約場地寬的 3/8）
+ *    射程 = 飛行速度 speed × 飛行秒數 life
+ *    角度單位 = 弧度：1 ≈ 57°　1.2 ≈ 70°　2 ≈ 115°　3.14 = 半圈 180°
+ *
+ *  ■ 想怎麼調，改哪個
+ *    更強 → dmg↑　　　更難被閃 → speed↑ r↑　　　更好打中 → r↑ range↑
+ *    更難連發 → cd↑ cost↑　　　更好用 → cd↓ cost↓ wind↓
+ *    資源太緊 → res.regen↑ 或 各技能 cost↓　　太鬆 → 反過來
+ *
+ *  ■ 標「待定」的數字是暫填的，打起來不順就直接改。
+ *  ■ 招式的特殊行為（茈的雙模式、捌的連斬、電腦怎麼用）在 ball_fighter.html 的
+ *    「招式行為」區，這裡用 use:'名稱' 掛上去；本檔不需要動它。
+ * ════════════════════════════════════════════════════════════════ */
 'use strict';
-/* ═══ 1. 全域平衡參數（單位：秒 / 像素 / 倍率） ═══ */
-const CFG={
- W:1600,H:900,          // 場地大小
- viewH:850,             // 鏡頭可視高度（設定選單可調）
- r:48,                  // 球體半徑（碰撞 / 命中判定）
- time:180,overtime:10,  // 每回合秒數 / 延長賽秒數
- winRounds:1,           // 先贏幾回合
- res:{name:'能量',max:100,regen:7,color:'#b48cff',dashCost:0,blockDrain:5}, // 預設資源。角色的 res 只需寫要覆蓋的欄位：
-                        //   name 顯示名稱（咒力 / 靈力 / 氣…，各作品自訂）· max 上限 · regen 每秒回復 · color 條顏色
-                        //   dashCost 閃避消耗 · blockDrain 格擋每秒消耗（上限很小的資源，例如 5 格氣，要把這兩個一起改小）
- dash:{cd:1.3,dist:320,dur:.16,inv:.16},                                   // 閃避：冷卻 / 距離 / 持續 / 無敵時間
- block:{cut:.65,speed:.45,hitCost:.012,breakStun:.8,heavyMul:.7,kbMul:.3}, // 格擋：減傷 / 移速倍率 / 被打耗能係數 / 被破防硬直 / 破防時承傷倍率 / 擊退倍率
- clash:{dmgScale:.03,maxTime:8}, // 領域碰撞：受到的傷害 × 0.03 = 自身領域完整度減少的百分點（100 傷害 = -3%）；maxTime 秒內分不出勝負 → 完整度較高者勝（同分看優先級）（待定）
- maxOrbs:2,             // 場上同時存在的引力球上限（蒼）
- hitStun:.14,kbDecay:8, // 受擊硬直 / 擊退衰減
- ai:{think:.1,dodge:.85,aggr:.9}};  // 電腦：思考間隔 / 閃避機率 / 出招積極度
-/* 技能欄位速查：cost 消耗 · cd 冷卻秒 · wind 前搖秒 · dmg 傷害 · kb 擊退 · range 射程 · arc 揮砍弧度 · speed 飛行速度 · r 飛行物半徑 · life 飛行秒數
- * rad 範圍技半徑 · delay 範圍技延遲 · turn 追蹤轉向 · heavy 破防 · ult 大招外觀 · col 光效顏色 */
-/* ═══ 2. 角色資料：新增角色只要在這加一筆 ═══
- * 技能槽數量不限：sk 裡有幾個技能就生成幾顆按鈕。鍵名自取。每個角色可自訂資源 res:{name,max,regen,color}（咒力 / 靈力 / 氣…）。
- * 第一個技能 = 普攻（滑鼠左鍵 / 左下第一顆）；依序對應按鍵 J K L I U H N M。
- * ult:1 = 大招外觀（橘框）。內建 type：melee / proj / zone / homing；新類型請加進 ST，或在技能裡直接給 fire() 函式；
- * 命中效果：apply:[{k:'slow',dur:2,v:.5}]、onHit(target,skill) 函式。
- * 蓄力型：hold:{start,full} + full:{覆蓋欄位}（點=小版，按住>start 原地蓄力，>full 放開=強化版）；leaveOrb 命中留下引力球；aka:{rad,dmg,kb} 此投射物碰到己方引力球時引爆
- * 開關型：type:'toggle' + toggleHeal:{rate,drain,boost}（點=開關，長按=加速）；tag:f=>字串 顯示在按鈕上
- * 多模式：modes:[名稱...]、modeCost:[各模式消耗]、fullMode:需蓄力滿的模式索引；fire(f,o,act,s) 內用 act.mode 判斷
- * 按鈕位置：技能加 side:'L' = 放在左側搖桿正上方；modesSide:'L' = 該技能的模式切換鈕也放左側
- * 特效：投射物技能加 fx:'ao'|'aka'|'mu' 可套用專屬光效（拖尾、旋繞、閃光）
- * 領域：type:'domain' + domain:{r,life,burnout,name,col,style:'void'|'shrine',bind:1 範圍內敵人無法行動,tick:{dt,dmg} 範圍內持續傷害}；lockMove:1 施放時不能移動
- * 角色層：domDef:{name,drain,lock} 敵方領域內防禦鍵改為領域防禦（免疫領域效果；drain 每秒耗資源；lock:1 發動時不能移動/用技能）；clash:{priority,decay} 領域優先級 / 碰撞時每秒削減敵方領域完整度（比例）
- * 範圍預示：近戰技能加 showRange:1 → 前搖時畫出扇形範圍（fire 內可再推 {k:'fan'} 特效讓扇形在連擊期間保留）
- * AI：aiDist 偏好距離 · 技能 aiGap 電腦兩次使用的最短間隔 · aiBurst:[連發次數,休息秒數]
- * 技能層：lockAim:1 開始蓄力後瞄準方向鎖定（放開時也不會改向）· noExt:1 領域展延時禁用 · needFull:1 必須蓄滿才能放 · autoAim:1 蓄力時自動瞄準 · autoRelease:1 蓄滿自動發射 · burnOk:1 熔斷中仍可按 · repair:{rate,drain} 熔斷中長按修復（rate=每秒額外縮短的熔斷秒數）
- * type:'channel'：按住期間每 interval 秒發一次斬擊（每次耗 cost）；type:'toggle'+flag:'ext' = 領域展延（drain 每秒耗資源，攻擊無視減傷）
- * 角色層：costMult 消耗倍率（六眼）、infinity:{dmg,drain,hitCost} 長按防禦=無下限、bf:{chance,window,ready,mult,heal} 黑閃（普攻技能標 bf:1） */
-const CHARS={
- /* 五條悟（依設計稿；標「待定」的數值是我先填的預設值，之後直接改這裡） */
- gojo:{name:'五條悟',work:'咒術迴戰',color:'#8fd6ff',glyph:'悟',img:'img/gojo.png',res:{name:'咒力',max:1000,regen:30,color:'#b48cff',dashCost:0,blockDrain:30},hp:6000,speed:610,aiDist:320,
-  domDef:{name:'簡易領域',drain:80,lock:0},             // 敵方領域內，防禦鍵 = 簡易領域：每秒耗 100 咒力（待定）換取免疫領域效果，可自由移動
-  costMult:.5,                                          // 被動·六眼：技能消耗 ×0.5（待定：不套用持續消耗）
-  infinity:{dmg:2,drain:60,hitCost:.15},                // 被動·無下限：長按防禦鍵，受傷固定 2；耗 10/秒；被打額外耗 傷害×3%（待定）
-  bf:{chance:.3,window:1.2,ready:5,mult:2.5,heal:200,kbMul:2},  // 黑閃（待定）：普攻命中 30% 觸發，1.2 秒內按閃避鍵→5 秒內下一擊 ×2.5 並回 200 血
-  sk:{
-   a:{name:'蒼拳',type:'melee',cost:0,cd:.5,wind:.1,dmg:100,range:130,arc:1.2,kb:220,bf:1},
-   b:{name:'蒼',type:'proj',ai:(e,p,c)=>{const q=e.c.sk.b;return c.d<q.speed*q.life*.8&&!G.orbs.some(o=>o.own===e)?c.lead(c.d/q.speed):null},hold:{start:.2,full:1.1},cost:60,cd:1.6,wind:.08,dmg:220,speed:650,r:18,life:1.4,kb:150,col:'#4aa8ff',fx:'ao',
-      leaveOrb:{life:3,range:240,pull:2400,r:34},
-      full:{dmg:520,speed:520,r:40,kb:300,leaveOrb:{life:4,range:320,pull:3200,r:60}}},
-   c:{name:'赫',type:'proj',ai:(e,p,c)=>{const q=e.c.sk.c,ob=G.orbs.find(o=>o.own===e),R=q.speed*q.life;   // 電腦：場上有蒼 → 把赫打向蒼（引爆茈 A）；否則直接預判
-        if(ob&&Math.hypot(ob.x-e.x,ob.y-e.y)<R*.8&&Math.hypot(p.x-ob.x,p.y-ob.y)<240)return{x:ob.x,y:ob.y};return !ob&&c.d<R*.8?c.lead(c.d/q.speed):null},hold:{start:.2,full:1.3},cost:90,cd:2.2,wind:.08,dmg:330,speed:700,r:18,life:1.4,kb:450,col:'#ff4a5a',fx:'aka',
-      aka:{rad:230,dmg:1400,kb:800},                    // 茈 A（蒼赫組合）：赫碰到場上的蒼 → 在蒼的位置引爆
-      full:{dmg:800,speed:560,r:40,kb:700}},
-   d:{name:'茈',modesSide:'L',modes:['詠唱','無限制'],modeCost:[240,300],fullMode:0,hold:{start:.2,full:1.5},cost:240,cd:8,wind:.15,
-      fire(f,o,a,s){if(a.mode===0)ST.proj.fire(f,{speed:800,r:55,life:1.4,dmg:1500,kb:900,heavy:1,col:'#b04aff',fx:'mu',type:'proj'},a,o); // 詠唱茈：需蓄力滿
-                    else blast(f,f.x,f.y,260,1100,700,'#b04aff',.25)},                                                          // 無限制茈：以自身為中心，敵我皆傷（自傷 25%）
-      pv:(f,full)=>f.mode.d===1?{k:'circle',r:260}:{k:'line',len:1120,w:110},   // 預示：無限制＝自身圓；詠唱＝直線（滿蓄力時變亮）
-      ai:(e,p,c)=>{e.mode.d=c.d<260?1:0;return c.d<700?p:null}},
-   e:{name:'反轉術式',side:'L',type:'toggle',burnOk:1,repair:{rate:2,drain:80},hold:{start:.4,full:99},cost:0,cd:0,wind:.05,toggleHeal:{rate:150,drain:50,boost:3},tag:f=>f.rct?'● 開啟':'○ 關閉',
-      ai:(e,p,c)=>(e.rct?(e.hp>e.c.hp*.95||e.en<80):(e.hp<e.c.hp*.65&&e.en>300))?p:null},
-   f:{name:'無量空處',ult:1,type:'domain',cost:600,cd:20,wind:1.0,lockMove:1,domain:{r:430,life:5,burnout:6,bind:1,name:'無量空處',col:'#c9a3ff',style:'void'},   // 領域 5 秒；結束後術式熔斷 6 秒（待定）
-      ai:(e,p,c)=>(inEnemyDom(e)?Math.random()<.5:c.d<500&&!c.p.blocking)?p:null}}},
- /* 兩面宿儺（依設計稿；標「待定」的數值是我先填的預設值，之後直接改這裡） */
- sukuna:{name:'兩面宿儺',work:'咒術迴戰',color:'#d4453a',glyph:'宿',img:'img/sukuna.png',res:{name:'咒力',max:2000,regen:60,color:'#b48cff',dashCost:0,blockDrain:60},hp:8000,speed:570,
-  domDef:{name:'彌虛葛籠',drain:0,lock:1},                // 敵方領域內，防禦鍵 = 彌虛葛籠：不耗咒力，但不能移動 / 用技能；免疫領域效果
-  clash:{priority:2,decay:.05},
-  aiDist:115,                                            // 電腦偏好的戰鬥距離（近戰型）；沒寫 = 280
-                          // 領域優先級較高；領域碰撞時，敵方領域完整度每秒 -5%
-  bf:{chance:.3,window:1.2,ready:5,mult:2.5,heal:200,kbMul:2},   // 黑閃（咒術角色共通，數值待定）
-  sk:{
-   a:{name:'連打',type:'melee',cost:0,cd:.22,wind:.05,dmg:65,range:120,arc:1.3,kb:90,bf:1},
-   x:{name:'領域展延',side:'L',type:'toggle',flag:'ext',cost:0,cd:0,wind:.05,drain:100,tag:f=>f.ext?'● 展延中':'○ 關閉',   // 開啟：攻擊無視任何減傷（含無下限）；持續耗咒力（待定）；期間不能用 解 / 捌 / 領域展開
-      ai:(e,p,c)=>(e.ext?(c.d>520||e.en<200):(c.d<300&&e.en>600&&(p.blocking||p.c.infinity)))?p:null},
-   e:{name:'反轉術式',side:'L',type:'toggle',hold:{start:.4,full:99},cost:0,cd:0,wind:.05,toggleHeal:{rate:200,drain:50,boost:3},tag:f=>f.rct?'● 開啟':'○ 關閉',   // 治療量 / 消耗 / 施放方式未定 → 先沿用五條的「點=開關、長按=加速」
-      ai:(e,p,c)=>(e.rct?(e.hp>e.c.hp*.95||e.en<150):(e.hp<e.c.hp*.65&&e.en>500))?p:null},
-   b:{name:'解',type:'channel',noExt:1,hold:{start:.05,full:99},interval:.3,cost:30,cd:0,wind:.05,dmg:120,speed:1500,r:40,life:99,kb:110,col:'#ff5a4a',fx:'slash',noMuzzle:1,aiGap:.3,aiBurst:[5,1.4],   // 劍氣：按住每 0.3 秒一道、持續耗咒力；射程無上限（飛出場外才消失）；拖曳決定方向；領域內自動瞄準
-      pv:()=>({k:'line',len:3000,w:80})},
-   c:{name:'捌',noExt:1,type:'melee',showRange:1,cost:100,cd:7,wind:.25,dmg:110,range:330,arc:2,kb:120,kbEnd:700,hits:8,gap:.06,       // 前方扇形 8 段米字斬；領域內必中（碰撞期間失效）
-      fire(f,o,a,s){const x0=f.x,y0=f.y,T=s.hits*s.gap+.2;G.fx.push({k:'fan',x:x0,y:y0,a:a.ang,w:s.arc,r:s.range+CFG.r,t:T,m:T,col:'#ff5a4a'});if(sureHit(f))pop(f,'必中','#ffd77a');   // 畫出攻擊範圍（扇形）
-       for(let i=0;i<s.hits;i++)later(i*s.gap,()=>{if(G.state!=='fight')return;
-        const dd=Math.hypot(o.x-x0,o.y-y0);let da=Math.abs(Math.atan2(o.y-y0,o.x-x0)-a.ang);da=Math.min(da,Math.PI*2-da);
-        const inn=sureHit(f)||(dd<=s.range+CFG.r&&da<=s.arc/2),an=a.ang+(i%4)*Math.PI/4,px=inn?o.x:x0+Math.cos(a.ang)*s.range*.55,py=inn?o.y:y0+Math.sin(a.ang)*s.range*.55;
-        G.fx.push({k:'sl',x:px,y:py,a:an,L:s.range*.9,t:.22,m:.22,col:'#ff5a4a'});
-        if(inn)hit(o,s.dmg,x0,y0,i===s.hits-1?s.kbEnd:s.kb,0,s,f)})}},
-   d:{name:'開',type:'proj',hold:{start:.2,full:3},needFull:1,autoAim:1,autoRelease:1,cost:150,cd:8,wind:.15,dmg:1200,speed:950,r:30,life:1.6,kb:350,col:'#ff7a2a',fx:'fire',   // 蓄力 3 秒自動發射火焰箭；蓄力期間自動瞄準；命中附帶灼燒
-      apply:[{k:'dot',dur:4,v:60}],ai:(e,p,c)=>c.d<850?p:null},
-   f:{name:'領域展開',ult:1,noExt:1,type:'domain',cost:800,cd:20,wind:1.5,lockMove:1,
-      domain:{r:430,life:6,burnout:7,name:'伏魔御廚子',col:'#e8453a',style:'shrine',tick:{dt:.05,dmg:15}},   // 範圍內持續傷害（每 0.05 秒 15 = 每秒 300，待定）
-      ai:(e,p,c)=>(inEnemyDom(e)?Math.random()<.5:c.d<420)?p:null}}}};
-/* ═══ 3. 資源檔案路徑（圖片 / 音效） ═══ */
-const ASSET_BASE='assets/';
-const SFX={hit:'sfx/hit.mp3',block:'sfx/block.mp3',dash:'sfx/dash.mp3',win:'sfx/win.mp3',lose:'sfx/lose.mp3'};
-const BGM='bgm/battle.mp3';
-CFG.audio={master:.8,sfx:.9,bgm:.45,muted:false};
+
+/* ───────────── 1. 全域平衡（所有角色共用） ───────────── */
+const CFG = {
+  W: 1600, H: 900,          // 場地寬 / 高（像素）
+  viewH: 800,               // 鏡頭可視高度（像素）；越小畫面越近。玩家可在設定選單自己調
+  r: 48,                    // 球的半徑（像素）：同時決定碰撞與被命中的範圍
+  time: 180,                // 每回合時間（秒）
+  overtime: 10,             // 時間到後的延長賽（秒）
+  winRounds: 2,             // 先贏幾回合算獲勝
+
+  // 預設資源（咒力 / 能量 / 氣……）。角色自己的 res 只需要寫想改的欄位，沒寫的用這裡
+  res: {
+    name: '能量',           // 顯示名稱（每個作品、每個角色都可以自己取名）
+    max: 100,               // 上限
+    regen: 7,               // 每秒自然回復量
+    color: '#b48cff',       // 資源條顏色
+    dashCost: 0,            // 閃避一次消耗多少（0 = 免費）
+    blockDrain: 5,          // 按住格擋時每秒消耗多少
+  },
+
+  dash: {                   // 閃避
+    cd: 1.3,                //   冷卻（秒）
+    dist: 320,              //   位移距離（像素）
+    dur: .16,               //   位移花的時間（秒）
+    inv: .16,               //   無敵時間（秒）
+  },
+  block: {                  // 格擋
+    cut: .65,               //   減傷比例（.65 = 少受 65% 傷害）
+    speed: .45,             //   格擋時移動速度倍率（.45 = 變成 45%）
+    hitCost: .012,          //   被打時額外消耗資源 = 傷害 × 這個係數
+    breakStun: .8,          //   被「破防」攻擊打到時的硬直（秒）
+    heavyMul: .7,           //   被破防時，承受的傷害倍率
+    kbMul: .3,              //   格擋時受到的擊退倍率（.3 = 只被推 30%）
+  },
+  clash: {                  // 領域碰撞（兩邊領域對開）
+    dmgScale: .03,          //   受到 100 傷害 → 自己領域完整度 -3%（數字越大越容易被覆蓋）
+    maxTime: 8,             //   碰撞最久幾秒；分不出勝負 → 完整度較高者贏（同分看優先級）
+  },
+  maxOrbs: 2,               // 場上同時最多幾顆蒼（引力球）
+  hitStun: .14,             // 被打到的硬直（秒）。蓄力中不會被打斷
+  kbDecay: 8,               // 擊退力道消散速度（越大越快停下來）
+  ai: {                     // 電腦對手
+    think: .1,              //   多久思考一次（秒）；越小反應越快
+    dodge: .85,             //   看到攻擊時閃避 / 防禦的機率（0~1）
+    aggr: .9,               //   出招積極度（0~1）；越大越愛出招
+  },
+};
+
+
+/* ───────────── 2. 角色 ───────────── */
+const CHARS = {
+
+  /* ═════════════════ 五條悟 ═════════════════ */
+  gojo: {
+    name: '五條悟',
+    work: '咒術迴戰',              // 作品名（顯示在血條上）
+    color: '#8fd6ff',              // 角色代表色（血條、光效）
+    glyph: '悟',                   // 沒有圖片時，球上顯示的字
+    img: 'img/gojo.png',           // 角色圖片（找不到會自動改用 glyph）
+
+    hp: 6000,                      // 生命值
+    speed: 610,                    // 移動速度（像素／秒）
+    res: {                         // 資源（沒寫的欄位用上面 CFG.res 的預設）
+      name: '咒力',                //   資源名稱
+      max: 1000,                   //   上限
+      regen: 30,                   //   每秒回復
+      blockDrain: 30,              //   按住格擋每秒消耗（五條格擋＝無下限，另有 infinity.drain，這個基本不會用到）
+    },
+    aiDist: 320,                   // 電腦想保持的距離（像素）：近戰型寫小、遠程型寫大；沒寫 = 280
+
+    costMult: .5,                  // 被動·六眼：所有技能消耗 ×0.5（顯示的 cost 是未打折的）
+
+    infinity: {                    // 被動·無下限：按住防禦鍵，受到的傷害固定
+      dmg: 2,                      //   固定傷害值
+      drain: 60,                   //   每秒消耗咒力
+      hitCost: .15,                //   被打時額外消耗咒力 = 原傷害 × 這個係數
+    },
+    domDef: {                      // 被關進敵方領域時，防禦鍵改成領域防禦
+      name: '簡易領域',            //   按鈕上顯示的名字
+      drain: 100,                  //   每秒消耗咒力（待定）；0 = 不耗
+      lock: 0,                     //   1 = 發動時不能移動、不能用技能；0 = 可以自由行動
+    },
+    bf: {                          // 黑閃（待定）：普攻命中後有機率觸發，下一擊強化
+      chance: .3,                  //   普攻命中時觸發機率
+      window: 1.2,                 //   觸發後幾秒內按閃避鍵才算「黑閃」
+      ready: 5,                    //   黑閃準備好後，幾秒內要打出下一擊
+      mult: 2.5,                   //   該擊傷害倍率
+      heal: 200,                   //   命中時回復生命
+      kbMul: 2,                    //   該擊擊退倍率
+    },
+
+    sk: {
+      /* ── 普攻：蒼拳 ── */
+      a: {
+        name: '蒼拳',
+        type: 'melee',             // melee = 近戰揮擊
+        bf: 1,                     // 1 = 這個技能可以觸發黑閃
+        cost: 0,                   // 咒力消耗
+        cd: .5,                    // 冷卻（秒）
+        wind: .1,                  // 前搖（秒）：按下到出手的延遲
+        dmg: 100,                  // 傷害
+        range: 130,                // 攻擊距離（像素）
+        arc: 1.2,                  // 揮擊扇形角度（弧度，1.2 ≈ 70°）
+        kb: 220,                   // 擊退力道
+      },
+
+      /* ── 蒼：直線投射物，命中後留下引力球。按住可蓄力 ── */
+      b: {
+        name: '蒼',
+        type: 'proj',              // proj = 直線飛行的投射物
+        use: 'ao',                 // 特殊行為（電腦：場上沒有蒼才放）
+        col: '#4aa8ff',            // 光效顏色
+        fx: 'ao',                  // 特效樣式
+        hold: {                    // 按住蓄力
+          start: .2,               //   按住超過幾秒才算「蓄力」（短按 = 普通版）
+          full: 1.1,               //   按住幾秒蓄滿 → 放開發射強化版（見下方 full）
+        },
+        cost: 60,
+        cd: 1.6,
+        wind: .08,
+        dmg: 220,
+        speed: 650,                // 飛行速度（像素／秒）
+        r: 18,                     // 判定半徑（像素）：越大越好打中
+        life: 1.4,                 // 飛行秒數（射程 = speed × life）
+        kb: 150,
+        leaveOrb: {                // 命中後在對手身上留下引力球
+          life: 3,                 //   存在秒數
+          range: 240,              //   引力範圍（像素）
+          pull: 2400,              //   吸力
+          r: 34,                   //   球本身半徑
+        },
+        full: {                    // 蓄滿後的強化版：只寫有變的欄位，沒寫的沿用上面
+          dmg: 520,
+          speed: 520,
+          r: 40,
+          kb: 300,
+          leaveOrb: { life: 4, range: 320, pull: 3200, r: 60 },
+        },
+      },
+
+      /* ── 赫：直線投射物，碰到場上的蒼會引爆成茈。按住可蓄力 ── */
+      c: {
+        name: '赫',
+        type: 'proj',
+        use: 'aka',                // 特殊行為（電腦：場上有蒼時打向蒼）
+        col: '#ff4a5a',
+        fx: 'aka',
+        hold: { start: .2, full: 1.3 },      // 蓄力時間，同蒼的說明
+        cost: 90,
+        cd: 2.2,
+        wind: .08,
+        dmg: 330,
+        speed: 700,
+        r: 18,
+        life: 1.4,
+        kb: 450,
+        aka: {                     // 赫碰到自己場上的蒼 → 在蒼的位置引爆（茈）
+          rad: 230,                //   爆炸半徑（像素）
+          dmg: 1400,               //   爆炸傷害
+          kb: 800,                 //   爆炸擊退
+        },
+        full: { dmg: 800, speed: 560, r: 40, kb: 700 },   // 蓄滿強化版
+      },
+
+      /* ── 茈：兩種模式，用按鈕旁的切換鍵選擇 ── */
+      d: {
+        name: '茈',
+        use: 'murasaki',           // 特殊行為（兩種模式的施放、預示、電腦怎麼選）
+        modes: ['詠唱', '無限制'], // 模式名稱：[0]=詠唱（直線大型投射物）、[1]=無限制（自身爆炸）
+        modesSide: 'L',            // 模式切換鈕放在畫面左側（搖桿上方）；不寫 = 跟著技能放右側
+        fullMode: 0,               // 第 0 種模式（詠唱）必須蓄滿才能放
+        hold: { start: .2, full: 1.5 },      // 蓄力時間（詠唱要按滿 1.5 秒）
+        cost: 240,
+        modeCost: [240, 300],      // 兩種模式各自的消耗（有寫就覆蓋 cost）
+        cd: 8,
+        wind: .15,
+        proj: {                    // 模式 0「詠唱」：直線大型投射物
+          dmg: 1500,
+          speed: 800,
+          r: 55,
+          life: 1.4,
+          kb: 900,
+          heavy: 1,                //   1 = 破防（打到格擋中的對手會破防）
+          col: '#b04aff',
+          fx: 'mu',
+        },
+        blast: {                   // 模式 1「無限制」：以自己為中心爆炸
+          rad: 260,                //   爆炸半徑（像素）
+          dmg: 1100,
+          kb: 700,
+          self: .25,               //   自己也會受到 25% 傷害
+          col: '#b04aff',
+        },
+      },
+
+      /* ── 反轉術式：開關型回血；熔斷中長按可修復熔斷 ── */
+      e: {
+        name: '反轉術式',
+        type: 'toggle',            // toggle = 開關：點一下開 / 再點關
+        side: 'L',                 // 按鈕放在畫面左側（搖桿上方）
+        hold: { start: .4, full: 99 },       // 按住超過 0.4 秒 = 長按（加速治療 / 修復熔斷）
+        cost: 0,
+        cd: 0,
+        wind: .05,
+        toggleHeal: {
+          rate: 150,               //   開啟時每秒回復生命
+          drain: 50,               //   開啟時每秒消耗咒力
+          boost: 3,                //   長按時回復速度倍率（消耗不變）
+        },
+        burnOk: 1,                 // 1 = 熔斷中仍可操作（只限長按修復）
+        repair: {                  // 熔斷中長按：修復熔斷
+          rate: 2,                 //   熔斷倒數額外加速：每秒多減 2 秒（總共 3 倍速）
+          drain: 80,               //   每秒消耗咒力
+        },
+      },
+
+      /* ── 領域展開：無量空處 ── */
+      f: {
+        name: '無量空處',
+        type: 'domain',            // domain = 領域
+        ult: 1,                    // 1 = 大招（按鈕外框顯示橘色）
+        lockMove: 1,               // 1 = 施放前搖期間不能移動
+        cost: 600,
+        cd: 30,
+        wind: 1.2,                 // 前搖（秒）：領域展開前的詠唱時間
+        aiRange: 500,              // 電腦：離對手多近（像素）才會展開
+        domain: {
+          r: 430,                  //   領域範圍半徑（像素）
+          life: 5,                 //   領域持續秒數（領域碰撞期間會暫停計時）
+          burnout: 6,              //   領域結束後的「熔斷」秒數：期間只能普攻
+          bind: 1,                 //   1 = 範圍內的敵人無法行動
+          name: '無量空處',        //   領域名稱（顯示在領域上方）
+          col: '#c9a3ff',          //   領域顏色
+          style: 'void',           //   外觀：void = 星空、shrine = 斬擊刻痕
+        },
+      },
+    },
+  },
+
+
+  /* ═════════════════ 兩面宿儺 ═════════════════ */
+  sukuna: {
+    name: '兩面宿儺',
+    work: '咒術迴戰',
+    color: '#d4453a',
+    glyph: '宿',
+    img: 'img/sukuna.png',
+
+    hp: 8000,
+    speed: 570,
+    res: {
+      name: '咒力',
+      max: 2000,
+      regen: 60,                   // 每秒回復
+      blockDrain: 60,              // 按住格擋每秒消耗
+    },
+    aiDist: 115,                   // 電腦想保持的距離：近戰型所以很近
+
+    domDef: {                      // 被關進敵方領域時，防禦鍵改成彌虛葛籠
+      name: '彌虛葛籠',
+      drain: 0,                    //   不耗咒力
+      lock: 1,                     //   發動期間不能移動、不能用技能（但免疫領域效果）
+    },
+    clash: {                       // 領域碰撞相關
+      priority: 2,                 //   領域優先級：數字大者在「同時歸零」時獲勝
+      decay: .05,                  //   碰撞期間，每秒削減「敵方」領域完整度 5%
+    },
+    bf: {                          // 黑閃（待定，各項意義同五條）
+      chance: .3, window: 1.2, ready: 5, mult: 2.5, heal: 200, kbMul: 2,
+    },
+
+    sk: {
+      /* ── 普攻：連打 ── */
+      a: {
+        name: '連打',
+        type: 'melee',
+        bf: 1,                     // 可以觸發黑閃
+        cost: 0,
+        cd: .22,                   // 很短 = 連續攻擊
+        wind: .05,
+        dmg: 65,
+        range: 120,
+        arc: 1.3,
+        kb: 90,
+      },
+
+      /* ── 領域展延：開關。開啟時攻擊無視任何減傷（含無下限），但持續耗咒力 ── */
+      x: {
+        name: '領域展延',
+        type: 'toggle',
+        flag: 'ext',               // 這個開關控制的狀態（ext = 領域展延；不寫 = 反轉術式）
+        side: 'L',
+        cost: 0,
+        cd: 0,
+        wind: .05,
+        drain: 100,                // 開啟期間每秒消耗咒力（待定）
+      },
+
+      /* ── 反轉術式（待定：治療量 / 消耗 / 施放方式尚未設定，先沿用五條的做法） ── */
+      e: {
+        name: '反轉術式',
+        type: 'toggle',
+        side: 'L',
+        hold: { start: .4, full: 99 },       // 長按 = 加速治療
+        cost: 0,
+        cd: 0,
+        wind: .05,
+        toggleHeal: {
+          rate: 200,               //   開啟時每秒回復生命
+          drain: 50,               //   開啟時每秒消耗咒力
+          boost: 3,                //   長按時回復倍率
+        },
+      },
+
+      /* ── 解：按住不放，持續放出劍氣；拖曳決定方向 ── */
+      b: {
+        name: '解',
+        type: 'channel',           // channel = 按住期間持續施放
+        noExt: 1,                  // 1 = 領域展延開啟時不能用
+        hold: { start: .05, full: 99 },
+        interval: .3,              // 按住時每隔幾秒放出一道劍氣
+        col: '#ff5a4a',
+        fx: 'slash',               // 特效樣式：新月形劍氣
+        noMuzzle: 1,               // 1 = 發射時不要閃光（連發太吵）
+        cost: 30,                  // 每一道劍氣的咒力消耗（所以持續消耗 = 30 ÷ 0.3 = 每秒 100）
+        cd: 0,
+        wind: .05,
+        dmg: 120,                  // 每道劍氣傷害
+        speed: 1500,
+        r: 40,                     // 劍氣判定半徑（= 寬度的一半）
+        life: 99,                  // 飛行秒數 99 = 射程無上限，飛出場外才消失
+        kb: 110,
+        aiGap: .3,                 // 電腦：兩道劍氣之間至少隔幾秒
+        aiBurst: [5, 1.4],         // 電腦：連放 5 道後休息 1.4 秒
+      },
+
+      /* ── 捌：前方扇形的連續斬擊 ── */
+      c: {
+        name: '捌',
+        type: 'melee',
+        use: 'hachi',              // 特殊行為（連續斬擊；自己領域內必中）
+        noExt: 1,
+        showRange: 1,              // 1 = 前搖時畫出攻擊範圍（扇形）
+        cost: 100,
+        cd: 7,
+        wind: .25,
+        dmg: 110,                  // 每一段傷害
+        range: 330,                // 攻擊距離（像素）
+        arc: 2,                    // 扇形角度（弧度，2 ≈ 115°）
+        kb: 120,                   // 每一段的擊退
+        hits: 8,                   // 總共幾段
+        gap: .06,                  // 每段之間隔幾秒
+        kbEnd: 700,                // 最後一段的擊退（把對手打飛）
+      },
+
+      /* ── 開：蓄力 3 秒後自動發射火焰箭 ── */
+      d: {
+        name: '開',
+        type: 'proj',
+        use: 'kai',                // 特殊行為（自己領域內變成追蹤彈 = 必中）
+        col: '#ff7a2a',
+        fx: 'fire',
+        hold: { start: .2, full: 3 },        // 按住 3 秒蓄滿
+        needFull: 1,               // 1 = 一定要蓄滿才能放（沒蓄滿放開 = 取消）
+        autoAim: 1,                // 1 = 蓄力期間自動瞄準對手
+        autoRelease: 1,            // 1 = 蓄滿後自動發射，不用放開
+        cost: 150,
+        cd: 8,
+        wind: .15,
+        dmg: 900,
+        speed: 950,
+        r: 30,
+        life: 1.6,
+        kb: 350,
+        apply: [                   // 命中後附加的狀態
+          { k: 'dot', dur: 4, v: 60 },       // 灼燒：持續 4 秒、每秒 60 傷害
+        ],
+      },
+
+      /* ── 領域展開：伏魔御廚子 ── */
+      f: {
+        name: '領域展開',
+        type: 'domain',
+        ult: 1,                    // 大招（按鈕外框橘色）
+        noExt: 1,
+        lockMove: 1,
+        cost: 800,
+        cd: 40,
+        wind: 1.5,
+        aiRange: 420,              // 電腦：離對手多近才會展開
+        domain: {
+          r: 430,                  //   領域範圍半徑（像素）
+          life: 6,                 //   領域持續秒數
+          burnout: 7,              //   結束後熔斷秒數
+          name: '伏魔御廚子',
+          col: '#e8453a',
+          style: 'shrine',         //   外觀：shrine = 斬擊刻痕
+          tick: {                  //   範圍內對敵人的持續傷害（必中，無視防禦）
+            dt: .05,               //     每隔幾秒判定一次
+            dmg: 15,               //     每次傷害（15 ÷ 0.05 = 每秒 300，待定）
+          },
+        },
+      },
+    },
+  },
+};
+
+
+/* ───────────── 附：新增「丟擲」技能的寫法（複製貼到某角色的 sk 裡，改名字與數字即可） ─────────────
+ *  拖曳按鈕選擇落點，放開丟出；落地範圍內造成傷害。不拖直接放開 = 丟向對手。
+ *
+ *  g: {
+ *    name: '炸彈',
+ *    type: 'throw',
+ *    mode: 'arc',        // 'arc' 拋投：飛越途中的一切，只在落點爆炸，落點有預警圈（可以跑開）
+ *                        // 'line' 直線：貼地直飛，途中碰到對手就爆；沒碰到就在落點爆
+ *    range: 600,         // 最遠能丟多遠（像素）；拖超過也只會丟到這裡
+ *    speed: 700,         // 飛行速度（像素/秒）；越快越難躲
+ *    rad: 120,           // 爆炸半徑（像素）
+ *    r: 20,              // 本體大小：直線型用來判斷「碰到對手」；拋投型只影響外觀
+ *    dmg: 500, kb: 200,  // 傷害 / 擊退
+ *    heavy: 0,           // 1 = 破防
+ *    self: 0,            // 自己站在爆炸範圍內受到的傷害比例（0 = 不會自傷，.5 = 受一半）
+ *    arcMin: .35,        // （拋投專用）最短飛行秒數，近距離也不會瞬間落地
+ *    cost: 100, cd: 5, wind: .1,
+ *    col: '#ffaa33',     // 顏色
+ *    apply: [{ k: 'dot', dur: 3, v: 40 }],   // （可選）命中附加狀態，例：灼燒
+ *  },
+ */
+
+/* ───────────── 3. 檔案路徑（圖片 / 音效 / 音樂） ───────────── */
+const ASSET_BASE = 'assets/';
+const SFX = { hit: 'sfx/hit.mp3', block: 'sfx/block.mp3', dash: 'sfx/dash.mp3', win: 'sfx/win.mp3', lose: 'sfx/lose.mp3' };
+const BGM = 'bgm/battle.mp3';
+CFG.audio = { master: .8, sfx: .9, bgm: .45, muted: false };   // 預設音量（0~1）
