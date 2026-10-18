@@ -104,7 +104,7 @@ const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let sel={p:'gojo',e:'sukuna'}, G={}, keys={}, mouse=null, joy={x:0,y:0}, view={s:1,ox:0,oy:0}, toast={t:0,s:''};
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function mk(id,x,side,isAI){const c=CHARS[id];return{id,c,side,isAI,x,y:CFG.H/2,vx:0,vy:0,kx:0,ky:0,hp:c.hp,en:resOf(c).max,enMax:resOf(c).max,sts:[],mode:{},rct:false,ext:false,dd:false,hold:null,bfWin:0,bfReady:0,face:side?Math.PI:0,
+function mk(id,x,side,isAI){const c=CHARS[id],dd=c.domDef,dm=dd?(dd.max||1000):0;return{id,c,side,isAI,x,y:CFG.H/2,vx:0,vy:0,kx:0,ky:0,hp:c.hp,en:resOf(c).max,enMax:resOf(c).max,domGauge:dm,domMax:dm,domOverload:false,sts:[],mode:{},rct:false,ext:false,dd:false,hold:null,bfWin:0,bfReady:0,face:side?Math.PI:0,
  cd:Object.fromEntries(Object.keys(c.sk).map(k=>[k,0])),dashCd:0,act:null,stun:0,dashT:0,dx:0,dy:0,inv:0,blocking:false,mx:0,my:0,wins:0,ai:{t:0,sx:1,wantBlock:0}}}
 function newRound(keep){const a=G.p?G.p.wins:0,b=G.e?G.e.wins:0;
  G.p=mk(sel.p,400,0,false);G.e=mk(sel.e,CFG.W-400,1,true);G.p.wins=a;G.e.wins=b;
@@ -276,8 +276,10 @@ function chargeLock(f){const h=f.hold;if(!h)return 1;const q=f.c.sk[h.k];if(q.ty
 function stepF(f,dt){
  for(const k in f.cd)f.cd[k]=Math.max(0,f.cd[k]-dt);f.dashCd=Math.max(0,f.dashCd-dt);
  f.stun=Math.max(0,f.stun-dt);f.inv=Math.max(0,f.inv-dt);f.bfWin=Math.max(0,f.bfWin-dt);f.bfReady=Math.max(0,f.bfReady-dt);
- {const dd=f.c.domDef;let on=!!(dd&&f.blocking&&inEnemyDom(f)&&(!dd.drain||f.en>0)); // 彌虛葛籠 / 簡易領域：敵方領域內，防禦鍵改為領域防禦
-  if(on){f.blocking=false;f.en=Math.max(0,f.en-(dd.drain||0)*dt)}
+ {const dd=f.c.domDef,inside=!!(dd&&f.blocking&&inEnemyDom(f));let on=!!(inside&&!f.domOverload&&f.domGauge>0); // 簡易領域：獨立量條，不再消耗咒力
+  if(on){f.blocking=false;f.domGauge=Math.max(0,f.domGauge-(dd.drain||0)*dt);if(f.domGauge<=0){f.domGauge=0;f.domOverload=true;on=false;pop(f,'簡易領域過載','#ff6b4a')}}
+  else if(f.domOverload){f.domGauge=Math.min(f.domMax,f.domGauge+(dd.recover||0)*dt);if(f.domGauge>=f.domMax){f.domGauge=f.domMax;f.domOverload=false;pop(f,'簡易領域恢復','#9ef09e')}}
+  else if(dd)f.domGauge=Math.min(f.domMax,f.domGauge+(dd.recover||0)*dt);
   if(on&&!f.dd)pop(f,dd.name,'#ffd77a');f.dd=on}
  f.en=clamp(f.en+(f.blocking?-((f.c.infinity&&!stat(f,'burnout',0))?f.c.infinity.drain:resOf(f.c).blockDrain):resOf(f.c).regen)*dt,0,f.enMax);
  if(f.blocking&&f.en<=0)f.blocking=false;
@@ -474,12 +476,13 @@ function portrait(f,px,py){const im=Assets.get(f.c.img);cx.save();cx.beginPath()
 const resName=f=>resOf(f.c).name;
 function bar(x,y,w,h,v,col,txt){cx.fillStyle='#0008';cx.fillRect(x,y,w,h);cx.fillStyle=col;cx.fillRect(x,y,w*clamp(v,0,1),h);
  cx.fillStyle='#fff';cx.font='bold 11px system-ui';cx.textAlign='center';cx.fillText(txt,x+w/2,y+h-3)}
-function hud(f,left){const w=Math.min(view.w*.36,360),x=left?10:view.w-w-10,y=8;
- cx.fillStyle='#0b1020cc';cx.fillRect(x,y,w,50);cx.strokeStyle=f.c.color;cx.lineWidth=2;cx.strokeRect(x,y,w,50);
+ function hud(f,left){const w=Math.min(view.w*.36,360),x=left?10:view.w-w-10,y=8,hh=f.domMax?68:50;
+  cx.fillStyle='#0b1020cc';cx.fillRect(x,y,w,hh);cx.strokeStyle=f.c.color;cx.lineWidth=2;cx.strokeRect(x,y,w,hh);
  cx.fillStyle=f.c.color;cx.font='bold 14px system-ui';cx.textAlign=left?'left':'right';cx.fillText(f.c.name+'  ·  '+f.c.work,left?x+6:x+w-6,y+15);
- bar(x+4,y+20,w-8,14,f.hp/f.c.hp,f.c.color,Math.ceil(f.hp)+' / '+f.c.hp);bar(x+4,y+36,w-8,11,f.en/f.enMax,resOf(f.c).color,resName(f)+' '+f.en.toFixed(0)+' / '+f.enMax);
- for(let i=0;i<CFG.winRounds;i++){cx.fillStyle=i<f.wins?'#e8c25a':'#fff3';cx.beginPath();cx.arc(left?x+w-10-i*14:x+10+i*14,y+62,5,0,7);cx.fill()}
- portrait(f,left?x+w+30:x-30,y+25)}
+  bar(x+4,y+20,w-8,14,f.hp/f.c.hp,f.c.color,Math.ceil(f.hp)+' / '+f.c.hp);bar(x+4,y+36,w-8,11,f.en/f.enMax,resOf(f.c).color,resName(f)+' '+f.en.toFixed(0)+' / '+f.enMax);
+  if(f.domMax)bar(x+4,y+50,w-8,11,f.domGauge/f.domMax,f.domOverload?'#ff5b45':'#ffd15c',(f.domOverload?'過載 ':'簡易領域 ')+Math.ceil(f.domGauge)+' / '+f.domMax);
+  for(let i=0;i<CFG.winRounds;i++){cx.fillStyle=i<f.wins?'#e8c25a':'#fff3';cx.beginPath();cx.arc(left?x+w-10-i*14:x+10+i*14,y+(f.domMax?80:62),5,0,7);cx.fill()}
+  portrait(f,left?x+w+30:x-30,y+25)}
 function draw(){
  const {s,dpr,w,h}=view;cx.setTransform(dpr,0,0,dpr,0,0);cx.fillStyle='#0b1020';cx.fillRect(0,0,w,h);
  if(!G.p)return;
@@ -572,7 +575,7 @@ function draw(){
   el.innerHTML='<em>'+(KEYMAP[i]||'').toUpperCase()+'</em>'+(q.bf&&G.p.bfReady>0?'⚡黑閃':q.name)+'<small>'+(q.tag?q.tag(G.p):q.type==='toggle'?(G.p[q.flag||'rct']?'● 開啟':'○ 關閉'):(c?(Math.round(c*10)/10)+' '+resName(G.p):'免費'))+'</small>';
   if(i===0)el.style.borderColor=G.p.bfReady>0?'#ff4a5a':'';
   el.style.opacity=((G.p.en<c||(stat(G.p,'burnout',0)&&i>0))?.45:1)*BO();ring(el,q.cd&&G.p.cd[k]>0?1-G.p.cd[k]/q.cd:-1);const ic=Assets.get(q.icon);el.style.backgroundImage=ic?'url('+ASSET_BASE+q.icon+')':'';el.style.backgroundSize='cover';el.style.backgroundPosition='center'}
- {const gl=G.p.c.domDef&&inEnemyDom(G.p)?G.p.c.domDef.name:'格擋';if($('bG').dataset.l!==gl){$('bG').dataset.l=gl;$('bG').innerHTML=gl+'<small>按住</small>'}$('bG').style.borderColor=gl==='格擋'?'':'#ffd77a'}
+ {const gl=G.p.c.domDef&&inEnemyDom(G.p)?G.p.c.domDef.name:'格擋',dg=G.p.domMax?Math.ceil(G.p.domGauge):0,label=gl+'|'+dg+'|'+(G.p.domOverload?'過載':'');if($('bG').dataset.l!==label){$('bG').dataset.l=label;$('bG').innerHTML=gl+'<small>'+(G.p.domOverload?'過載恢復中':(gl==='格擋'?'量條 '+dg+'/1000':'按住 · '+dg+'/1000'))+'</small>'}$('bG').style.borderColor=gl==='格擋'?'':G.p.domOverload?'#ff5b45':'#ffd77a'}
  const dl=G.p.bfWin>0?'黑閃':'閃避';if($('bD').textContent!==dl)$('bD').textContent=dl;$('bD').style.borderColor=G.p.bfWin>0?'#ff4a5a':'';$('bD').style.opacity=(G.p.bfWin>0?1:(G.p.dashCd>0||G.p.en<dashCost(G.p)?.5:1))*BO();ring($('bD'),G.p.dashCd>0?1-G.p.dashCd/CFG.dash.cd:-1)}
 /* ═══ 7. 輸入 ═══ */
 function aimPt(){if(mouse)return toArena(mouse);return{x:G.e.x,y:G.e.y}}
