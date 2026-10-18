@@ -106,7 +106,7 @@ const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let sel={p:'gojo',e:'sukuna'}, G={}, keys={}, mouse=null, joy={x:0,y:0}, view={s:1,ox:0,oy:0}, toast={t:0,s:''};
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function mk(id,x,side,isAI){const c=CHARS[id],dd=c.domDef,dm=dd&&!dd.useRes?(dd.max||1000):0;return{id,c,side,isAI,x,y:CFG.H/2,vx:0,vy:0,kx:0,ky:0,hp:c.hp,en:resOf(c).max,enMax:resOf(c).max,domGauge:dm,domMax:dm,domOverload:false,sts:[],mode:{},rct:false,ext:false,dd:false,stand:false,sp:null,spAct:null,rage:false,aimMode:null,hold:null,bfWin:0,bfReady:0,face:side?Math.PI:0,
+function mk(id,x,side,isAI){const c=CHARS[id],dd=c.domDef,dm=dd&&!dd.useRes?(dd.max||1000):0;return{id,c,side,isAI,x,y:CFG.H/2,vx:0,vy:0,kx:0,ky:0,hp:c.hp,en:resOf(c).max,enMax:resOf(c).max,domGauge:dm,domMax:dm,domOverload:false,sts:[],mode:{},rct:false,ext:false,dd:false,stand:false,sp:null,spAct:null,rage:false,hold:null,bfWin:0,bfReady:0,face:side?Math.PI:0,
  cd:Object.fromEntries(Object.keys(c.sk).map(k=>[k,0])),dashCd:0,act:null,stun:0,dashT:0,dx:0,dy:0,inv:0,blocking:false,mx:0,my:0,wins:0,ai:{t:0,sx:1,wantBlock:0}}}
 function newRound(keep){const a=G.p?G.p.wins:0,b=G.e?G.e.wins:0;
  G.p=mk(sel.p,400,0,false);G.e=mk(sel.e,CFG.W-400,1,true);G.p.wins=a;G.e.wins=b;
@@ -176,7 +176,7 @@ function cast(f,k,aim,opts){
  const v=(opts.stage==='full'&&s.full)?Object.assign({},s,s.full):s;   // 蓄力滿的強化版本
  if(G.domains.some(d=>d.own===f&&!d.clash)&&s.type!=='melee')aim={x:o.x,y:o.y};   // 領域內：技能自動修正朝向敵人
  let ang=Math.atan2(aim.y-f.y,aim.x-f.x);
- if(!s.aimTurn&&(s.lock||(ST[s.type]&&ST[s.type].lock))){const d=Math.hypot(o.x-f.x,o.y-f.y); if(d<(s.range||900)+250)ang=Math.atan2(o.y-f.y,o.x-f.x)} // 自動鎖定：有效範圍內才轉向
+ if(!s.noLock&&(s.lock||(ST[s.type]&&ST[s.type].lock))){const d=Math.hypot(o.x-f.x,o.y-f.y); if(d<(s.range||900)+250)ang=Math.atan2(o.y-f.y,o.x-f.x)} // 自動鎖定：有效範圍內才轉向
  f.face=ang;f.act={k,t:s.wind+(opts.ai&&opts.stage==='full'&&s.hold?s.hold.full*.5:0),ang,ax:aim.x,ay:aim.y,v,mode:f.mode[k]||0}}
 /* 蓄力型技能（skill.hold={start,full}）：點一下=小版；按住超過 start 原地蓄力；超過 full 放開=強化版。toggle 類型：點=開關，長按=加速 */
 const canAim=f=>{const h=f.hold;if(!h)return false;const q=f.c.sk[h.k];return !(q.lockAim&&h.t>=q.hold.start)}; // lockAim：開始蓄力後方向鎖定，不能再轉
@@ -209,7 +209,7 @@ const ST={
  zone:{fire(f,s,a,o){const d=Math.min(Math.hypot(a.ax-f.x,a.ay-f.y),s.range);
   G.zones.push({x:f.x+Math.cos(a.ang)*d,y:f.y+Math.sin(a.ang)*d,s,own:f,t:0,done:0,col:f.c.color})},
   ai:(e,q,c)=>c.d<q.range+q.rad*.5&&Math.random()<CFG.ai.aggr?(c.open?c.p:c.lead(q.delay)):null}};
-function standOff(f,forced){f.stand=false;f.spAct=null;f.aimMode=null;pop(f,forced?'替身能量耗盡':f.c.stand.name+' 退場','#9a7bff')}
+function standOff(f,forced){f.stand=false;f.spAct=null;pop(f,forced?'替身能量耗盡':f.c.stand.name+' 退場','#9a7bff')}
 ST.toggle={fire(f,s){const fl=s.flag||'rct';if(stat(f,'burnout',0)){pop(f,s.burnOk?'熔斷中：長按修復':'熔斷中','#ffb44a');return}
  if(fl==='stand'){if(f.stand){standOff(f,false)}else{const m=f.c.stand.minEnergy;if(f.en<m){pop(f,resName(f)+'需要 ≥ '+m,'#ffb44a');return}   // 替身開關：能量不足無法開啟
    f.stand=true;f.sp={x:f.x,y:f.y,ang:f.face};pop(f,f.c.stand.name+' 登場','#9a7bff');G.fx.push({k:'ring',x:f.x,y:f.y,t:.4,m:.4,r:120,col:'#9a7bff'});spark(f.x,f.y,'#b9a3ff',14,450,.4,3)}return}
@@ -241,7 +241,7 @@ function standStrike(f,s,tx,ty){const sp=f.sp||(f.sp={x:f.x,y:f.y,ang:f.face}); 
  f.spAct={kind:'strike',x0:sp.x,y0:sp.y,tx,ty,out:Math.max(.1,Math.hypot(tx-sp.x,ty-sp.y)/s.speed),hold:.14,t:0,s,back:false,hit:false}}
 function standStrikeHit(f,A,o){const s=A.s;G.fx.push({k:'ring',x:A.tx,y:A.ty,t:.35,m:.35,r:s.rad,col:s.col});spark(A.tx,A.ty,'#d8ccff',16,700,.35,4);shake(6);
  if(Math.hypot(o.x-A.tx,o.y-A.ty)<s.rad+CFG.r*.6)hit(o,s.dmg,A.tx,A.ty,s.kb,s.heavy,s,f);else pop(f,'落空','#aab')}
-function standStep(f,dt){if(f.aimMode&&(!f.stand||stat(f,'bind',0)))f.aimMode=null;const c=f.c.stand;if(!c)return;   // 替身實體：待機時跟在本體身後；施放技能時依 spAct 演出
+function standStep(f,dt){const c=f.c.stand;if(!c)return;   // 替身實體：待機時跟在本體身後；施放技能時依 spAct 演出
  if(!f.stand){f.sp=null;f.spAct=null;return}
  if(!f.sp)f.sp={x:f.x,y:f.y,ang:f.face};
  const sp=f.sp,A=f.spAct,o=f===G.p?G.e:G.p,fx=f.x+Math.cos(f.face+2.35)*70,fy=f.y+Math.sin(f.face+2.35)*70;let tx=fx,ty=fy,rate=12;
@@ -256,9 +256,6 @@ function standPunch(f,s,a,o){const sh=s.standHit;f.spAct={kind:'punch',ang:a.ang
  later(sh.delay,()=>{if(G.state!=='fight'||!f.stand)return;const dd=Math.hypot(o.x-f.x,o.y-f.y);let da=Math.abs(Math.atan2(o.y-f.y,o.x-f.x)-a.ang);da=Math.min(da,Math.PI*2-da);
   if(dd<=s.range+CFG.r&&da<=s.arc/2){G.fx.push({k:'sl',x:o.x,y:o.y,a:a.ang+1.57,L:100,t:.18,m:.18,col:'#c9b8ff'});hit(o,sh.dmg,f.x,f.y,s.kb,0,s,f)}else pop(f,'落空','#aab')},f)}
 {const _mf=ST.melee.fire;ST.melee.fire=function(f,s,a,o){_mf(f,s,a,o);if(s.standHit&&f.stand)standPunch(f,s,a,o)}}
-function aimTurnPress(f,k){if(G.state!=='fight')return;   // 歐拉：第一次點 = 進入瞄準；再點一次 = 發動
- if(!f.aimMode){if(!canCast(f,k))return;f.aimMode={k,ang:Math.atan2(G.e.y-f.y,G.e.x-f.x)};say('用 ⟲ ⟳ 轉動瞄準，再點一次發動',1.4);return}
- const a=f.aimMode.ang;f.aimMode=null;cast(f,k,{x:f.x+Math.cos(a)*600,y:f.y+Math.sin(a)*600})}
 ST.channel={fire(f,s,a,o){playSlashSfx(.85);ST.proj.fire(f,Object.assign({},s,{type:'proj'}),a,o)},ai:(e,q,c)=>c.d<q.speed*q.life&&Math.random()<CFG.ai.aggr*.6?c.lead(c.d/q.speed):null};
 ST.domain={fire(f,s){if(G.domains.some(d=>d.own===f))return;{const dm=s.domain,o=f===G.p?G.e:G.p,nd={x:f.x,y:f.y,r:dm.r,t:0,life:dm.life,own:f,bo:dm.burnout,name:dm.name||s.name,col:dm.col||(s.domain.col||'#c9a3ff'),style:dm.style||'void',tick:dm.tick,bind:dm.bind,bg:dm.bg,sound:dm.sound,soundRate:dm.soundRate,integ:100,clash:null,acc:0,tk:0,pa:0};
  const od=G.domains.find(d=>d.own===o&&Math.hypot(f.x-d.x,f.y-d.y)<d.r+CFG.r); // 在敵方領域內展開領域 → 領域碰撞：雙方領域效果全部失效
@@ -285,7 +282,8 @@ const BEHAVIORS={
     G.fx.push({k:'sl',x:px,y:py,a:an,L:s.range*.9,t:.22,m:.22,col:'#ff5a4a'});
     if(inn){playSlashSfx(i===s.hits-1?1.7:1);hit(o,s.dmg,x0,y0,i===s.hits-1?s.kbEnd:s.kb,0,s,f)}})}},
  ora:{                                                                                           // 歐拉歐拉連打：替身朝瞄準方向多段出拳，最後一拳較重並擊退
-  fire(f,o,a,s){const T=s.hits*s.gap;f.spAct={kind:'barrage',ang:a.ang,t:0,T:T+.25};G.fx.push({k:'fan',x:f.x,y:f.y,a:a.ang,w:s.arc,r:s.range+CFG.r,t:T+.2,m:T+.2,col:'#9a7bff'});
+  fire(f,o,a,s){const T=s.hits*s.gap;f.spAct={kind:'barrage',ang:a.ang,t:0,T:T+.25,fan:{arc:s.arc,r:s.range+CFG.r}};   // 判定與範圍都以承太郎「當下的位置」為準：邊移動邊打，整套拳擊會跟著移動
+   
    for(let i=0;i<s.hits;i++)later(i*s.gap,()=>{if(G.state!=='fight'||!f.stand)return;const px=f.x,py=f.y,dd=Math.hypot(o.x-px,o.y-py);let da=Math.abs(Math.atan2(o.y-py,o.x-px)-a.ang);da=Math.min(da,Math.PI*2-da);
     const inn=dd<=s.range+CFG.r&&da<=s.arc/2,last=i===s.hits-1,cxp=inn?o.x+(Math.random()-.5)*50:px+Math.cos(a.ang)*(CFG.r+110),cyp=inn?o.y+(Math.random()-.5)*50:py+Math.sin(a.ang)*(CFG.r+110);
     spark(cxp,cyp,'#b9a3ff',5,500,.2,3);G.fx.push({k:'sl',x:cxp,y:cyp,a:a.ang+(Math.random()-.5)*1.2,L:80,t:.14,m:.14,col:'#c9b8ff'});
@@ -324,7 +322,7 @@ function pick(){const m=$('msg');m.classList.remove('hide');
 function msg(h,p,btn,fn){const m=$('msg');m.classList.remove('hide');
  m.innerHTML='<h1>'+h+'</h1><p>'+p+'</p><button>'+btn+'</button>';m.querySelector('button').onclick=()=>{m.classList.add('hide');fn&&fn()}}
 /* ═══ 5. 更新 ═══ */
-function chargeLock(f){const h=f.hold;if(!h)return 1;const q=f.c.sk[h.k];if(q.type==='channel'||q.type==='throw')return .6;return(q.type!=='toggle'&&h.t>=q.hold.start)?0:1}
+function chargeLock(f){const h=f.hold;if(!h)return 1;const q=f.c.sk[h.k];if(q.aimMove)return 1;if(q.type==='channel'||q.type==='throw')return .6;return(q.type!=='toggle'&&h.t>=q.hold.start)?0:1}
 function stepF(f,dt){
  for(const k in f.cd){if(G.ts&&G.ts.own===f&&G.ts.key===k)continue;f.cd[k]=Math.max(0,f.cd[k]-dt)}f.dashCd=Math.max(0,f.dashCd-dt);   // 時停期間，時停技能本身不冷卻
  if(f.c.rage&&!f.rage&&G.state==='fight'&&f.hp<=f.c.hp*f.c.rage.hpPct){f.rage=true;for(const k in f.cd)f.cd[k]*=f.c.rage.cdMul;pop(f,'你惹怒了我','#ff9a3a');   // 被動：你惹怒了我
@@ -404,8 +402,6 @@ function update(dt){
  const p=G.p,e=G.e;
  let mx=(keys.d||keys.ArrowRight?1:0)-(keys.a||keys.ArrowLeft?1:0)+joy.x,my=(keys.s||keys.ArrowDown?1:0)-(keys.w||keys.ArrowUp?1:0)+joy.y,l=Math.hypot(mx,my);
  if(l>1){mx/=l;my/=l}p.mx=mx;p.my=my;if(frozen(p)){p.mx=p.my=0}
- if(p.aimMode){const dirK=(keys['.']?1:0)-(keys[',']?1:0),dir=dirK||(G.aimHold?G.aimHold.dir:0);   // 歐拉瞄準：按住旋轉鍵超過 0.25 秒開始連續轉動（短按 = 微調）
-  if(dir){p.aimRotT=(p.aimRotT||0)+dt;if(p.aimRotT>.25)p.aimMode.ang+=dir*2.6*dt}else p.aimRotT=0}
 
  p.blocking=!!(keys.Shift||keys.o||keys.G)&&!p.act&&p.dashT<=0&&p.stun<=0&&p.en>0&&!p.hold;
  if(p.hold&&!p.hold.touch&&canAim(p))p.hold.aim=aimPt();
@@ -465,7 +461,7 @@ function resize(){const iw=innerWidth,ih=innerHeight;rot=manualRot!==null?manual
 /* 蓄力預示：按住技能時顯示攻擊範圍（直線飛行物＝帶寬度的長條；範圍技＝落點圓）。技能可用 pv(f,是否蓄滿) 自訂形狀 */
 function drawTelegraph(f,q){const h=f.hold,full=h.t>=q.hold.full,charging=h.t>=q.hold.start,v=full&&q.full?Object.assign({},q,q.full):q;
  let sh=q.pv?q.pv(f,full,q):null;
- if(!sh){if(q.type==='proj'||q.type==='homing'||q.type==='channel')sh={k:'line',len:Math.min(v.speed*v.life,3000),w:v.r*2};else if(q.type==='zone')sh={k:'zone',r:v.rad,range:v.range};else if(q.type==='throw')sh={k:'throw',range:v.range,rad:v.rad,mode:v.mode||'line',w:(v.r||22)*2}}
+ if(!sh){if(q.type==='proj'||q.type==='homing'||q.type==='channel')sh={k:'line',len:Math.min(v.speed*v.life,3000),w:v.r*2};else if(q.type==='zone')sh={k:'zone',r:v.rad,range:v.range};else if(q.type==='melee'&&q.hold)sh={k:'fan',range:v.range,arc:v.arc};else if(q.type==='throw')sh={k:'throw',range:v.range,rad:v.rad,mode:v.mode||'line',w:(v.r||22)*2}}
  if(!sh)return;
  const foe=f===G.p?G.e:G.p,aim=G.domains.some(d=>d.own===f&&!d.clash)?{x:foe.x,y:foe.y}:h.aim,a=Math.atan2(aim.y-f.y,aim.x-f.x),col=q.col||f.c.color,T=performance.now()/1000,
   pr=charging?Math.min(1,(h.t-q.hold.start)/(q.hold.full-q.hold.start)):0,
@@ -487,6 +483,7 @@ function drawTelegraph(f,q){const h=f.hold,full=h.t>=q.hold.full,charging=h.t>=q
   cx.globalAlpha=Math.min(1,al*1.2);cx.strokeStyle=col;cx.lineWidth=full?4:3;cx.setLineDash([24,14]);cx.lineDashOffset=-T*120;cx.beginPath();cx.arc(0,0,r,0,7);cx.stroke();cx.setLineDash([]);
   cx.lineWidth=2;cx.globalAlpha=al*.7;cx.beginPath();cx.arc(0,0,r*(1.28-.28*pr),0,7);cx.stroke();                     // 收束環 + 旋轉刻度
   cx.rotate(T*1.6);cx.beginPath();for(let i=0;i<12;i++){const aa=i*Math.PI/6;cx.moveTo(Math.cos(aa)*r*.86,Math.sin(aa)*r*.86);cx.lineTo(Math.cos(aa)*r,Math.sin(aa)*r)}cx.stroke()}
+ else if(sh.k==='fan'){drawFan(f.x,f.y,a,sh.arc,sh.range+CFG.r,.9,col);cx.strokeStyle='#fff';cx.globalAlpha=.7;cx.lineWidth=3;cx.setLineDash([10,8]);cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(f.x+Math.cos(a)*(sh.range+CFG.r),f.y+Math.sin(a)*(sh.range+CFG.r));cx.stroke();cx.setLineDash([])}   // 近戰蓄力技的預示：扇形範圍 + 中線
  else if(sh.k==='throw'){const dd=Math.hypot(aim.x-f.x,aim.y-f.y)||1,d=Math.min(dd,sh.range),ux=(aim.x-f.x)/dd,uy=(aim.y-f.y)/dd,tx=clamp(f.x+ux*d,0,CFG.W),ty=clamp(f.y+uy*d,0,CFG.H);   // 丟擲預示：最大射程圈 + 路徑 + 落點範圍
   cx.strokeStyle=col;cx.lineWidth=2;cx.globalAlpha=.18;cx.setLineDash([6,10]);cx.beginPath();cx.arc(f.x,f.y,sh.range,0,7);cx.stroke();cx.setLineDash([]);
   if(sh.mode==='arc'){cx.globalAlpha=.7;cx.lineWidth=2;cx.setLineDash([6,10]);cx.lineDashOffset=-T*40;cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(tx,ty);cx.stroke();cx.setLineDash([]);
@@ -591,8 +588,8 @@ function draw(){
   cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();drawFace(f);
   cx.strokeStyle='#fff';cx.beginPath();cx.moveTo(f.x+Math.cos(f.face)*CFG.r,f.y+Math.sin(f.face)*CFG.r);cx.lineTo(f.x+Math.cos(f.face)*(CFG.r+14),f.y+Math.sin(f.face)*(CFG.r+14));cx.stroke();
   drawStand(f);
+  if(f.spAct&&f.spAct.fan){const A=f.spAct;drawFan(f.x,f.y,A.ang,A.fan.arc,A.fan.r,Math.max(0,1-A.t/A.T)*.9,'#9a7bff')}   // 歐拉範圍扇形：跟著承太郎移動
   if(f.rage){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#ff9a3a';cx.lineWidth=4;cx.globalAlpha=.55+.3*Math.sin(performance.now()/90);cx.beginPath();cx.arc(f.x,f.y,CFG.r+10+Math.sin(performance.now()/120)*3,0,7);cx.stroke();cx.restore()}   // 你惹怒了我：橘色怒氣光環
-  if(f.aimMode){const q=f.c.sk[f.aimMode.k];drawFan(f.x,f.y,f.aimMode.ang,q.arc,q.range+CFG.r,.85,'#9a7bff');cx.save();cx.strokeStyle='#fff';cx.globalAlpha=.8;cx.lineWidth=3;cx.setLineDash([10,8]);cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(f.x+Math.cos(f.aimMode.ang)*(q.range+CFG.r),f.y+Math.sin(f.aimMode.ang)*(q.range+CFG.r));cx.stroke();cx.restore()}   // 歐拉瞄準：扇形範圍 + 中線
   if(f.ext||f.dd){cx.save();cx.globalCompositeOperation='lighter';const T=performance.now()/1000;cx.strokeStyle=f.ext?'#ff7a5a':'#ffd77a';cx.lineWidth=f.ext?5:4;cx.globalAlpha=.6+.3*Math.sin(T*10);   // 領域展延：紅色光殼；領域防禦：金色虛線環
    if(f.dd){cx.setLineDash([12,10]);cx.lineDashOffset=-T*40}cx.beginPath();cx.arc(f.x,f.y,CFG.r+(f.dd?22:14),0,7);cx.stroke();cx.restore()}
   if(f.blocking){cx.strokeStyle='#8ad';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+9,0,7);cx.stroke();
@@ -649,12 +646,11 @@ function draw(){
    for(const [dm,sx] of [[A,mid-bw-12],[B,mid+12]]){cx.fillStyle='#0b1020cc';cx.fillRect(sx,68,bw,12);cx.fillStyle=dm.col;cx.fillRect(sx,68,bw*Math.max(0,dm.integ)/100,12);cx.fillStyle='#fff';cx.font='12px system-ui';cx.fillText(dm.name+' '+Math.max(0,Math.round(dm.integ))+'%',sx+bw/2,79)}}}
  if(G.p.bfWin>0){cx.fillStyle='#ff4a5a';cx.font='bold 28px system-ui';cx.textAlign='center';cx.fillText('⚡ 黑閃！快按【閃避】',view.w/2,view.h*.35)}
  if(toast.t>0){cx.globalAlpha=Math.min(1,toast.t*2);cx.fillStyle='#ffd77a';cx.font='bold 22px system-ui';cx.fillText(toast.s,view.w/2,view.h*.5);cx.globalAlpha=1}
- {const sh=G.p.aimMode?'flex':'none';$('aimL').style.display=sh;$('aimR').style.display=sh}
  // 按鈕冷卻 / 能量不足顯示
  for(const {el,k,i,mini,mj} of skBtns){
   if(mini){const on=(G.p.mode[k]||0)===mj;el.style.borderColor=on?'#fff':'';el.style.background=on?'rgba(232,194,90,.45)':'';continue}
   const q=G.p.c.sk[k],c=costOf(G.p,k);
-  el.innerHTML='<em>'+(KEYMAP[i]||'').toUpperCase()+'</em>'+(q.bf&&G.p.bfReady>0?'⚡黑閃':q.name)+'<small>'+(G.p.aimMode&&G.p.aimMode.k===k?'再點一次發動':q.tag?q.tag(G.p):q.type==='toggle'?(G.p[q.flag||'rct']?'● 開啟':'○ 關閉'):(c?(Math.round(c*10)/10)+' '+resName(G.p):'免費'))+'</small>';
+  el.innerHTML='<em>'+(KEYMAP[i]||'').toUpperCase()+'</em>'+(q.bf&&G.p.bfReady>0?'⚡黑閃':q.name)+'<small>'+(q.tag?q.tag(G.p):q.type==='toggle'?(G.p[q.flag||'rct']?'● 開啟':'○ 關閉'):(c?(Math.round(c*10)/10)+' '+resName(G.p):'免費'))+'</small>';
   if(i===0)el.style.borderColor=G.p.bfReady>0?'#ff4a5a':'';
   el.style.opacity=((G.p.en<c||(stat(G.p,'burnout',0)&&i>0)||(q.needStand&&!G.p.stand))?.45:1)*BO();ring(el,q.cd&&G.p.cd[k]>0?1-G.p.cd[k]/q.cd:-1);const ic=Assets.get(q.icon);el.style.backgroundImage=ic?'url('+ASSET_BASE+q.icon+')':'';el.style.backgroundSize='cover';el.style.backgroundPosition='center'}
  {const inside=G.p.c.domDef&&inEnemyDom(G.p),gl=inside?G.p.c.domDef.name:'格擋',dg=G.p.domMax?Math.ceil(G.p.domGauge):0,holding=!!(G.p.blocking||G.p.dd||keys.G||keys.Shift||keys.o),label=gl+'|'+dg+'|'+(G.p.domOverload?'過載':'')+'|'+holding;if($('bG').dataset.l!==label){$('bG').dataset.l=label;$('bG').innerHTML=gl+'<small>'+(G.p.domOverload?'過載恢復中':(inside&&holding?'量條 '+dg+'/1000':'按住'))+'</small>'}$('bG').style.borderColor=gl==='格擋'?'':G.p.domOverload?'#ff5b45':'#ffd77a';ring($('bG'),inside&&holding&&G.p.domMax?1-G.p.domGauge/G.p.domMax:-1)}
@@ -666,8 +662,7 @@ cv.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')mouse=e});
 cv.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&G.p){mouse=e;cast(G.p,Object.keys(G.p.c.sk)[0],toArena(e))}});
 addEventListener('keydown',e=>{if(!G.p)return;const k=e.key.length===1?e.key.toLowerCase():e.key;if(keys[k])return;keys[k]=1;
  const a=aimPt();
- const ki=KEYMAP.indexOf(k),ks=Object.keys(G.p.c.sk);if((k===','||k==='.')&&G.p.aimMode)G.p.aimMode.ang+=(k==='.'?1:-1)*.09;   // 歐拉瞄準：鍵盤 , . 微調
- else if(ki>=0&&ki<ks.length){const kk=ks[ki];if(G.p.c.sk[kk].aimTurn)aimTurnPress(G.p,kk);else if(G.p.c.sk[kk].hold)holdStart(G.p,kk,a);else cast(G.p,kk,a)}
+ const ki=KEYMAP.indexOf(k),ks=Object.keys(G.p.c.sk);if(ki>=0&&ki<ks.length){const kk=ks[ki];if(G.p.c.sk[kk].hold)holdStart(G.p,kk,a);else cast(G.p,kk,a)}
  else if(k===' '){e.preventDefault();dash(G.p,G.p.mx,G.p.my)}else if(k==='p'||k==='Escape')pause()});
 addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=0;if(!G.p)return;
  const ki=KEYMAP.indexOf(k),ks=Object.keys(G.p.c.sk);if(ki>=0&&ki<ks.length&&G.p.c.sk[ks[ki]].hold)holdRelease(G.p,ks[ki],aimPt())});
@@ -686,13 +681,9 @@ function bindSkillBtn(el){let sx,sy,pid=null;
   if(G.p&&G.p.c.sk[k].hold){holdStart(G.p,k,aimOf(e));if(G.p.hold)G.p.hold.touch=1}});
  el.addEventListener('pointermove',e=>{if(e.pointerId===pid&&G.p&&G.p.hold&&canAim(G.p))G.p.hold.aim=aimOf(e)});
  el.addEventListener('pointerup',e=>{if(e.pointerId!==pid||!G.p)return;pid=null;const k=el.dataset.k,f=G.p;
-  if(f.c.sk[k].aimTurn)aimTurnPress(f,k);else if(f.c.sk[k].hold)holdRelease(f,k,aimOf(e));else cast(f,k,aimOf(e))});
+  if(f.c.sk[k].hold)holdRelease(f,k,aimOf(e));else cast(f,k,aimOf(e))});
  el.addEventListener('pointercancel',()=>{pid=null;if(G.p)G.p.hold=null})}
 bindSkillBtn($('bA'));
-for(const [id,txt,dir] of [['aimL','⟲',-1],['aimR','⟳',1]]){const el=document.createElement('div');el.id=id;el.className='b';el.dataset.pk=id;el.textContent=txt;   // 歐拉瞄準用的左右旋轉鍵（只在瞄準中顯示；短按微調、長按連續轉動）
- el.style.cssText='width:56px;height:56px;font-size:30px;display:none;left:calc(50% + '+(dir*44-28)+'px);bottom:calc(140px + env(safe-area-inset-bottom,0px))';
- el.addEventListener('pointerdown',e=>{e.stopPropagation();if(G.p&&G.p.aimMode){G.p.aimMode.ang+=dir*.09;G.aimHold={dir,id:e.pointerId};el.setPointerCapture(e.pointerId)}});
- const up=e=>{if(G.aimHold&&G.aimHold.id===e.pointerId)G.aimHold=null};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);$('stage').appendChild(el)}
 // 依角色的技能數量生成按鈕：第一個是大的普攻鍵，其餘排成弧形（超過 4 顆排第二圈）
 function layoutBtns(){skBtns.forEach(b=>{if(b.el.id!=='bA')b.el.remove()});skBtns=[];
  const S=G.p.c.sk,ks=Object.keys(S);$('bA').dataset.k=ks[0];$('bA').style.borderColor='';skBtns.push({el:$('bA'),k:ks[0],i:0});
