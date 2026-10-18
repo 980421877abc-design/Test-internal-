@@ -62,6 +62,12 @@ const dashCost=f=>resOf(f.c).dashCost;
 const inEnemyDom=f=>G.domains.some(d=>d.own!==f&&!d.clash&&Math.hypot(f.x-d.x,f.y-d.y)<d.r+CFG.r); // 站在敵方（未碰撞中）的領域內
 const sureHit=f=>G.domains.some(d=>d.own===f&&!d.clash);   // 己方領域必中效果：領域碰撞期間失效
 const later=(t,fn)=>G.sched.push({t,fn});                  // 延遲執行（多段攻擊用）
+/* 領域成功展開 → 播放音效（sound = assets/ 底下的音檔；soundRate = 播放速度倍率，3 = 三倍速） */
+let domSnd=null;
+function stopDomainSound(){if(domSnd){domSnd.pause();domSnd=null}}
+function domainShow(d){if(!d.sound||d.sshown)return;d.sshown=1;if(!Assets.unlocked||CFG.audio.muted)return;
+ const r=Assets.rec(d.sound);if(!r||r.fail)return;stopDomainSound();const a=r.el.cloneNode();a.playbackRate=d.soundRate||1;
+ a.volume=Math.max(0,Math.min(1,CFG.audio.master*CFG.audio.sfx));domSnd=a;a.play().catch(()=>{})}
 /* ═══ 資源：圖片 / 音效 ═══
  * 檔案放在與本頁同層的 assets/ 資料夾；缺檔不會報錯，會自動退回預設圖形 / 靜音。
  *  角色  CHARS.x.img        'img/xxx.png'  球體臉 + HUD 頭像 + 選角卡
@@ -78,7 +84,7 @@ const Assets={recs:{},unlocked:false,bgmEl:null,
   else{el.onload=()=>{r.ok=true};el.onerror=()=>{r.fail=true};el.src=ASSET_BASE+path}
   return r},
  get(path){const r=this.rec(path);return r&&r.ok&&!r.audio?r.el:null},
- preload(){const L=[BGM,...Object.values(SFX)];for(const c of Object.values(CHARS)){L.push(c.img);for(const k in c.sk){const q=c.sk[k];L.push(q.icon,q.sfx,q.hitSfx,q.sprite,q.zoneSprite)}}L.forEach(x=>this.rec(x))},
+ preload(){const L=[BGM,...Object.values(SFX)];for(const c of Object.values(CHARS)){L.push(c.img);for(const k in c.sk){const q=c.sk[k];L.push(q.icon,q.sfx,q.hitSfx,q.sprite,q.zoneSprite,q.domain&&q.domain.bg,q.domain&&q.domain.sound)}}L.forEach(x=>this.rec(x))},
  report(){const v=Object.entries(this.recs);return{ok:v.filter(e=>e[1].ok).map(e=>e[0]),missing:v.filter(e=>e[1].fail).map(e=>e[0])}},
  applyVol(){if(this.bgmEl)this.bgmEl.volume=CFG.audio.muted?0:CFG.audio.master*CFG.audio.bgm}};
 function playSfx(path,vol){if(!path||!Assets.unlocked||CFG.audio.muted)return;const r=Assets.rec(path);if(!r||r.fail)return;
@@ -95,7 +101,7 @@ function mk(id,x,side,isAI){const c=CHARS[id];return{id,c,side,isAI,x,y:CFG.H/2,
  cd:Object.fromEntries(Object.keys(c.sk).map(k=>[k,0])),dashCd:0,act:null,stun:0,dashT:0,dx:0,dy:0,inv:0,blocking:false,mx:0,my:0,wins:0,ai:{t:0,sx:1,wantBlock:0}}}
 function newRound(keep){const a=G.p?G.p.wins:0,b=G.e?G.e.wins:0;
  G.p=mk(sel.p,400,0,false);G.e=mk(sel.e,CFG.W-400,1,true);G.p.wins=a;G.e.wins=b;
- Object.assign(G,{projs:[],zones:[],orbs:[],domains:[],sched:[],throws:[],fx:[],t:CFG.time,ot:false,state:'fight',round:(G.round||0)+1});cam.snap=1;playBgm();layoutBtns();
+ Object.assign(G,{projs:[],zones:[],orbs:[],domains:[],sched:[],throws:[],fx:[],t:CFG.time,ot:false,state:'fight',round:(G.round||0)+1});cam.snap=1;playBgm();layoutBtns();stopDomainSound();
  say('第 '+G.round+' 回合 開始！',1.4)}
 function newMatch(){G={round:0};newRound();}
 function say(s,t){toast={t:t||1,s}}
@@ -202,11 +208,11 @@ function landThrow(z){const s=z.s,x=z.x,y=z.y;   // 落地：範圍內的人受�
  for(const f of [G.p,G.e]){if(Math.hypot(f.x-x,f.y-y)>=s.rad+CFG.r)continue;
   if(f===z.own){if(s.self)hit(f,s.dmg*s.self,x,y,0,0,null,z.own)}else hit(f,s.dmg,x,y,s.kb,s.heavy,s,z.own)}}
 ST.channel={fire(f,s,a,o){ST.proj.fire(f,Object.assign({},s,{type:'proj'}),a,o)},ai:(e,q,c)=>c.d<q.speed*q.life&&Math.random()<CFG.ai.aggr*.6?c.lead(c.d/q.speed):null};
-ST.domain={fire(f,s){if(G.domains.some(d=>d.own===f))return;{const dm=s.domain,o=f===G.p?G.e:G.p,nd={x:f.x,y:f.y,r:dm.r,t:0,life:dm.life,own:f,bo:dm.burnout,name:dm.name||s.name,col:dm.col||(s.domain.col||'#c9a3ff'),style:dm.style||'void',tick:dm.tick,bind:dm.bind,integ:100,clash:null,acc:0,tk:0,pa:0};
+ST.domain={fire(f,s){if(G.domains.some(d=>d.own===f))return;{const dm=s.domain,o=f===G.p?G.e:G.p,nd={x:f.x,y:f.y,r:dm.r,t:0,life:dm.life,own:f,bo:dm.burnout,name:dm.name||s.name,col:dm.col||(s.domain.col||'#c9a3ff'),style:dm.style||'void',tick:dm.tick,bind:dm.bind,bg:dm.bg,sound:dm.sound,soundRate:dm.soundRate,integ:100,clash:null,acc:0,tk:0,pa:0};
  const od=G.domains.find(d=>d.own===o&&Math.hypot(f.x-d.x,f.y-d.y)<d.r+CFG.r); // 在敵方領域內展開領域 → 領域碰撞：雙方領域效果全部失效
- if(od){nd.clash=od;od.clash=nd;say('領域碰撞！',1.4)}G.domains.push(nd)}
- G.fx.push({k:'ring',x:f.x,y:f.y,t:.6,m:.6,r:s.domain.r,col:(s.domain.col||'#c9a3ff')});
- G.fx.push({k:'ring',x:f.x,y:f.y,t:.9,m:.9,r:s.domain.r*1.25,col:'#8fd6ff'});G.fx.push({k:'flash',t:.45,m:.45,col:(s.domain.col||'#c9a3ff')});shake(12);spark(f.x,f.y,(s.domain.col||'#c9a3ff'),30,900,.6,3.5)}};
+ if(od){nd.clash=od;od.clash=nd;say('領域碰撞！',1.4)}G.domains.push(nd);if(!nd.clash)domainShow(nd)}   // 沒有碰撞 = 領域成功展開：換背景 + 播影片
+ G.fx.push({k:'ring',x:f.x,y:f.y,t:.6,m:.6,r:Math.min(s.domain.r,700),col:(s.domain.col||'#c9a3ff')});
+ G.fx.push({k:'ring',x:f.x,y:f.y,t:.9,m:.9,r:Math.min(s.domain.r,700)*1.25,col:'#8fd6ff'});G.fx.push({k:'flash',t:.45,m:.45,col:(s.domain.col||'#c9a3ff')});shake(12);spark(f.x,f.y,(s.domain.col||'#c9a3ff'),30,900,.6,3.5)}};
 ST.domain.ai=(e,q,c)=>(inEnemyDom(e)?Math.random()<.5:c.d<(q.aiRange||450)&&!c.p.blocking)?c.p:null;   // 被關進領域優先反展開；否則近身且對手沒防禦才放
 ST.homing={lock:1,fire:ST.proj.fire,ai:(e,q,c)=>c.d<650&&!c.p.blocking&&(c.open||Math.random()<.5)?c.p:null};
 {const _pf=ST.proj.fire;ST.proj.fire=function(f,s,a,o){_pf(f,s,a,o);muzzle(f,s,a)};ST.homing.fire=ST.proj.fire}
@@ -366,8 +372,8 @@ function update(dt){
     if((d.pa+=dt)>=.4){d.pa=0;if(d.acc>0)pop(tg,Math.round(d.acc),d.col);d.acc=0;spark(tg.x,tg.y,d.col,5,300,.3,3)}
     if(tg.hp<=0){tg.hp=0;endRound(tg);return}}}
   const pri=x=>(x.own.c.clash&&x.own.c.clash.priority)||0,lost=cl&&((d.integ<=0&&(cl.integ>0||pri(d)<=pri(cl)))||(d.ct>=CFG.clash.maxTime&&(d.integ<cl.integ||(d.integ===cl.integ&&pri(d)<=pri(cl)))));   // 完整度歸零 = 被覆蓋；同時歸零由優先級高者勝
-  if(lost||d.t>=d.life||d.own.hp<=0){G.domains.splice(i,1);if(cl){cl.clash=null;G.fx.push({k:'ring',x:cl.x,y:cl.y,t:.7,m:.7,r:cl.r,col:cl.col});G.fx.push({k:'flash',t:.4,m:.4,col:cl.col});shake(10);say(cl.name+' 展開！',1.2)}addStatus(d.own,{k:'burnout',dur:d.bo});d.own.rct=false;d.own.ext=false;
-   if(lost)pop(d.own,d.name+' 被覆蓋','#ffb44a');G.fx.push({k:'ring',x:d.x,y:d.y,t:.5,m:.5,r:d.r,col:'#fff'})}}
+  if(lost||d.t>=d.life||d.own.hp<=0){G.domains.splice(i,1);if(cl){cl.clash=null;G.fx.push({k:'ring',x:cl.x,y:cl.y,t:.7,m:.7,r:Math.min(cl.r,700),col:cl.col});domainShow(cl);G.fx.push({k:'flash',t:.4,m:.4,col:cl.col});shake(10);say(cl.name+' 展開！',1.2)}addStatus(d.own,{k:'burnout',dur:d.bo});d.own.rct=false;d.own.ext=false;
+   if(lost)pop(d.own,d.name+' 被覆蓋','#ffb44a');G.fx.push({k:'ring',x:d.x,y:d.y,t:.5,m:.5,r:Math.min(d.r,700),col:'#fff'})}}
  for(let i=G.fx.length-1;i>=0;i--){const x=G.fx[i];x.t-=dt;if(x.vx!==undefined){x.x+=x.vx*dt;x.y+=x.vy*dt;if(x.dr){const dd=Math.exp(-x.dr*dt);x.vx*=dd;x.vy*=dd}}if(x.t<=0)G.fx.splice(i,1)}
  G.t-=dt;if(G.t<=0){
   if(!G.ot){const a=p.hp/p.c.hp,b=e.hp/e.c.hp;if(Math.abs(a-b)>1e-4)endRound(a>b?e:p);else{G.ot=true;G.t=CFG.overtime;say('延長賽！',1.5)}}
@@ -445,6 +451,10 @@ function drawClashFx(d){const T=performance.now()/1000,f=d.own,o=d.clash.own;cx.
  cx.restore()}
 function drawFan(x,y,ang,arc,R,al,col){cx.save();cx.globalCompositeOperation='lighter';const g=cx.createRadialGradient(x,y,CFG.r,x,y,R);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,col);   // 扇形攻擊範圍
  cx.globalAlpha=al*.55;cx.fillStyle=g;cx.beginPath();cx.moveTo(x,y);cx.arc(x,y,R,ang-arc/2,ang+arc/2);cx.closePath();cx.fill();cx.globalAlpha=Math.min(1,al*1.2);cx.strokeStyle=col;cx.lineWidth=3;cx.stroke();cx.restore()}
+function domBg(){for(const d of G.domains){if(d.clash||!d.bg)continue;const img=Assets.get(d.bg);if(img)return{d,img,a:Math.min(1,d.t/.6,Math.max(0,(d.life-d.t)/.5))}}return null}   // 領域成功展開（未碰撞中）→ 場景背景換成領域圖
+function drawDomBg(b,w,h){const im=b.img,sc=Math.max(w/im.width,h/im.height)*1.12,iw=im.width*sc,ih=im.height*sc,T=performance.now()/1000;
+ const ox=-(cam.x-CFG.W/2)*.03+Math.sin(T*.25)*8,oy=-(cam.y-CFG.H/2)*.03+Math.cos(T*.2)*6;   // 輕微視差 + 緩慢漂移
+ cx.save();cx.globalAlpha=b.a;cx.drawImage(im,(w-iw)/2+ox,(h-ih)/2+oy,iw,ih);cx.fillStyle=b.d.col;cx.globalAlpha=b.a*.08;cx.fillRect(0,0,w,h);cx.restore()}
 function drawFace(f){const im=Assets.get(f.c.img);
  if(im){cx.save();cx.beginPath();cx.arc(f.x,f.y,CFG.r-2,0,7);cx.clip();const k=Math.max(2*CFG.r/im.width,2*CFG.r/im.height);cx.drawImage(im,f.x-im.width*k/2,f.y-im.height*k/2,im.width*k,im.height*k);cx.restore()}
  else{cx.fillStyle='#0b1020';cx.font='bold 38px system-ui';cx.textAlign='center';cx.fillText(f.c.glyph,f.x,f.y+13)}}
@@ -467,14 +477,15 @@ function draw(){
  const vw=w/s,vh=h/s;let tx=G.p.x-vw/2,ty=G.p.y-vh/2;   // 鏡頭永遠以主操角色為中心（靠牆時場外顯示暗色背景）
  const ox=cam.x,oy=cam.y;if(cam.snap){cam.x=tx;cam.y=ty;cam.snap=0;cam.vx=cam.vy=0}else{cam.x+=(tx-cam.x)*.18;cam.y+=(ty-cam.y)*.18;cam.vx=(cam.vx||0)*.6+(cam.x-ox)*.4;cam.vy=(cam.vy||0)*.6+(cam.y-oy)*.4}
  cam.sh=(cam.sh||0)*.86;if(cam.sh<.3)cam.sh=0;const shx=(Math.random()-.5)*cam.sh,shy=(Math.random()-.5)*cam.sh; // 受擊震動 // 鏡頭跟著主操角色
+ const dbg=domBg();if(dbg)drawDomBg(dbg,w,h);
  cx.save();cx.scale(s,s);cx.translate(-cam.x+shx,-cam.y+shy);
- cx.fillStyle='#1a2338';cx.fillRect(0,0,CFG.W,CFG.H);cx.strokeStyle='#ffffff10';cx.lineWidth=1;
- for(let x=0;x<=CFG.W;x+=100){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,CFG.H);cx.stroke()}
- for(let y=0;y<=CFG.H;y+=100){cx.beginPath();cx.moveTo(0,y);cx.lineTo(CFG.W,y);cx.stroke()}
+ if(!dbg){cx.fillStyle='#1a2338';cx.fillRect(0,0,CFG.W,CFG.H);cx.strokeStyle='#ffffff10';cx.lineWidth=1;   // 領域背景啟用時，不畫原本的地板與格線
+  for(let x=0;x<=CFG.W;x+=100){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,CFG.H);cx.stroke()}
+  for(let y=0;y<=CFG.H;y+=100){cx.beginPath();cx.moveTo(0,y);cx.lineTo(CFG.W,y);cx.stroke()}}
  cx.strokeStyle='#e8c25a';cx.lineWidth=5;cx.strokeRect(0,0,CFG.W,CFG.H);drawMotes(vw,vh);
  for(const z of G.zones){const k=Math.min(1,z.t/z.s.delay);cx.strokeStyle=z.col;cx.fillStyle=z.col+'30';cx.lineWidth=3;
   cx.beginPath();cx.arc(z.x,z.y,z.s.rad,0,7);cx.stroke();cx.beginPath();cx.arc(z.x,z.y,z.s.rad*k,0,7);cx.fill();const zi=Assets.get(z.s.zoneSprite);if(zi){cx.globalAlpha=.35+.5*k;cx.drawImage(zi,z.x-z.s.rad,z.y-z.s.rad,z.s.rad*2,z.s.rad*2);cx.globalAlpha=1}}
- for(const d of G.domains){if(d.clash){drawClashFx(d);continue}const k=Math.min(1,d.t/.5);cx.fillStyle=(d.style==='shrine'?'rgba(120,10,10,':'rgba(60,20,110,')+((d.clash?.14:.28)*k)+')';cx.beginPath();cx.arc(d.x,d.y,d.r,0,7);cx.fill();cx.strokeStyle=d.col;cx.lineWidth=6;cx.stroke();
+ for(const d of G.domains){if(d.clash){drawClashFx(d);continue}if(dbg&&dbg.d===d)continue;const k=Math.min(1,d.t/.5);cx.fillStyle=(d.style==='shrine'?'rgba(120,10,10,':'rgba(60,20,110,')+((d.clash?.14:.28)*k)+')';cx.beginPath();cx.arc(d.x,d.y,d.r,0,7);cx.fill();cx.strokeStyle=d.col;cx.lineWidth=6;cx.stroke();
   cx.strokeStyle='rgba(255,255,255,.25)';cx.lineWidth=2;for(let i=0;i<24;i++){const a=i/24*Math.PI*2+d.t*.8;cx.beginPath();cx.moveTo(d.x+Math.cos(a)*d.r*.2,d.y+Math.sin(a)*d.r*.2);cx.lineTo(d.x+Math.cos(a+.6)*d.r*.95,d.y+Math.sin(a+.6)*d.r*.95);cx.stroke()}
   if(d.style==='shrine'){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#ff4a3a';cx.lineCap='round';const sd=Math.floor(d.t*12),R=n=>{const v=Math.sin(n*127.1+sd*311.7)*43758.5453;return v-Math.floor(v)};   // 伏魔御廚子：閃爍的斬擊刻痕
    for(let i=0;i<12;i++){const a=R(i)*6.283,L=d.r*(.3+R(i+50)*.5),px=d.x+Math.cos(R(i+90)*6.283)*d.r*.7*R(i+20),py=d.y+Math.sin(R(i+90)*6.283)*d.r*.7*R(i+20);cx.globalAlpha=k*(.25+.4*R(i+7))*(d.clash?.4:1);cx.lineWidth=2+R(i+3)*4;cx.beginPath();cx.moveTo(px,py);cx.lineTo(px+Math.cos(a)*L,py+Math.sin(a)*L);cx.stroke()}
@@ -525,6 +536,9 @@ function draw(){
   cx.globalAlpha=1}
  cx.restore();
  for(const e of G.fx)if(e.k==='flash'){cx.globalAlpha=e.t/e.m*.45;cx.fillStyle=e.col;cx.fillRect(0,0,w,h)}cx.globalAlpha=1; // 全螢幕閃光
+ {const dm=G.domains.find(d=>!d.clash&&d.bg);if(dm){const t=dm.t,al=t<.4?t/.4:t<2.2?1:Math.max(0,1-(t-2.2)/.6);   // 領域名稱：展開瞬間大字淡出；之後在計時器下方顯示名稱與剩餘秒數
+  if(al>0){cx.save();cx.textAlign='center';cx.globalAlpha=al;cx.fillStyle='#fff';cx.shadowColor=dm.col;cx.shadowBlur=18;cx.font='bold '+Math.round(Math.min(w*.07,64))+'px system-ui';cx.fillText(dm.name,w/2,h*.3);cx.restore()}
+  cx.save();cx.textAlign='center';cx.fillStyle=dm.col;cx.font='bold 14px system-ui';cx.fillText(dm.name+' '+Math.max(0,Math.ceil(dm.life-dm.t))+'s',w/2,56);cx.restore()}}
  hud(G.p,true);hud(G.e,false);
  {const mw=Math.min(120,w*.16),mh=mw*CFG.H/CFG.W,mx=10,my=78,k=mw/CFG.W; // 小地圖
   cx.fillStyle='#0b1020cc';cx.fillRect(mx,my,mw,mh);cx.strokeStyle='#e8c25a';cx.lineWidth=1;cx.strokeRect(mx,my,mw,mh);
