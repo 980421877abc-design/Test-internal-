@@ -419,6 +419,8 @@ const CHARS = {
           col: '#e8453a',
           style: 'shrine',         //   外觀：shrine = 斬擊刻痕（沒有 bg 圖時才會用到）
           bg: 'img/domain_shrine.jpg',          //   領域成功展開後的場景背景圖
+          sound: 'sfx/domain_shrine_voice.mp3', //   使用者提供的伏魔御櫥子語音
+          soundRate: 3,                         //   三倍速播放
           tick: {                  //   範圍內對敵人的持續傷害（必中，無視防禦）
             dt: .05,               //     每隔幾秒判定一次
             dmg: 20,               //     每次傷害（15 ÷ 0.05 = 每秒 300，待定）
