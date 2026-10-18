@@ -115,6 +115,8 @@ function say(s,t){toast={t:t||1,s}}
 /* ═══ 特效：粒子 / 殘影 / 震動（只影響畫面，不影響判定） ═══ */
 const FXCAP=520,MOTES=Array.from({length:40},()=>({x:Math.random(),y:Math.random(),z:.25+Math.random()*.65}));
 function spark(x,y,col,n,spd,life,w){for(let i=0;i<n&&G.fx.length<FXCAP;i++){const a=Math.random()*Math.PI*2,v=spd*(.4+Math.random()*.9);G.fx.push({k:'sp',x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:life,m:life,col,w:w||3,dr:5})}}
+function shrineStrikeFx(t,power=1){const a=Math.random()*Math.PI*2,r=CFG.r*(1.15+Math.random()*.8),col=['#ff2638','#ff5b32','#ff9b45','#ffe0a3'][Math.floor(Math.random()*4)];
+ G.fx.push({k:'ds',x:t.x,y:t.y,a,r,t:.24,m:.24,col});G.fx.push({k:'ring',x:t.x,y:t.y,t:.16,m:.16,r:CFG.r*(1.1+power*.35),col:'#ff5b32'});spark(t.x,t.y,col,Math.round(5+power*3),300+power*130,.24,2.5+power*1.5)}
 function suck(f,col,n,rad,life){for(let i=0;i<n&&G.fx.length<FXCAP;i++){const a=Math.random()*Math.PI*2,r=rad*(.7+Math.random()*.5);G.fx.push({k:'dt',x:f.x+Math.cos(a)*r,y:f.y+Math.sin(a)*r,vx:-Math.cos(a)*r/life,vy:-Math.sin(a)*r/life,t:life,m:life,col,r:3+Math.random()*3,sh:1})}}
 function shake(a){cam.sh=Math.max(cam.sh||0,Math.min(a,16))}
 function dashFx(f){if(G.fx.length>FXCAP-20)return;G.fx.push({k:'gh',x:f.x,y:f.y,t:.3,m:.3,col:f.c.color});
@@ -375,7 +377,7 @@ function update(dt){
   if(cl){const cc=cl.own.c.clash;if(cc&&cc.decay)d.integ-=cc.decay*100*dt}           // 碰撞中：對方（宿儺）每秒削減我方領域完整度
   else if(Math.hypot(tg.x-d.x,tg.y-d.y)<d.r+CFG.r&&!tg.dd){                             // tg.dd = 正在用彌虛葛籠 / 簡易領域，免疫領域效果
    if(d.bind)addStatus(tg,{k:'bind',dur:.2});
-   if(d.tick){d.tk+=dt;while(d.tk>=d.tick.dt){d.tk-=d.tick.dt;tg.hp-=d.tick.dmg;d.acc+=d.tick.dmg}   // 必中持續傷害（無視格擋 / 無下限）
+   if(d.tick){d.tk+=dt;while(d.tk>=d.tick.dt){d.tk-=d.tick.dt;tg.hp-=d.tick.dmg;d.acc+=d.tick.dmg;shrineStrikeFx(tg,Math.min(2,d.tick.dmg/20))}   // 必中持續傷害：每次命中角色都留下斬痕與粒子
     if((d.pa+=dt)>=.4){d.pa=0;if(d.acc>0)pop(tg,Math.round(d.acc),d.col);d.acc=0;spark(tg.x,tg.y,d.col,5,300,.3,3)}
     if(tg.hp<=0){tg.hp=0;endRound(tg);return}}}
   const pri=x=>(x.own.c.clash&&x.own.c.clash.priority)||0,lost=cl&&((d.integ<=0&&(cl.integ>0||pri(d)<=pri(cl)))||(d.ct>=CFG.clash.maxTime&&(d.integ<cl.integ||(d.integ===cl.integ&&pri(d)<=pri(cl)))));   // 完整度歸零 = 被覆蓋；同時歸零由優先級高者勝
@@ -536,6 +538,9 @@ function draw(){
   else if(e.k==='bf'){const p=1-k;cx.save();cx.translate(e.x,e.y);cx.globalCompositeOperation='lighter';cx.globalAlpha=k;
    cx.fillStyle='#05050b';cx.beginPath();cx.arc(0,0,e.r*(.35+.65*p),0,7);cx.fill();cx.strokeStyle=e.col;cx.lineWidth=9*k;cx.beginPath();cx.arc(0,0,e.r*(.5+1.2*p),0,7);cx.stroke();
    cx.strokeStyle='#fff';cx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4+p*2;cx.beginPath();cx.moveTo(Math.cos(a)*e.r*.45,Math.sin(a)*e.r*.45);cx.lineTo(Math.cos(a)*e.r*(1.2+1.2*p),Math.sin(a)*e.r*(1.2+1.2*p));cx.stroke()}cx.restore()}
+  else if(e.k==='ds'){const p=1-k;cx.save();cx.translate(e.x,e.y);cx.rotate(e.a);cx.globalCompositeOperation='lighter';cx.globalAlpha=k;
+   cx.strokeStyle=e.col;cx.lineCap='round';cx.lineWidth=7*k+2;cx.beginPath();cx.moveTo(-e.r*(1.25-.25*p),-e.r*.72);cx.quadraticCurveTo(0,e.r*.18,e.r*(1.25-.25*p),e.r*.72);cx.stroke();
+   cx.strokeStyle='#fff4c2';cx.lineWidth=2.2*k;cx.beginPath();cx.moveTo(-e.r*(1.05-.2*p),-e.r*.58);cx.quadraticCurveTo(0,e.r*.12,e.r*(1.05-.2*p),e.r*.58);cx.stroke();cx.restore()}
   else if(e.k==='arc'){const pg=Math.min(1,(1-k)*3.2),a0=e.a-e.w/2,a1=a0+e.w*pg;cx.globalCompositeOperation='lighter';cx.globalAlpha=k;cx.strokeStyle=e.col;cx.lineCap='round';cx.lineWidth=18*k+4;   // 揮砍：弧線快速掃出，前端留白色亮刃
    cx.beginPath();cx.arc(e.x,e.y,e.r*.85,a0,a1);cx.stroke();cx.strokeStyle='#fff';cx.lineWidth=4;cx.beginPath();cx.arc(e.x,e.y,e.r*.85,Math.max(a0,a1-e.w*.45),a1);cx.stroke();cx.globalCompositeOperation='source-over';cx.lineCap='butt'}
   else if(e.k==='fan'){drawFan(e.x,e.y,e.a,e.w,e.r,Math.min(1,k*1.3),e.col)}
