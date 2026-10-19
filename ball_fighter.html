@@ -53,7 +53,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
  <p class="hint">電腦：WASD 移動 · J 普攻 · K L I U H 技能（可按住蓄力）· Space 閃避 · 按住 Shift 格擋 · P 開關選單</p>
  <div class="row"><button id="mEdit">調整按鈕位置</button><button id="mReset">重設位置</button></div>
  <div class="row"><button id="mResume">繼續</button><button id="mPick">重新選角</button></div></div></div></div>
-<script src="ball_fighter_data.js"></script>
+<script src="js_fighter/ball_fighter_data.js"></script>
 <script>
 'use strict';
 /* 數值與角色資料在 ball_fighter_data.js；這裡只放戰鬥邏輯 */
@@ -64,15 +64,15 @@ const cdOf=(f,s)=>s.cd*((f.rage&&f.c.rage)?f.c.rage.cdMul:1);   // 你惹怒了�
 const inEnemyDom=f=>G.domains.some(d=>d.own!==f&&!d.clash&&Math.hypot(f.x-d.x,f.y-d.y)<d.r+CFG.r); // 站在敵方（未碰撞中）的領域內
 const sureHit=f=>G.domains.some(d=>d.own===f&&!d.clash);   // 己方領域必中效果：領域碰撞期間失效
 const later=(t,fn,own)=>G.sched.push({t,fn,own});   // own：這個延遲事件屬於誰（時停時，只有時停者的事件會繼續）                  // 延遲執行（多段攻擊用）
-/* 領域成功展開 → 播放音效（sound = assets/ 底下的音檔；soundRate = 播放速度倍率，3 = 三倍速） */
+/* 領域成功展開 → 播放音效（sound = sound/ 底下的音檔；soundRate = 播放速度倍率，3 = 三倍速） */
 let domSnd=null;
 function stopDomainSound(){if(domSnd){domSnd.pause();domSnd=null}}
 function domainShow(d){if(!d.sound||d.sshown)return;d.sshown=1;if(!Assets.unlocked||CFG.audio.muted)return;
  const r=Assets.rec(d.sound);if(!r||r.fail)return;stopDomainSound();const a=r.el.cloneNode();a.playbackRate=d.soundRate||1;
  a.volume=Math.max(0,Math.min(1,CFG.audio.master*CFG.audio.sfx));domSnd=a;a.play().catch(()=>{})}
 /* ═══ 資源：圖片 / 音效 ═══
- * 檔案放在與本頁同層的 assets/ 資料夾；缺檔不會報錯，會自動退回預設圖形 / 靜音。
- *  角色  CHARS.x.img        'img/xxx.png'  球體臉 + HUD 頭像 + 選角卡
+ * 檔案與主遊戲共用資料夾：圖片放 image/，音效與音樂放 sound/；缺檔不會報錯，會自動退回預設圖形 / 靜音。
+ *  角色  CHARS.x.img        'image/xxx.png'  球體臉 + HUD 頭像 + 選角卡
  *  技能  sk.icon            技能按鈕圖示
  *        sk.sfx / hitSfx    施放音 / 命中音（mp3 ogg wav m4a）
  *        sk.sprite          飛行物貼圖（會跟著飛行方向旋轉）
@@ -653,7 +653,7 @@ function draw(){
   el.innerHTML='<em>'+(KEYMAP[i]||'').toUpperCase()+'</em>'+(q.bf&&G.p.bfReady>0?'⚡黑閃':q.name)+'<small>'+(q.tag?q.tag(G.p):q.type==='toggle'?(G.p[q.flag||'rct']?'● 開啟':'○ 關閉'):(c?(Math.round(c*10)/10)+' '+resName(G.p):'免費'))+'</small>';
   if(i===0)el.style.borderColor=G.p.bfReady>0?'#ff4a5a':'';
   el.style.opacity=((G.p.en<c||(stat(G.p,'burnout',0)&&i>0)||(q.needStand&&!G.p.stand))?.45:1)*BO();ring(el,q.cd&&G.p.cd[k]>0?1-G.p.cd[k]/q.cd:-1);const ic=Assets.get(q.icon);el.style.backgroundImage=ic?'url('+ASSET_BASE+q.icon+')':'';el.style.backgroundSize='cover';el.style.backgroundPosition='center'}
- {const inside=G.p.c.domDef&&inEnemyDom(G.p),gl=inside?G.p.c.domDef.name:'格擋',dg=G.p.domMax?Math.ceil(G.p.domGauge):0,holding=!!(G.p.blocking||G.p.dd||keys.G||keys.Shift||keys.o),label=gl+'|'+dg+'|'+(G.p.domOverload?'過載':'')+'|'+holding;if($('bG').dataset.l!==label){$('bG').dataset.l=label;$('bG').innerHTML=gl+'<small>'+(G.p.domOverload?'過載恢復中':(inside&&holding?'量條 '+dg+'/1000':'按住'))+'</small>'}$('bG').style.borderColor=gl==='格擋'?'':G.p.domOverload?'#ff5b45':'#ffd77a';ring($('bG'),inside&&holding&&G.p.domMax?1-G.p.domGauge/G.p.domMax:-1)}
+ {const inside=G.p.c.domDef&&inEnemyDom(G.p),gl=inside?G.p.c.domDef.name:'格擋',UR=!!(G.p.c.domDef&&G.p.c.domDef.useRes),dg=UR?Math.ceil(G.p.en):(G.p.domMax?Math.ceil(G.p.domGauge):0),dmx=UR?G.p.enMax:(G.p.domMax||1000),holding=!!(G.p.blocking||G.p.dd||keys.G||keys.Shift||keys.o),label=gl+'|'+dg+'|'+dmx+'|'+(UR&&!G.p.stand)+'|'+(G.p.domOverload?'過載':'')+'|'+holding;if($('bG').dataset.l!==label){$('bG').dataset.l=label;$('bG').innerHTML=gl+'<small>'+(G.p.domOverload?'過載恢復中':(inside&&UR&&!G.p.stand?'需先開替身':inside&&holding?'量條 '+dg+'/'+dmx:'按住'))+'</small>'}$('bG').style.borderColor=gl==='格擋'?'':G.p.domOverload?'#ff5b45':'#ffd77a';ring($('bG'),inside&&holding?(UR?1-G.p.en/G.p.enMax:G.p.domMax?1-G.p.domGauge/G.p.domMax:-1):-1)}
  const dl=G.p.bfWin>0?'黑閃':'閃避';if($('bD').textContent!==dl)$('bD').textContent=dl;$('bD').style.borderColor=G.p.bfWin>0?'#ff4a5a':'';$('bD').style.opacity=(G.p.bfWin>0?1:(G.p.dashCd>0||G.p.en<dashCost(G.p)?.5:1))*BO();ring($('bD'),G.p.dashCd>0?1-G.p.dashCd/CFG.dash.cd:-1)}
 /* ═══ 7. 輸入 ═══ */
 function aimPt(){if(mouse)return toArena(mouse);return{x:G.e.x,y:G.e.y}}
@@ -738,4 +738,8 @@ G={round:0};
 msg('ACG 小球格鬥','1V1 即時格鬥原型：選一位角色對戰電腦。<br>三戰兩勝，每回合 180 秒。<br>電腦：WASD 移動、J 普攻、K/L 技能（朝滑鼠方向）、I 大招、Space 閃避、按住 Shift 格擋。<br>手機：左搖桿移動；點技能鍵自動朝敵，按住拖曳可手動瞄準。','選擇角色',pick);
 Assets.preload();
 requestAnimationFrame(loop);
-</script></body></html>
+</script>
+<!-- UI 外掛（選角 / 角色詳情）：載入失敗時，上面主程式原本的選角仍然可用 -->
+<script src="js_fighter/ui_info.js"></script>
+<script src="js_fighter/ui_select.js"></script>
+</body></html>
