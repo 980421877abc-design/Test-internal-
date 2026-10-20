@@ -6,6 +6,16 @@
  *  角色的介紹文字寫在 ui_info.js（CHAR_INFO）；沒寫的欄位會用 ball_fighter_data.js 的數值自動產生。
  *
  *  介面以 1280×720 的固定版面設計，再整體縮放填滿畫面（直立手機會跟著主程式一起旋轉）。
+ *
+ *  ┌─ 這個檔案的區塊地圖（要改圖鑑，照這張找）──────────────────────────────┐
+ *  │ 【A 設定區】STAT_ROWS     「人物屬性」頁要顯示哪幾列      ← 想增減屬性列改這裡  │
+ *  │ 【B 樣式】   style.textContent  所有顏色 / 字級 / 位置 / 大小（CSS）       │
+ *  │ 【C 文字轉換】autoSections    沒寫介紹時，技能頁自動產生的說明             │
+ *  │ 【D 選角畫面】render()         左邊立繪 + 右邊頭像格 + 底部按鈕            │
+ *  │ 【E 詳情畫面】renderDet()      「角色技能」三個分頁（技能效果/機制/屬性）  │
+ *  │ 【F 操作】   click 事件         按鈕點擊後做什麼                           │
+ *  │ 介紹「文字」不在這個檔案 → js_fighter/ui_info.js                          │
+ *  └────────────────────────────────────────────────────────────────────────┘
  * ════════════════════════════════════════════════════════════════ */
 (() => {
   'use strict';
@@ -19,7 +29,19 @@
   const ids = () => Object.keys(CHARS);
   const info = id => (window.CHAR_INFO && CHAR_INFO[id]) || {};
 
-  /* ───────────── 樣式 ───────────── */
+  /* ═══════════════ 【A 設定區】「人物屬性」頁要顯示哪幾列 ═══════════════
+   * 每一列：label = 顯示名稱（字串，或 c => 字串）；value = 取數值的函式 c => 數字；unit = 數字後面的單位（可省略）。
+   * 長條的長短 = 這個角色的值 ÷ 所有角色裡最大的值（所以是角色之間的相對比較）。
+   * 想增加一列：複製一行改 label / value 即可。想拿掉：整行刪掉。
+   * resOf(c) = 這個角色的資源設定（name 名稱、max 上限、regen 每秒回復…；角色沒寫的欄位用預設值）。 */
+  const STAT_ROWS = [
+    { label: '生命',                     value: c => c.hp },
+    { label: '移動速度',                 value: c => c.speed },
+    { label: c => resOf(c).name + '上限',     value: c => resOf(c).max },
+    { label: c => resOf(c).name + '回復速度', value: c => resOf(c).regen, unit: ' / 秒' },
+  ];
+
+  /* ═══════════════ 【B 樣式】所有外觀都在這段 CSS ═══════════════ */
   const style = document.createElement('style');
   style.textContent = `
 .bfsel{position:absolute;inset:0;z-index:30;background:#040813;overflow:hidden;display:none;font-family:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:#e8f3ff;user-select:none;-webkit-user-select:none}
@@ -77,7 +99,7 @@
 .dd{font-size:25px;line-height:1.6;margin-top:4px}
 .dd.mini{font-size:20px;opacity:.75}
 .srow{display:flex;align-items:center;gap:16px;margin:14px 0;font-size:24px}
-.srow .k{width:150px;font-weight:800}.srow .v{width:130px;text-align:right;color:#6fd3ff;font-weight:900}
+.srow .k{width:236px;font-weight:800;white-space:nowrap}.srow .v{width:130px;text-align:right;color:#6fd3ff;font-weight:900}
 .srow .bar{flex:1;height:16px;background:#0f2a52;border-radius:8px;overflow:hidden}.srow .bar i{display:block;height:100%;background:linear-gradient(90deg,#3a8dff,#6fd3ff)}
 .dback{position:absolute;right:44px;bottom:32px;min-width:250px}
 `;
@@ -100,7 +122,7 @@
   const cur = () => (st.step === 1 ? st.me : st.foe);
   const hasMatch = () => typeof G !== 'undefined' && G && G.p && G.state === 'fight';
 
-  /* ───────────── 角色資料 → 顯示文字 ───────────── */
+  /* ═══════════════ 【C 文字轉換】沒寫介紹時自動產生說明 ═══════════════ */
   const avatar = c => `<div class="pfall" style="--c:${c.color}"><b>${esc(c.glyph || c.name[0])}</b></div>` +
     (c.img ? `<img class="pimg" src="${esc(ASSET_BASE + c.img)}" onerror="this.remove()">` : '');
 
@@ -118,21 +140,16 @@
     if (s.modes) L.push(['模式', s.modes.join(' / ')]);
     return L;
   }
-  const bestDmg = c => Math.max(0, ...Object.values(c.sk).map(s => Math.max(s.dmg || 0, (s.full && s.full.dmg) || 0)));
   function statRows(id) {
     const c = CHARS[id], all = ids().map(i => CHARS[i]);
-    const mx = f => Math.max(1, ...all.map(f));
-    const rows = [
-      ['生命', c.hp, c.hp / mx(x => x.hp)],
-      ['移動速度', c.speed, c.speed / mx(x => x.speed)],
-      [(c.res && c.res.name) || CFG.res.name, (c.res && c.res.max) || CFG.res.max, ((c.res && c.res.max) || CFG.res.max) / mx(x => (x.res && x.res.max) || CFG.res.max)],
-      ['最高單招傷害', bestDmg(c), bestDmg(c) / mx(bestDmg)],
-      ['技能數量', Object.keys(c.sk).length, Object.keys(c.sk).length / mx(x => Object.keys(x.sk).length)],
-    ];
-    return rows.map(([k, v, r]) => `<div class="srow"><span class="k">${esc(k)}</span><div class="bar"><i style="width:${Math.max(4, Math.min(100, r * 100))}%"></i></div><span class="v">${esc(v)}</span></div>`).join('');
+    return STAT_ROWS.map(r => {
+      const v = r.value(c), mx = Math.max(1, ...all.map(x => r.value(x)));
+      const label = typeof r.label === 'function' ? r.label(c) : r.label;
+      return `<div class="srow"><span class="k">${esc(label)}</span><div class="bar"><i style="width:${Math.max(4, Math.min(100, v / mx * 100))}%"></i></div><span class="v">${esc(v)}${esc(r.unit || '')}</span></div>`;
+    }).join('');
   }
 
-  /* ───────────── 畫面：選角 ───────────── */
+  /* ═══════════════ 【D 選角畫面】左立繪 + 右頭像格 ═══════════════ */
   function render() {
     const id = cur(), c = CHARS[id], I = info(id);
     const gs = S.querySelector('.grid');
@@ -163,7 +180,7 @@
     if (st.det) renderDet();
   }
 
-  /* ───────────── 畫面：角色詳情 ───────────── */
+  /* ═══════════════ 【E 詳情畫面】技能效果 / 角色機制 / 人物屬性 ═══════════════ */
   function renderDet() {
     const id = cur(), c = CHARS[id], I = info(id), D = S.querySelector('#bfdet');
     const keys = Object.keys(c.sk);
@@ -194,7 +211,7 @@
       <button class="bbtn main dback" data-act="close">返回選角</button>`;
   }
 
-  /* ───────────── 操作 ───────────── */
+  /* ═══════════════ 【F 操作】按鈕點擊後做什麼 ═══════════════ */
   function start() {
     sel.p = st.me; sel.e = st.foe;
     root.style.display = 'none';
