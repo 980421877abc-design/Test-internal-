@@ -256,7 +256,8 @@ function standPunch(f,s,a,o){const sh=s.standHit;f.spAct={kind:'punch',ang:a.ang
  later(sh.delay,()=>{if(G.state!=='fight'||!f.stand)return;const dd=Math.hypot(o.x-f.x,o.y-f.y);let da=Math.abs(Math.atan2(o.y-f.y,o.x-f.x)-a.ang);da=Math.min(da,Math.PI*2-da);
   if(dd<=s.range+CFG.r&&da<=s.arc/2){G.fx.push({k:'sl',x:o.x,y:o.y,a:a.ang+1.57,L:100,t:.18,m:.18,col:'#c9b8ff'});hit(o,sh.dmg,f.x,f.y,s.kb,0,s,f)}else pop(f,'落空','#aab')},f)}
 {const _mf=ST.melee.fire;ST.melee.fire=function(f,s,a,o){_mf(f,s,a,o);if(s.standHit&&f.stand)standPunch(f,s,a,o)}}
-ST.channel={fire(f,s,a,o){playSlashSfx(.85);ST.proj.fire(f,Object.assign({},s,{type:'proj'}),a,o)},ai:(e,q,c)=>c.d<q.speed*q.life&&Math.random()<CFG.ai.aggr*.6?c.lead(c.d/q.speed):null};
+ST.channel={fire(f,s,a,o){playSlashSfx(.85);const sure=sureHit(f);   // 自己領域內：劍氣自動轉向追蹤對手 = 必中（轉向速度 s.domTurn）
+  ST.proj.fire(f,Object.assign({},s,sure?{type:'homing',turn:s.domTurn||20}:{type:'proj'}),sure?Object.assign({},a,{ang:Math.atan2(o.y-f.y,o.x-f.x)}):a,o)},ai:(e,q,c)=>c.d<q.speed*q.life&&Math.random()<CFG.ai.aggr*.6?c.lead(c.d/q.speed):null};
 ST.domain={fire(f,s){if(G.domains.some(d=>d.own===f))return;{const dm=s.domain,o=f===G.p?G.e:G.p,nd={x:f.x,y:f.y,r:dm.r,t:0,life:dm.life,own:f,bo:dm.burnout,name:dm.name||s.name,col:dm.col||(s.domain.col||'#c9a3ff'),style:dm.style||'void',tick:dm.tick,bind:dm.bind,bg:dm.bg,sound:dm.sound,soundRate:dm.soundRate,integ:100,clash:null,acc:0,tk:0,pa:0};
  const od=G.domains.find(d=>d.own===o&&Math.hypot(f.x-d.x,f.y-d.y)<d.r+CFG.r); // 在敵方領域內展開領域 → 領域碰撞：雙方領域效果全部失效
  if(od){nd.clash=od;od.clash=nd;say('領域碰撞！',1.4)}G.domains.push(nd);if(!nd.clash)domainShow(nd)}   // 沒有碰撞 = 領域成功展開：換背景 + 播影片
@@ -266,6 +267,26 @@ ST.domain.ai=(e,q,c)=>(inEnemyDom(e)?Math.random()<.5:c.d<(q.aiRange||450)&&!c.p
 ST.homing={lock:1,fire:ST.proj.fire,ai:(e,q,c)=>c.d<650&&!c.p.blocking&&(c.open||Math.random()<.5)?c.p:null};
 {const _pf=ST.proj.fire;ST.proj.fire=function(f,s,a,o){_pf(f,s,a,o);muzzle(f,s,a)};ST.homing.fire=ST.proj.fire}
 /* ═══ 招式行為：資料檔的招式用 use:'名稱' 掛上這裡的 fire（施放）/ pv（預示）/ ai（電腦怎麼用）；數值全在資料檔 ═══ */
+/* 流星指刺：手指伸出 → 碰到場地邊界反彈（s.bounce 次）→ 之後沿「原路」倒著縮回，一路回到出發點。
+ * 去程、回程各自對沿途碰到的角色判定一次傷害（回程傷害 = dmg × s.backDmg）；路徑記成折線，所以反彈過的路徑也會原樣走回去。 */
+function fingerStep(q,tg,dt){
+ const s=q.s,H=q.hist,x0=q.x,y0=q.y;let dist=(q.back?(s.retSpeed||s.speed):Math.hypot(q.vx,q.vy))*dt;
+ while(dist>0){const st=Math.min(dist,22),px=q.x,py=q.y;dist-=st;
+  if(!q.back){
+   const sp=Math.hypot(q.vx,q.vy)||1;q.x+=q.vx/sp*st;q.y+=q.vy/sp*st;q.run+=st;let rf=false;
+   if(q.x<0){q.x=0;q.vx=Math.abs(q.vx);rf=true}else if(q.x>CFG.W){q.x=CFG.W;q.vx=-Math.abs(q.vx);rf=true}
+   if(q.y<0){q.y=0;q.vy=Math.abs(q.vy);rf=true}else if(q.y>CFG.H){q.y=CFG.H;q.vy=-Math.abs(q.vy);rf=true}
+   if(rf||q.run>=q.maxRun){H.push({x:q.x,y:q.y});q.nb+=rf?1:0;spark(q.x,q.y,q.col,10,600,.3,3);G.fx.push({k:'ring',x:q.x,y:q.y,t:.25,m:.25,r:60,col:q.col});
+    if(!rf||q.nb>(s.bounce||0)){q.back=true;q.bi=H.length-1}}   // 反彈次數用完（或飛到最遠）→ 開始沿原路返回
+  }else{
+   const t=H[q.bi-1];if(!t){q.dead=true;break}
+   const dx=t.x-q.x,dy=t.y-q.y,d=Math.hypot(dx,dy);
+   if(d<=st){q.x=t.x;q.y=t.y;q.bi--;dist+=st-d;if(q.bi<=0){q.dead=true;break}}else{q.x+=dx/d*st;q.y+=dy/d*st}}
+  const key=q.back?'hb':'ho';
+  if(!q[key]&&(tg.inv<=0||(G.ts&&tg!==G.ts.own))&&Math.hypot(tg.x-q.x,tg.y-q.y)<s.r+CFG.r){q[key]=true;
+   hit(tg,s.dmg*(q.back?(s.backDmg||1):1),px,py,s.kb,s.heavy,s,q.own);spark(q.x,q.y,'#fff',8,500,.25,3)}}
+ q.vx=(q.x-x0)/Math.max(dt,1e-3);q.vy=(q.y-y0)/Math.max(dt,1e-3);   // 讓電腦的閃避判斷看得到手指現在往哪個方向走
+ const pts=q.back?H.slice(0,q.bi):H;q.tr=[];for(const p of pts)q.tr.push(p.x,p.y);q.tr.push(q.x,q.y)}   // 伸長的手指 = 從出發點到指尖的整條折線
 const BEHAVIORS={
  ao:{ai:(e,p,c,q)=>c.d<q.speed*q.life*.8&&!G.orbs.some(o=>o.own===e)?c.lead(c.d/q.speed):null},   // 蒼：場上沒有自己的蒼才放
  aka:{ai:(e,p,c,q)=>{const ob=G.orbs.find(o=>o.own===e),R=q.speed*q.life;                      // 赫：場上有蒼 → 打向蒼引爆茈；否則直接預判
@@ -289,7 +310,9 @@ const BEHAVIORS={
     spark(cxp,cyp,'#b9a3ff',5,500,.2,3);G.fx.push({k:'sl',x:cxp,y:cyp,a:a.ang+(Math.random()-.5)*1.2,L:80,t:.14,m:.14,col:'#c9b8ff'});
     if(i%2===0)G.fx.push({k:'txt',x:cxp,y:cyp-30,s:'歐拉!',col:'#d8ccff',t:.45,m:.45});
     if(inn)hit(o,s.dmg+(last?s.lastBonus:0),px,py,last?s.kbEnd:s.kb,0,s,f)},f)}},
- finger:{fire(f,o,a,s){ST.proj.fire(f,s,a,o);f.spAct={kind:'point',ang:a.ang,t:0,T:.3}}},   // 流星指刺：發射時替身擺出突刺姿勢
+ finger:{fire(f,o,a,s){ST.proj.fire(f,s,a,o);const q=G.projs[G.projs.length-1];   // 流星指刺：替身突刺 + 手指往返
+   if(q&&q.s===s){q.fgr=1;q.hist=[{x:q.x,y:q.y}];q.run=0;q.maxRun=s.range||s.speed*s.life;q.back=false;q.nb=0;q.ho=q.hb=false}
+   f.spAct={kind:'point',ang:a.ang,t:0,T:.3}}},
  kai:{fire(f,o,a,s){const sure=sureHit(f);if(sure)pop(f,'必中','#ffd77a');                          // 開：自己領域內改成高轉向追蹤彈 = 必中
   ST.proj.fire(f,sure?Object.assign({},s,{type:'homing',turn:20}):s,a,o)}},
 };
@@ -410,6 +433,7 @@ function update(dt){
  const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy),m=CFG.r*2; // 不可穿過對手
  if(d<m&&d>0){const o=(m-d)/2;p.x-=dx/d*o;p.y-=dy/d*o;e.x+=dx/d*o;e.y+=dy/d*o}
  for(let i=G.projs.length-1;i>=0;i--){const q=G.projs[i],tg=q.own===p?e:p;if(G.ts&&q.own!==G.ts.own)continue;
+  if(q.fgr){fingerStep(q,tg,dt);if(q.dead)G.projs.splice(i,1);continue}   // 流星指刺：走專用的往返邏輯
   if(q.homing){const want=Math.atan2(tg.y-q.y,tg.x-q.x),cur=Math.atan2(q.vy,q.vx);let df=want-cur;
    while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;
    const n=cur+clamp(df,-q.s.turn*dt,q.s.turn*dt),sp=Math.hypot(q.vx,q.vy);q.vx=Math.cos(n)*sp;q.vy=Math.sin(n)*sp}
