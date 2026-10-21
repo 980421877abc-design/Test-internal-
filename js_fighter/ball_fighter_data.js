@@ -616,6 +616,7 @@ const CHARS = {
       b: {                          // 技能一：滑動指定方向 —— 連續揮砍兩次；任一段命中 → 3 秒內轉化為雫波紋突刺
         name: '肆之型 擊打潮',
         use: 'giyuB',
+        hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,   // 按住 = 顯示方向 / 距離指示器（可邊移動邊瞄準），放開施放；點一下 = 朝對手
         cost: 60, cd: 4, wind: .05,      // 消耗 / 冷卻（待定）
         hits: 2, dmg: 200,                //   揮砍次數 / 每次傷害
         lungeDist: 90, lungeDur: .11,     //   每次揮砍的小幅突進
@@ -633,6 +634,7 @@ const CHARS = {
       c: {                          // 技能二：滑動指定方向 —— 向該方向位移，過程中碰到敵人造成傷害；命中 → 3 秒內轉化為扭轉漩渦
         name: '貳之型 水車',
         use: 'giyuWheel',
+        hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,   // 按住 = 顯示方向 / 距離指示器（可邊移動邊瞄準），放開施放；點一下 = 朝對手
         cost: 60, cd: 5, wind: .05,      // （待定）
         dmg: 300, lungeDist: 340, lungeDur: .22, reach: 20, kb: 240,
         derive: {
@@ -650,6 +652,7 @@ const CHARS = {
       d: {                          // 技能三：最多連續 3 段半月形位移斬擊；每次使用後 2 秒內要接下一段，否則進入冷卻；三段用完也進入冷卻
         name: '拾之型 生生流轉',
         use: 'giyuSeq',
+        hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,   // 按住 = 顯示方向 / 距離指示器（可邊移動邊瞄準），放開施放；點一下 = 朝對手
         cost: 80, cd: 8, wind: .05,     // 每一段消耗 / 整套連段結束後的冷卻（待定）
         window: 3,                        //   段與段之間的時限（秒）
         lungeDist: 250, lungeDur: .20,    //   每段位移距離 / 時間（待定）
@@ -662,6 +665,7 @@ const CHARS = {
       e: {                          // 技能四：凪 —— 在義勇所在位置生成圓形範圍，持續 4 秒；吃掉進入範圍的敵方飛行物；範圍內的義勇不受領域持續傷害；不提供近戰免疫
         name: '拾壹之型 凪',
         use: 'nagi',
+        hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,   // 按住 = 顯示方向 / 距離指示器（可邊移動邊瞄準），放開施放；點一下 = 朝對手
         cost: 200, cd: 12, wind: .12,     // （待定）
         nagi: { r: 260, life: 5, col: '#7fd0ff' },   //   半徑（待定）/ 持續秒數
         // 想讓某個技能不被凪吃掉（大型必殺、光束…）：在那個技能裡加 noIntercept: true
