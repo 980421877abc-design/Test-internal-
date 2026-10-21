@@ -60,7 +60,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 const resOf=c=>c._r||(c._r=Object.assign({},CFG.res,c.res)); // 角色資源 = 預設 + 角色覆蓋
 const dashCost=f=>resOf(f.c).dashCost;
 const frozen=f=>!!(G.ts&&G.ts.own!==f);   // 時停中：除了時停者以外全部凍結
-const cdOf=(f,s)=>s.cd*((f.rage&&f.c.rage)?f.c.rage.cdMul:1);   // 你惹怒了我：新進入冷卻的技能時間減半
+const cdOf=(f,s)=>Math.max(0,s.cd*((f.rage&&f.c.rage)?f.c.rage.cdMul:1)-((f.zen&&f.c.zen)?f.c.zen.cdShave:0));   // 全集中呼吸：每次冷卻 −0.2 秒（不是 −20%）
+//   // 你惹怒了我：新進入冷卻的技能時間減半
 const inEnemyDom=f=>G.domains.some(d=>d.own!==f&&!d.clash&&Math.hypot(f.x-d.x,f.y-d.y)<d.r+CFG.r); // 站在敵方（未碰撞中）的領域內
 const sureHit=f=>G.domains.some(d=>d.own===f&&!d.clash);   // 己方領域必中效果：領域碰撞期間失效
 const later=(t,fn,own)=>G.sched.push({t,fn,own});   // own：這個延遲事件屬於誰（時停時，只有時停者的事件會繼續）                  // 延遲執行（多段攻擊用）
@@ -106,11 +107,11 @@ const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let sel={p:'gojo',e:'sukuna'}, G={}, keys={}, mouse=null, joy={x:0,y:0}, view={s:1,ox:0,oy:0}, toast={t:0,s:''};
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function mk(id,x,side,isAI){const c=CHARS[id],dd=c.domDef,dm=dd&&!dd.useRes?(dd.max||1000):0;return{id,c,side,isAI,x,y:CFG.H/2,vx:0,vy:0,kx:0,ky:0,hp:c.hp,en:resOf(c).max,enMax:resOf(c).max,domGauge:dm,domMax:dm,domOverload:false,sts:[],mode:{},rct:false,ext:false,dd:false,stand:false,sp:null,spAct:null,rage:false,hold:null,bfWin:0,bfReady:0,face:side?Math.PI:0,
+function mk(id,x,side,isAI){const c=CHARS[id],dd=c.domDef,dm=dd&&!dd.useRes?(dd.max||1000):0;return{id,c,side,isAI,x,y:CFG.H/2,vx:0,vy:0,kx:0,ky:0,hp:c.hp,en:resOf(c).max,enMax:resOf(c).max,domGauge:dm,domMax:dm,domOverload:false,sts:[],mode:{},ch:{},cp:null,lg:null,enh:false,zen:false,rct:false,ext:false,dd:false,stand:false,sp:null,spAct:null,rage:false,hold:null,bfWin:0,bfReady:0,face:side?Math.PI:0,
  cd:Object.fromEntries(Object.keys(c.sk).map(k=>[k,0])),dashCd:0,act:null,stun:0,dashT:0,dx:0,dy:0,inv:0,blocking:false,mx:0,my:0,wins:0,ai:{t:0,sx:1,wantBlock:0}}}
 function newRound(keep){const a=G.p?G.p.wins:0,b=G.e?G.e.wins:0;
  G.p=mk(sel.p,400,0,false);G.e=mk(sel.e,CFG.W-400,1,true);G.p.wins=a;G.e.wins=b;
- Object.assign(G,{projs:[],zones:[],orbs:[],domains:[],sched:[],throws:[],ts:null,fx:[],t:CFG.time,ot:false,state:'fight',round:(G.round||0)+1});cam.snap=1;playBgm();layoutBtns();stopDomainSound();
+ Object.assign(G,{projs:[],zones:[],orbs:[],domains:[],shields:[],sched:[],throws:[],ts:null,fx:[],t:CFG.time,ot:false,state:'fight',round:(G.round||0)+1});cam.snap=1;playBgm();layoutBtns();stopDomainSound();
  say('第 '+G.round+' 回合 開始！',1.4)}
 function newMatch(){G={round:0};newRound();}
 function say(s,t){toast={t:t||1,s}}
@@ -137,7 +138,8 @@ function aura(f,dt){const h=f.hold,a=f.act,S=f.c.sk;let col=null,n=0,rad=0; // �
 function pop(t,s,col){G.fx.push({k:'txt',x:t.x,y:t.y-40,s,col:col||'#fff',t:.8,m:.8})}
 function hit(t,d,fx,fy,kb,heavy,sk,att){
  if((t.inv>0&&!(G.ts&&t!==G.ts.own))||G.state!=='fight')return;d*=stat(t,'vuln',1);   // 時停中凍結的敵人，閃避無敵也擋不住
- if(att&&att.rage&&att.c.rage)d*=att.c.rage.dmgMul;   // 你惹怒了我：造成傷害 ×1.5
+ if(att&&att.rage&&att.c.rage)d*=att.c.rage.dmgMul;if(att&&att.zen&&att.c.zen)d*=att.c.zen.dmgMul;   // 全集中呼吸：造成傷害 ×1.2（乘算）
+ //   // 你惹怒了我：造成傷害 ×1.5
  if(G.ts&&t!==G.ts.own){G.ts.dmg+=d;G.ts.hits++;playSfx(SFX.hit);pop(t,Math.round(d),'#cfc4ff');spark(t.x,t.y,'#cfc4ff',8,420,.3,3);shake(3);return}   // 時停：敵人受到的傷害只記錄，時停結束才統一結算
  let km=1,col='#fff';const ig=!!(att&&att.ext); // 領域展延：無視格擋 / 無下限等減傷
  if(!ig&&t.blocking&&t.en>0&&t.c.infinity&&!stat(t,'burnout',0)){const I=t.c.infinity; // 無下限：受傷固定、被打會額外消耗資源
@@ -154,11 +156,28 @@ function hit(t,d,fx,fy,kb,heavy,sk,att){
  spark(t.x,t.y,col==='#8ad'?'#8ad':(sk&&sk.col)||'#ffe9a8',col==='#8ad'?6:10+Math.min(14,d/90|0),420+(heavy?300:0),.35,3);shake(col==='#8ad'?2:2+Math.min(10,d/110)+(heavy?3:0));
  if(t.hp<=0){t.hp=0;endRound(t)}
 }
-function costOf(f,k){const q=f.c.sk[k];return (q.modeCost?q.modeCost[f.mode[k]||0]:q.cost)*(f.c.costMult||1)} // costMult：六眼之類的消耗倍率
+/* ═══ 水之呼吸（富岡義勇）用到的通用積木，之後別的角色也能用 ═══
+ *  lunge   位移：往指定方向衝（bulge/sign 可走半月弧線），途中碰到對手造成一次傷害。
+ *  連段    skill.derive = 命中後 window 秒內轉化成派生技；skill.stages = 最多連續使用的段數（window 秒內要接下一段）。
+ *          整套連段結束（派生用完 / 最後一段 / 視窗過期）才開始冷卻。行為（use）在施放完畢時呼叫 chainDone(f,key,是否命中)。
+ *  enhance 角色 enhance:true → 每次使用技能（不含開關）後，下一次普攻換成 skill.enh 的強化版；不疊層，打出後消耗。
+ *  凪      G.shields：圓形範圍，吃掉敵方飛行物（skill.noIntercept:true 的不吃）；範圍內的施放者不受領域的持續傷害。 */
+const skNow=(f,k)=>{const q=f.c.sk[k],c=f.ch&&f.ch[k];return !c?(q.stages?Object.assign({},q,q.stages[0]):q):Object.assign({},q,c.kind==='derive'?q.derive:q.stages[c.i])};   // 目前實際生效的技能（原技能 / 派生技 / 連段第 n 段）
+function chainDone(f,k,hitAny){const q=f.c.sk[k],cp=f.cp;if(!cp||cp.k!==k)return;f.cp=null;
+ if(q.stages){const nx=cp.i+1;if(nx<q.stages.length)f.ch[k]={kind:'seq',i:nx,t:q.window||2};else f.cd[k]=cdOf(f,q)}
+ else if(!cp.derived&&hitAny)f.ch[k]={kind:'derive',t:q.derive.window||3};
+ else f.cd[k]=cdOf(f,q)}
+function lunge(f,ang,o){f.lg=Object.assign({t:0,T:o.dur||.15,sx:f.x,sy:f.y,dx:Math.cos(ang),dy:Math.sin(ang),dist:o.dist||100,bulge:0,sign:1,reach:12,hit:false},o);f.face=ang}
+function lungeStep(f,dt){const g=f.lg,foe=f===G.p?G.e:G.p;g.t+=dt;const u=Math.min(1,g.t/g.T),e=1-(1-u)*(1-u),off=g.bulge?Math.sin(Math.PI*u)*g.bulge*g.sign:0;
+ f.x=clamp(g.sx+g.dx*g.dist*e-g.dy*off,CFG.r,CFG.W-CFG.r);f.y=clamp(g.sy+g.dy*g.dist*e+g.dx*off,CFG.r,CFG.H-CFG.r);dashFx(f);
+ if(g.sk&&!g.hit&&Math.hypot(foe.x-f.x,foe.y-f.y)<CFG.r*2+g.reach){g.hit=true;hit(foe,g.dmg,f.x-g.dx*20,f.y-g.dy*20,g.kb||0,0,g.sk,f);if(g.onHit)g.onHit(foe)}
+ if(u>=1){f.lg=null;if(g.done)g.done(g.hit)}}
+const inNagi=f=>G.shields.some(z=>z.own===f&&Math.hypot(f.x-z.x,f.y-z.y)<z.r);
+function costOf(f,k){const q=skNow(f,k);return (q.modeCost?q.modeCost[f.mode[k]||0]:q.cost)*(f.c.costMult||1)} // costMult：六眼之類的消耗倍率
 const firstKey=f=>Object.keys(f.c.sk)[0];
 function ready(f,k){const q=f.c.sk[k];return !(q.needStand&&!f.stand)&&!(q.type==='timestop'&&G.ts)&&!frozen(f)&&f.cd[k]<=0&&f.en>=costOf(f,k)&&!(stat(f,'burnout',0)&&k!==firstKey(f)&&!q.burnOk)&&(!stat(f,'bind',0)||q.type==='domain')&&!(f.ext&&q.noExt)&&!(f.dd&&f.c.domDef.lock)}
 function canCast(f,k){const s=f.c.sk[k],me=f===G.p;
- if(G.state!=='fight'||frozen(f)||f.stun>0||f.act||f.dashT>0||f.hold)return false;
+ if(G.state!=='fight'||frozen(f)||f.stun>0||f.act||f.dashT>0||f.hold||f.lg)return false;
  if(s.needStand&&!f.stand){if(me)say('需要先開啟替身',.7);return false}
  if(s.type==='timestop'&&G.ts){if(me)say('時停期間無法再次發動',.7);return false}
  if(stat(f,'bind',0)&&s.type!=='domain'){if(me)say('被領域束縛，無法行動！',.7);return false}   // 領域類技能不受束縛限制 → 才能在敵方領域內反展開（領域碰撞）
@@ -169,15 +188,19 @@ function canCast(f,k){const s=f.c.sk[k],me=f===G.p;
  if(f.en<costOf(f,k)){if(me)say(resName(f)+'不足！',.7);return false}
  return true}
 function cast(f,k,aim,opts){
- const s=f.c.sk[k],o=f===G.p?G.e:G.p;opts=opts||{};
- if(!canCast(f,k))return;
- if((s.needFull||(s.fullMode!==undefined&&(f.mode[k]||0)===s.fullMode))&&opts.stage!=='full'){if(f===G.p)say('蓄力不足',.6);return}
- f.en-=costOf(f,k);f.cd[k]=cdOf(f,s);f.blocking=false;playSfx(s.sfx);
- const v=(opts.stage==='full'&&s.full)?Object.assign({},s,s.full):s;   // 蓄力滿的強化版本
- if(G.domains.some(d=>d.own===f&&!d.clash)&&s.type!=='melee')aim={x:o.x,y:o.y};   // 領域內：技能自動修正朝向敵人
- let ang=Math.atan2(aim.y-f.y,aim.x-f.x);
- if(!s.noLock&&(s.lock||(ST[s.type]&&ST[s.type].lock))){const d=Math.hypot(o.x-f.x,o.y-f.y); if(d<(s.range||900)+250)ang=Math.atan2(o.y-f.y,o.x-f.x)} // 自動鎖定：有效範圍內才轉向
- f.face=ang;f.act={k,t:s.wind+(opts.ai&&opts.stage==='full'&&s.hold?s.hold.full*.5:0),ang,ax:aim.x,ay:aim.y,v,mode:f.mode[k]||0}}
+  const s=f.c.sk[k],o=f===G.p?G.e:G.p;opts=opts||{};
+  if(!canCast(f,k))return;
+  if((s.needFull||(s.fullMode!==undefined&&(f.mode[k]||0)===s.fullMode))&&opts.stage!=='full'){if(f===G.p)say('蓄力不足',.6);return}
+  const cur=skNow(f,k),chn=f.ch[k];f.en-=costOf(f,k);
+  if(s.derive||s.stages){f.cp={k,i:chn&&chn.kind==='seq'?chn.i:0,derived:!!(chn&&chn.kind==='derive'),w:0};delete f.ch[k]}   // 連段技：冷卻等整套連段結束才開始
+  else f.cd[k]=cdOf(f,s);
+  f.blocking=false;playSfx(s.sfx);
+  let v=(opts.stage==='full'&&s.full)?Object.assign({},s,s.full):cur;   // 蓄力滿的強化版本 / 派生技 / 連段的某一段
+  if(f.c.enhance&&s.type!=='toggle'){if(k===firstKey(f)){if(f.enh&&s.enh){v=Object.assign({},s,s.enh);f.enh=false;pop(f,v.name,'#7fd0ff')}}else f.enh=true}   // 水面斬：使用技能後，下一次普攻換成強化版
+  if(G.domains.some(d=>d.own===f&&!d.clash)&&s.type!=='melee')aim={x:o.x,y:o.y};   // 領域內：技能自動修正朝向敵人
+  let ang=Math.atan2(aim.y-f.y,aim.x-f.x);
+  if(!s.noLock&&(s.lock||(ST[s.type]&&ST[s.type].lock))){const d=Math.hypot(o.x-f.x,o.y-f.y); if(d<(s.range||900)+250)ang=Math.atan2(o.y-f.y,o.x-f.x)} // 自動鎖定：有效範圍內才轉向
+  f.face=ang;f.act={k,t:(v.wind!==undefined?v.wind:s.wind)+(opts.ai&&opts.stage==='full'&&s.hold?s.hold.full*.5:0),ang,ax:aim.x,ay:aim.y,v,mode:f.mode[k]||0}}
 /* 蓄力型技能（skill.hold={start,full}）：點一下=小版；按住超過 start 原地蓄力；超過 full 放開=強化版。toggle 類型：點=開關，長按=加速 */
 const canAim=f=>{const h=f.hold;if(!h)return false;const q=f.c.sk[h.k];return !(q.lockAim&&h.t>=q.hold.start)}; // lockAim：開始蓄力後方向鎖定，不能再轉
 function holdStart(f,k,aim){if(!canCast(f,k))return;f.hold={k,t:0,aim:aim||{x:G.e.x,y:G.e.y}}}
@@ -213,8 +236,10 @@ function standOff(f,forced){f.stand=false;f.spAct=null;pop(f,forced?'替身能�
 ST.toggle={fire(f,s){const fl=s.flag||'rct';if(stat(f,'burnout',0)){pop(f,s.burnOk?'熔斷中：長按修復':'熔斷中','#ffb44a');return}
  if(fl==='stand'){if(f.stand){standOff(f,false)}else{const m=f.c.stand.minEnergy;if(f.en<m){pop(f,resName(f)+'需要 ≥ '+m,'#ffb44a');return}   // 替身開關：能量不足無法開啟
    f.stand=true;f.sp={x:f.x,y:f.y,ang:f.face};pop(f,f.c.stand.name+' 登場','#9a7bff');G.fx.push({k:'ring',x:f.x,y:f.y,t:.4,m:.4,r:120,col:'#9a7bff'});spark(f.x,f.y,'#b9a3ff',14,450,.4,3)}return}
- f[fl]=!f[fl];pop(f,s.name+(f[fl]?' 開':' 關'),fl==='ext'?'#ff9a6a':'#9ef09e')}};
+ if(!f[fl]&&s.minEn&&f.en<s.minEn){pop(f,resName(f)+'需要 ≥ '+s.minEn,'#ffb44a');return}   // minEn：能量不足時無法開啟
+  f[fl]=!f[fl];pop(f,s.name+(f[fl]?' 開':' 關'),fl==='ext'?'#ff9a6a':'#9ef09e')}};
 ST.toggle.ai=(e,q,c)=>{const fl=q.flag||'rct',m=e.enMax;
+  if(fl==='zen')return(e.zen?(e.en<.08*m):(e.en>.45*m&&c.d<900))?c.p:null;   // 電腦：呼吸條夠且對手在附近才開全集中呼吸
  if(fl==='stand')return(e.stand?(e.en<120||c.d>1100):(e.en>=e.c.stand.minEnergy+200&&c.d<900))?c.p:null;   // 電腦：能量夠且對手在附近才開替身   // 電腦：反轉術式看血量與資源；領域展延在近身且對手防禦 / 有無下限時開
  if(fl==='ext')return(e.ext?(c.d>520||e.en<.1*m):(c.d<300&&e.en>.3*m&&(c.p.blocking||c.p.c.infinity)))?c.p:null;
  return(e.rct?(e.hp>e.c.hp*.95||e.en<.08*m):(e.hp<e.c.hp*.65&&e.en>.3*m))?c.p:null};
@@ -315,8 +340,34 @@ const BEHAVIORS={
    f.spAct={kind:'point',ang:a.ang,t:0,T:.3}}},
  kai:{fire(f,o,a,s){const sure=sureHit(f);if(sure)pop(f,'必中','#ffd77a');                          // 開：自己領域內改成高轉向追蹤彈 = 必中
   ST.proj.fire(f,sure?Object.assign({},s,{type:'homing',turn:20}):s,a,o)}},
+  /* ── 富岡義勇（水之呼吸）：數值全在資料檔 ── */
+  suimen:{fire(f,o,a,s){playSlashSfx(1.3);                       // 壹之型 水面斬（強化普攻）：短距離突進 → 範圍斬擊；命中回復生命與呼吸條
+   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,done:()=>{G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:s.arc,r:s.range,t:.24,m:.24,col:'#4fd0ff'});
+    const d=Math.hypot(o.x-f.x,o.y-f.y);let da=Math.abs(Math.atan2(o.y-f.y,o.x-f.x)-a.ang);da=Math.min(da,Math.PI*2-da);
+    if(d<=s.range+CFG.r&&da<=s.arc/2){hit(o,s.dmg+s.bonus,f.x,f.y,s.kb,0,s,f);f.hp=Math.min(f.c.hp,f.hp+s.heal.hp);f.en=Math.min(f.enMax,f.en+s.heal.res);pop(f,'水面斬','#7fd0ff');spark(f.x,f.y,'#7fd0ff',10,450,.35,3)}}})}},
+  giyuB:{fire(f,o,a,s){let any=false;                             // 肆之型 擊打潮：連續揮砍 s.hits 次，每次小幅突進；任一段命中 → 轉化為雫波紋突刺
+   const swing=n=>{G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:1.6,r:s.reach+CFG.r*2,t:.18,m:.18,col:'#4fb4ff'});playSlashSfx(1);
+    lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,done:h=>{any=any||h;if(n<s.hits)swing(n+1);else chainDone(f,s.key,any)}})};swing(1)},
+   ai:(e,p,c,q)=>e.ch[q.key]?(c.d<q.derive.lungeDist+q.derive.reach+CFG.r*2+30?c.p:null):(c.d<q.lungeDist+q.reach+CFG.r*2+30?c.p:null)},
+  giyuThrust:{fire(f,o,a,s){G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:.7,r:s.lungeDist*.7,t:.2,m:.2,col:'#bfeaff'});playSlashSfx(1.4);   // 漆之型 雫波紋突刺：向前刺擊，命中使敵人減速
+   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,onHit:t=>addStatus(t,{k:'slow',dur:s.slow.dur,v:s.slow.v}),done:h=>chainDone(f,s.key,h)})}},
+  giyuWheel:{fire(f,o,a,s){playSlashSfx(1.2);G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:2.4,r:90,t:.25,m:.25,col:'#4fb4ff'});   // 貳之型 水車：向指定方向位移，過程中碰到敵人造成傷害 → 轉化為扭轉漩渦
+   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,done:h=>chainDone(f,s.key,h)})},
+   ai:(e,p,c,q)=>e.ch[q.key]?(c.d<q.derive.rad?c.p:null):(c.d>140&&c.d<q.lungeDist+120?c.p:null)},
+  giyuVortex:{fire(f,o,a,s){G.fx.push({k:'ring',x:f.x,y:f.y,t:.5,m:.5,r:s.rad,col:'#4fb4ff'});          // 陸之型 扭轉漩渦：周圍連續 s.ticks 次傷害，吸附並暈眩
+   for(let i=0;i<s.ticks;i++)later(i*s.gap,()=>{if(G.state!=='fight')return;suck(f,'#7fd0ff',10,s.rad,.35);G.fx.push({k:'ring',x:f.x,y:f.y,t:.25,m:.25,r:s.rad*(.5+.25*i),col:'#7fd0ff'});playSlashSfx(1);
+    if(Math.hypot(o.x-f.x,o.y-f.y)<=s.rad+CFG.r){hit(o,s.dmg,f.x,f.y,0,0,s,f);const an=Math.atan2(f.y-o.y,f.x-o.x);o.kx+=Math.cos(an)*s.pull;o.ky+=Math.sin(an)*s.pull;o.stun=Math.max(o.stun,s.stun)}},f);
+   later(s.ticks*s.gap+.05,()=>chainDone(f,s.key,true),f)}},
+  giyuSeq:{fire(f,o,a,s){const i=f.cp?f.cp.i:0,sign=(s.arcSigns||[1,-1,1])[i%3];playSlashSfx(1+i*.3);       // 拾之型 生生流轉：最多連續 3 次半月形位移斬擊，方向依序 arcSigns
+   G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang+sign*.6,w:2.2,r:s.lungeDist*.6,t:.22,m:.22,col:'#4fd0ff'});
+   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,bulge:s.bulge,sign,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,done:h=>chainDone(f,s.key,h)})},
+   ai:(e,p,c,q)=>c.d<q.lungeDist+140?c.p:null},
+  nagi:{fire(f,o,a,s){G.shields=G.shields.filter(z=>z.own!==f);G.shields.push({own:f,x:f.x,y:f.y,r:s.nagi.r,t:0,life:s.nagi.life,col:s.nagi.col||'#7fd0ff'});   // 拾壹之型 凪：固定在施放位置，消除敵方飛行物
+   G.fx.push({k:'ring',x:f.x,y:f.y,t:.6,m:.6,r:s.nagi.r,col:'#7fd0ff'});spark(f.x,f.y,'#bfeaff',16,500,.5,3)},
+   ai:(e,p,c,q)=>!G.shields.some(z=>z.own===e)&&(inEnemyDom(e)||G.projs.some(x=>x.own!==e&&Math.hypot(x.x-e.x,x.y-e.y)<q.nagi.r*1.5))?c.p:null},
 };
-for(const c of Object.values(CHARS))for(const k in c.sk){const q=c.sk[k];q.key=k;if(q.type==='throw'&&!q.hold)q.hold={start:.05,full:99};const b=q.use&&BEHAVIORS[q.use];if(q.use&&!b)console.warn('找不到招式行為：'+q.use);if(b)for(const n in b)if(q[n]===undefined)q[n]=b[n]}
+for(const c of Object.values(CHARS))for(const k in c.sk){const q=c.sk[k];q.key=k;if(q.type==='throw'&&!q.hold)q.hold={start:.05,full:99};const b=q.use&&BEHAVIORS[q.use];if(q.use&&!b)console.warn('找不到招式行為：'+q.use);if(b)for(const n in b)if(q[n]===undefined)q[n]=b[n];
+  for(const sub of [q.derive,q.enh,...(q.stages||[])]){const sb=sub&&sub.use&&BEHAVIORS[sub.use];if(sub&&sub.use&&!sb)console.warn('找不到招式行為：'+sub.use);if(sb)for(const n in sb)if(sub[n]===undefined)sub[n]=sb[n]}}
 function fire(f){const a=f.act,s=a.v||f.c.sk[a.k],o=f===G.p?G.e:G.p;f.act=null;
  if(typeof s.fire==='function')return s.fire(f,o,a,s);
  const t=ST[s.type];if(t)t.fire(f,s,a,o)}
@@ -327,11 +378,11 @@ function addStatus(t,st){const o=t.sts.find(x=>x.k===st.k);const v=st.v??1;if(o)
 function dash(f,dx,dy){
  if(frozen(f))return;
  if(G.state==='fight'&&f.bfWin>0&&f.c.bf&&!f.act&&f.stun<=0){f.bfWin=0;f.bfReady=f.c.bf.ready;pop(f,'黑閃 就緒！','#fff');return} // 黑閃觸發中：閃避鍵變黑閃鍵
- if(G.state!=='fight'||f.stun>0||f.dashT>0||f.act||f.hold||stat(f,'bind',0)||(f.dd&&f.c.domDef.lock))return;
+ if(G.state!=='fight'||f.stun>0||f.dashT>0||f.act||f.hold||f.lg||stat(f,'bind',0)||(f.dd&&f.c.domDef.lock))return;
  if(f.dashCd>0){if(f===G.p)say('閃避冷卻中',.6);return}
  if(f.en<dashCost(f)){if(f===G.p)say(resName(f)+'不足！',.6);return}
  if(!dx&&!dy){dx=Math.cos(f.face);dy=Math.sin(f.face)}
- const l=Math.hypot(dx,dy);f.dx=dx/l;f.dy=dy/l;f.dashT=CFG.dash.dur;f.inv=CFG.dash.inv;f.dashCd=CFG.dash.cd;f.en-=dashCost(f);f.blocking=false;playSfx(SFX.dash);
+ const l=Math.hypot(dx,dy);f.dx=dx/l;f.dy=dy/l;f.dashT=CFG.dash.dur;f.inv=CFG.dash.inv;f.dashCd=Math.max(0,CFG.dash.cd-((f.zen&&f.c.zen)?f.c.zen.cdShave:0));f.en-=dashCost(f);f.blocking=false;playSfx(SFX.dash);
  spark(f.x,f.y,'#fff',8,380,.25,2.5);G.fx.push({k:'ring',x:f.x,y:f.y,t:.22,m:.22,r:CFG.r*1.6,col:f.c.color})}
 function endRound(loser){
  if(G.state!=='fight')return;G.state='over';stopBgm();
@@ -372,12 +423,16 @@ function stepF(f,dt){
     if(Math.random()<.5)G.fx.push({k:'dt',x:f.x+(Math.random()-.5)*CFG.r*1.7,y:f.y+CFG.r*.5,vx:0,vy:-120,t:.5,m:.5,col:'#9ef09e',r:4,sh:1});if(f.en<=0){f.en=0;f.hold=null}}continue}
   if((f.rct||boost)&&f.hp<f.c.hp){const m=boost?q.toggleHeal.boost:1;f.hp=Math.min(f.c.hp,f.hp+q.toggleHeal.rate*m*dt);f.en-=q.toggleHeal.drain*m*dt;if(f.en<=0){f.en=0;f.rct=false;f.hold=null}}}
  if(f.ext){let dr=0;for(const k in f.c.sk){const q=f.c.sk[k];if(q.flag==='ext')dr+=q.drain}f.en-=dr*dt;if(f.en<=0){f.en=0;f.ext=false;pop(f,'領域展延 解除','#ff9a6a')}}   // 領域展延：持續耗咒力
- if(f.act){f.act.t-=dt;if(f.act.t<=0)fire(f)}
+ if(f.zen&&f.c.zen){f.en-=f.c.zen.drain*dt;if(f.en<=0){f.en=0;f.zen=false;pop(f,'全集中呼吸 中斷','#ffb44a')}}   // 全集中呼吸：持續消耗呼吸條；用完自動關閉
+  for(const k in f.ch){const c=f.ch[k];c.t-=dt;if(c.t<=0){delete f.ch[k];f.cd[k]=cdOf(f,f.c.sk[k]);pop(f,f.c.sk[k].name+' 結束','#9fb4d0')}}   // 連段視窗過期 → 進入冷卻
+  if(f.cp&&(f.cp.w=(f.cp.w||0)+dt)>4)chainDone(f,f.cp.k,false);   // 保險：施放卡住時，技能不會永遠不冷卻
+  if(f.act){f.act.t-=dt;if(f.act.t<=0)fire(f)}
  for(const x of f.sts)x.t-=dt;f.sts=f.sts.filter(x=>x.t>0);
  const dot=stat(f,'dot',0);if(dot&&G.state==='fight'){f.hp-=dot*dt;if(f.hp<=0){f.hp=0;endRound(f)}}
  standStep(f,dt);
  let vx=0,vy=0;
- if(f.dashT>0){f.dashT-=dt;const v=CFG.dash.dist/CFG.dash.dur;vx=f.dx*v;vy=f.dy*v;dashFx(f)}
+ if(f.lg){if(f.stun>0){const g=f.lg;f.lg=null;if(g.done)g.done(g.hit)}else lungeStep(f,dt);vx=vy=0;f.kx=f.ky=0}   // 技能位移中：不受輸入與擊退影響（被打到硬直會中斷）
+  else if(f.dashT>0){f.dashT-=dt;const v=CFG.dash.dist/CFG.dash.dur;vx=f.dx*v;vy=f.dy*v;dashFx(f)}
  else if(f.stun<=0){const sp=f.c.speed*(f.blocking?CFG.block.speed:1)*(f.act?(f.c.sk[f.act.k].lockMove?0:.5):1)*stat(f,'slow',1)*stat(f,'haste',1)*(stat(f,'root',0)?0:1)*(stat(f,'bind',0)?0:1)*(f.dd&&f.c.domDef.lock?0:1)*chargeLock(f);vx=f.mx*sp;vy=f.my*sp;
   if((f.mx||f.my)&&!f.act)f.face=Math.atan2(f.my,f.mx)}
  if(f.dashT<=0&&Math.hypot(vx,vy)>f.c.speed*.7&&G.fx.length<FXCAP&&Math.random()<.45)G.fx.push({k:'sp',x:f.x-vx*.03+(Math.random()-.5)*CFG.r,y:f.y-vy*.03+(Math.random()-.5)*CFG.r,vx:-vx*.5,vy:-vy*.5,t:.18,m:.18,col:'#cfe6ff',w:2,dr:2,al:.5});
@@ -431,8 +486,13 @@ function update(dt){
  if(!frozen(e))ai(e,p,dt);if(!frozen(p))stepF(p,dt);if(!frozen(e))stepF(e,dt);if(!frozen(p))aura(p,dt);if(!frozen(e))aura(e,dt);   // 時停中：只有時停者行動
 
  const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy),m=CFG.r*2; // 不可穿過對手
- if(d<m&&d>0){const o=(m-d)/2;p.x-=dx/d*o;p.y-=dy/d*o;e.x+=dx/d*o;e.y+=dy/d*o}
- for(let i=G.projs.length-1;i>=0;i--){const q=G.projs[i],tg=q.own===p?e:p;if(G.ts&&q.own!==G.ts.own)continue;
+ if(d<m&&d>0&&!p.lg&&!e.lg){const o=(m-d)/2;p.x-=dx/d*o;p.y-=dy/d*o;e.x+=dx/d*o;e.y+=dy/d*o}
+ for(let i=G.shields.length-1;i>=0;i--){const z=G.shields[i];if(G.ts&&z.own!==G.ts.own)continue;z.t+=dt;   // 凪：範圍內敵方飛行物直接消除，不造成傷害
+   const cut=(a,j,x,y)=>{a.splice(j,1);spark(x,y,'#7fd0ff',10,500,.3,3);G.fx.push({k:'ring',x,y,t:.3,m:.3,r:44,col:'#7fd0ff'})};
+   for(let j=G.projs.length-1;j>=0;j--){const q=G.projs[j];if(q.own!==z.own&&!q.s.noIntercept&&Math.hypot(q.x-z.x,q.y-z.y)<z.r+(q.s.r||10))cut(G.projs,j,q.x,q.y)}
+   for(let j=G.throws.length-1;j>=0;j--){const t=G.throws[j];if(t.own!==z.own&&!(t.s&&t.s.noIntercept)&&Math.hypot(t.x-z.x,t.y-z.y)<z.r+((t.s&&t.s.r)||24))cut(G.throws,j,t.x,t.y)}
+   if(z.t>=z.life||z.own.hp<=0)G.shields.splice(i,1)}
+  for(let i=G.projs.length-1;i>=0;i--){const q=G.projs[i],tg=q.own===p?e:p;if(G.ts&&q.own!==G.ts.own)continue;
   if(q.fgr){fingerStep(q,tg,dt);if(q.dead)G.projs.splice(i,1);continue}   // 流星指刺：走專用的往返邏輯
   if(q.homing){const want=Math.atan2(tg.y-q.y,tg.x-q.x),cur=Math.atan2(q.vy,q.vx);let df=want-cur;
    while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;
@@ -462,7 +522,8 @@ function update(dt){
   if(cl){const cc=cl.own.c.clash;if(cc&&cc.decay)d.integ-=cc.decay*100*dt}           // 碰撞中：對方（宿儺）每秒削減我方領域完整度
   else if(Math.hypot(tg.x-d.x,tg.y-d.y)<d.r+CFG.r&&!tg.dd){                             // tg.dd = 正在用彌虛葛籠 / 簡易領域，免疫領域效果
    if(d.bind)addStatus(tg,{k:'bind',dur:.2});
-   if(d.tick){d.tk+=dt;while(d.tk>=d.tick.dt){d.tk-=d.tick.dt;tg.hp-=d.tick.dmg;d.acc+=d.tick.dmg;shrineStrikeFx(tg,Math.min(2,d.tick.dmg/20))}   // 必中持續傷害：每次命中角色都留下斬痕與粒子
+   if(d.tick&&!inNagi(tg)){d.tk+=dt;   // 凪的範圍內：領域的持續傷害對施放凪的人無效
+    while(d.tk>=d.tick.dt){d.tk-=d.tick.dt;tg.hp-=d.tick.dmg;d.acc+=d.tick.dmg;shrineStrikeFx(tg,Math.min(2,d.tick.dmg/20))}   // 必中持續傷害：每次命中角色都留下斬痕與粒子
     if((d.pa+=dt)>=.4){d.pa=0;if(d.acc>0)pop(tg,Math.round(d.acc),d.col);d.acc=0;spark(tg.x,tg.y,d.col,5,300,.3,3)}
     if(tg.hp<=0){tg.hp=0;endRound(tg);return}}}
   const pri=x=>(x.own.c.clash&&x.own.c.clash.priority)||0,lost=cl&&((d.integ<=0&&(cl.integ>0||pri(d)<=pri(cl)))||(d.ct>=CFG.clash.maxTime&&(d.integ<cl.integ||(d.integ===cl.integ&&pri(d)<=pri(cl)))));   // 完整度歸零 = 被覆蓋；同時歸零由優先級高者勝
@@ -597,7 +658,11 @@ function draw(){
    cx.globalAlpha=k*.32;cx.strokeStyle='#8fd6ff';cx.lineWidth=3;cx.setLineDash([30,20]);cx.lineDashOffset=-d.t*60;cx.beginPath();cx.arc(d.x,d.y,d.r*.7,0,7);cx.stroke();cx.lineDashOffset=d.t*90;cx.beginPath();cx.arc(d.x,d.y,d.r*.45,0,7);cx.stroke();cx.setLineDash([]);cx.globalAlpha=k*.2;cx.strokeStyle='#fff';for(let j=0;j<12;j++){const a=d.t*.4+j*Math.PI/6,rr=d.r*(.18+.06*Math.sin(j+d.t));cx.beginPath();cx.moveTo(d.x+Math.cos(a)*rr,d.y+Math.sin(a)*rr);cx.lineTo(d.x+Math.cos(a+Math.PI)*d.r*.92,d.y+Math.sin(a+Math.PI)*d.r*.92);cx.stroke()}cx.restore()}
   if(d.clash){cx.save();cx.lineWidth=10;cx.strokeStyle=d.col;cx.globalAlpha=.9;cx.beginPath();cx.arc(d.x,d.y,d.r+14,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.max(0,d.integ)/100);cx.stroke();cx.restore()}   // 領域完整度環
   cx.fillStyle='#fff';cx.font='bold 34px system-ui';cx.textAlign='center';cx.fillText(d.name,d.x,d.y-d.r-14)}
- for(const o of G.orbs){const g=cx.createRadialGradient(o.x,o.y,2,o.x,o.y,o.r);g.addColorStop(0,'#fff');g.addColorStop(.35,'#4aa8ff');g.addColorStop(1,'rgba(74,168,255,0)');
+ for(const z of G.shields){const T=performance.now()/1000,k=Math.min(1,z.t/.3),out=Math.min(1,(z.life-z.t)/.5);cx.save();cx.globalAlpha=.9*k*out;   // 凪：水面波紋
+   const g=cx.createRadialGradient(z.x,z.y,z.r*.2,z.x,z.y,z.r);g.addColorStop(0,'rgba(120,210,255,.04)');g.addColorStop(1,'rgba(120,210,255,.22)');cx.fillStyle=g;cx.beginPath();cx.arc(z.x,z.y,z.r,0,7);cx.fill();
+   cx.strokeStyle=z.col;cx.lineWidth=4;cx.setLineDash([18,12]);cx.lineDashOffset=-T*30;cx.beginPath();cx.arc(z.x,z.y,z.r,0,7);cx.stroke();cx.setLineDash([]);
+   for(let i=1;i<=3;i++){const ph=(T*.5+i/3)%1;cx.globalAlpha=.25*k*out*(1-ph);cx.beginPath();cx.arc(z.x,z.y,z.r*ph,0,7);cx.stroke()}cx.restore()}
+  for(const o of G.orbs){const g=cx.createRadialGradient(o.x,o.y,2,o.x,o.y,o.r);g.addColorStop(0,'#fff');g.addColorStop(.35,'#4aa8ff');g.addColorStop(1,'rgba(74,168,255,0)');
   cx.fillStyle=g;cx.beginPath();cx.arc(o.x,o.y,o.r*(1+.08*Math.sin(o.t*8)),0,7);cx.fill();cx.strokeStyle='rgba(74,168,255,.3)';cx.lineWidth=2;cx.beginPath();cx.arc(o.x,o.y,o.range,0,7);cx.stroke()}
  for(const q of G.projs){const sp=Assets.get(q.s.sprite);
   if(sp){cx.save();cx.translate(q.x,q.y);cx.rotate(Math.atan2(q.vy,q.vx));const L=q.s.r*3,H2=L*sp.height/sp.width;cx.drawImage(sp,-L/2,-H2/2,L,H2);cx.restore()}
@@ -624,6 +689,8 @@ function draw(){
   if(f.hold){const q=f.c.sk[f.hold.k];if(q.type!=='toggle'){drawTelegraph(f,q);
    if(f.hold.t>=q.hold.start){const pr=Math.min(1,(f.hold.t-q.hold.start)/(q.hold.full-q.hold.start));cx.strokeStyle=pr>=1?'#ffd77a':'#8fd6ff';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16,-Math.PI/2,-Math.PI/2+pr*Math.PI*2);cx.stroke()}}}
   if(f.rct){cx.strokeStyle='#9ef09e';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+6+3*Math.sin(G.t*8),0,7);cx.stroke()}
+  if(f.zen){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#4fd0ff';cx.lineWidth=3;cx.globalAlpha=.5+.25*Math.sin(performance.now()/120);cx.beginPath();cx.arc(f.x,f.y,CFG.r+10,0,7);cx.stroke();cx.restore()}   // 全集中呼吸：藍色氣息環
+  if(f.enh){cx.save();cx.globalCompositeOperation='lighter';cx.fillStyle='#7fd0ff';cx.globalAlpha=.3+.15*Math.sin(performance.now()/100);cx.beginPath();cx.arc(f.x,f.y,CFG.r*.95,0,7);cx.fill();cx.restore()}   // 水面斬：下一次普攻已強化
   if(f.stun>.3){cx.fillStyle='#fff';cx.font='16px system-ui';cx.fillText('💫',f.x,f.y-CFG.r-6)}
   if(f.sts.length){cx.fillStyle='#ffd77a';cx.font='bold 14px system-ui';cx.textAlign='center';cx.fillText(f.sts.map(x=>STATUS_NAME[x.k]||x.k).join(' '),f.x,f.y+CFG.r+18)}
   cx.globalAlpha=1};
@@ -673,9 +740,9 @@ function draw(){
  // 按鈕冷卻 / 能量不足顯示
  for(const {el,k,i,mini,mj} of skBtns){
   if(mini){const on=(G.p.mode[k]||0)===mj;el.style.borderColor=on?'#fff':'';el.style.background=on?'rgba(232,194,90,.45)':'';continue}
-  const q=G.p.c.sk[k],c=costOf(G.p,k);
-  el.innerHTML='<em>'+(KEYMAP[i]||'').toUpperCase()+'</em>'+(q.bf&&G.p.bfReady>0?'⚡黑閃':q.name)+'<small>'+(q.tag?q.tag(G.p):q.type==='toggle'?(G.p[q.flag||'rct']?'● 開啟':'○ 關閉'):(c?(Math.round(c*10)/10)+' '+resName(G.p):'免費'))+'</small>';
-  if(i===0)el.style.borderColor=G.p.bfReady>0?'#ff4a5a':'';
+  const q=skNow(G.p,k),c=costOf(G.p,k),chn=G.p.ch[k];
+  el.innerHTML='<em>'+(KEYMAP[i]||'').toUpperCase()+'</em>'+(q.bf&&G.p.bfReady>0?'⚡黑閃':(i===0&&G.p.enh&&q.enh?q.enh.name:q.name))+'<small>'+(chn?((chn.kind==='seq'?'第 '+(chn.i+1)+' 段 ':'派生 ')+chn.t.toFixed(1)+'s'):q.tag?q.tag(G.p):q.type==='toggle'?(G.p[q.flag||'rct']?'● 開啟':'○ 關閉'):(c?(Math.round(c*10)/10)+' '+resName(G.p):'免費'))+'</small>';
+  if(i===0)el.style.borderColor=G.p.bfReady>0?'#ff4a5a':(G.p.enh&&q.enh?'#4fd0ff':'');
   el.style.opacity=((G.p.en<c||(stat(G.p,'burnout',0)&&i>0)||(q.needStand&&!G.p.stand))?.45:1)*BO();ring(el,q.cd&&G.p.cd[k]>0?1-G.p.cd[k]/q.cd:-1);const ic=Assets.get(q.icon);el.style.backgroundImage=ic?'url('+ASSET_BASE+q.icon+')':'';el.style.backgroundSize='cover';el.style.backgroundPosition='center'}
  {const inside=G.p.c.domDef&&inEnemyDom(G.p),gl=inside?G.p.c.domDef.name:'格擋',UR=!!(G.p.c.domDef&&G.p.c.domDef.useRes),dg=UR?Math.ceil(G.p.en):(G.p.domMax?Math.ceil(G.p.domGauge):0),dmx=UR?G.p.enMax:(G.p.domMax||1000),holding=!!(G.p.blocking||G.p.dd||keys.G||keys.Shift||keys.o),label=gl+'|'+dg+'|'+dmx+'|'+(UR&&!G.p.stand)+'|'+(G.p.domOverload?'過載':'')+'|'+holding;if($('bG').dataset.l!==label){$('bG').dataset.l=label;$('bG').innerHTML=gl+'<small>'+(G.p.domOverload?'過載恢復中':(inside&&UR&&!G.p.stand?'需先開替身':inside&&holding?'量條 '+dg+'/'+dmx:'按住'))+'</small>'}$('bG').style.borderColor=gl==='格擋'?'':G.p.domOverload?'#ff5b45':'#ffd77a';ring($('bG'),inside&&holding?(UR?1-G.p.en/G.p.enMax:G.p.domMax?1-G.p.domGauge/G.p.domMax:-1):-1)}
  const dl=G.p.bfWin>0?'黑閃':'閃避';if($('bD').textContent!==dl)$('bD').textContent=dl;$('bD').style.borderColor=G.p.bfWin>0?'#ff4a5a':'';$('bD').style.opacity=(G.p.bfWin>0?1:(G.p.dashCd>0||G.p.en<dashCost(G.p)?.5:1))*BO();ring($('bD'),G.p.dashCd>0?1-G.p.dashCd/CFG.dash.cd:-1)}
@@ -765,5 +832,6 @@ requestAnimationFrame(loop);
 </script>
 <!-- UI 外掛（選角 / 角色詳情）：載入失敗時，上面主程式原本的選角仍然可用 -->
 <script src="js_fighter/ui_info.js"></script>
+<script src="js_fighter/ui_guide.js"></script>
 <script src="js_fighter/ui_select.js"></script>
 </body></html>
