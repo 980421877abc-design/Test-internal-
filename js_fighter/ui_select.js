@@ -12,9 +12,9 @@
  *  │ 【B 樣式】   style.textContent  所有顏色 / 字級 / 位置 / 大小（CSS）       │
  *  │ 【C 文字轉換】autoSections    沒寫介紹時，技能頁自動產生的說明             │
  *  │ 【D 選角畫面】render()         左邊立繪 + 右邊頭像格 + 底部按鈕            │
- *  │ 【E 詳情畫面】renderDet()      「角色技能」三個分頁（技能效果/機制/屬性）  │
+ *  │ 【E 詳情畫面】renderDet()      「角色技能」三個分頁（技能效果/玩法介紹/屬性）│
  *  │ 【F 操作】   click 事件         按鈕點擊後做什麼                           │
- *  │ 介紹「文字」不在這個檔案 → js_fighter/ui_info.js                          │
+ *  │ 技能說明文字 → js_fighter/ui_info.js ；「玩法介紹」文字 → ui_guide.js     │
  *  └────────────────────────────────────────────────────────────────────────┘
  * ════════════════════════════════════════════════════════════════ */
 (() => {
@@ -98,6 +98,8 @@
 .dsec{font-size:23px;color:#4fc3f7;margin-top:16px;font-weight:700}
 .dd{font-size:25px;line-height:1.6;margin-top:4px}
 .dd.mini{font-size:20px;opacity:.75}
+.gsec{font-size:30px;margin-top:20px}.dbody .gsec:first-child{margin-top:0}
+.gli{position:relative;padding-left:24px;margin-top:6px}.gli::before{content:"•";position:absolute;left:5px;color:#6fd3ff}
 .srow{display:flex;align-items:center;gap:16px;margin:14px 0;font-size:24px}
 .srow .k{width:236px;font-weight:800;white-space:nowrap}.srow .v{width:130px;text-align:right;color:#6fd3ff;font-weight:900}
 .srow .bar{flex:1;height:16px;background:#0f2a52;border-radius:8px;overflow:hidden}.srow .bar i{display:block;height:100%;background:linear-gradient(90deg,#3a8dff,#6fd3ff)}
@@ -149,6 +151,22 @@
     }).join('');
   }
 
+  /* 玩法介紹文字（ui_guide.js 的 GUIDE[角色代號]）轉成畫面：
+   *   【小標題】= 標題；空白行 = 分段；「・」或「-」開頭 = 條列；其他 = 一般文字 */
+  function renderGuide(text) {
+    const out = []; let para = [];
+    const flush = () => { if (para.length) { out.push(`<div class="dd">${para.map(esc).join('<br>')}</div>`); para = []; } };
+    for (const raw of String(text).split('\n')) {
+      const line = raw.trim(), m = line.match(/^【(.+?)】(.*)$/);
+      if (m) { flush(); out.push(`<div class="dsec gsec">${esc(m[1])}</div>`); if (m[2].trim()) para.push(m[2].trim()); }
+      else if (!line) flush();
+      else if (/^[・\-•]/.test(line)) { flush(); out.push(`<div class="dd gli">${esc(line.replace(/^[・\-•]\s*/, ''))}</div>`); }
+      else para.push(line);
+    }
+    flush();
+    return out.join('');
+  }
+
   /* ═══════════════ 【D 選角畫面】左立繪 + 右頭像格 ═══════════════ */
   function render() {
     const id = cur(), c = CHARS[id], I = info(id);
@@ -180,7 +198,7 @@
     if (st.det) renderDet();
   }
 
-  /* ═══════════════ 【E 詳情畫面】技能效果 / 角色機制 / 人物屬性 ═══════════════ */
+  /* ═══════════════ 【E 詳情畫面】技能效果 / 玩法介紹 / 人物屬性 ═══════════════ */
   function renderDet() {
     const id = cur(), c = CHARS[id], I = info(id), D = S.querySelector('#bfdet');
     const keys = Object.keys(c.sk);
@@ -195,9 +213,12 @@
         secs.map(([h, d]) => `<div class="dsec">${esc(h)}</div><div class="dd">${esc(d)}</div>`).join('') +
         `<div class="dsec">數值</div><div class="dd mini">${esc(auto.find(x => x[0] === '數值')[1])}</div>`;
     } else if (st.tab === 'mech') {
-      const list = I.mechanics || Object.keys(MECH_ZH).filter(k => c[k] != null).map(k => ({ t: MECH_ZH[k], d: '（說明尚未撰寫，可在 js_fighter/ui_info.js 補上）' }));
-      body = list.length ? list.map(m => `<div class="dsec" style="margin-top:0;font-size:30px;color:#6fd3ff">${esc(m.t)}</div><div class="dd" style="margin-bottom:18px">${esc(m.d)}</div>`).join('')
-        : '<div class="dd">這個角色沒有特殊機制。</div>';
+      if (window.GUIDE && GUIDE[id]) body = renderGuide(GUIDE[id]);   // 玩法介紹：純文字（js_fighter/ui_guide.js）
+      else {                                                         // 還沒寫玩法介紹的角色：先顯示機制名稱清單
+        const list = I.mechanics || Object.keys(MECH_ZH).filter(k => c[k] != null).map(k => ({ t: MECH_ZH[k], d: '（還沒有玩法介紹：可在 js_fighter/ui_guide.js 補上）' }));
+        body = '<div class="dd mini" style="margin-bottom:14px">這個角色還沒有玩法介紹，可在 js_fighter/ui_guide.js 補上。</div>' +
+          (list.length ? list.map(m => `<div class="dsec" style="margin-top:0;font-size:30px;color:#6fd3ff">${esc(m.t)}</div><div class="dd" style="margin-bottom:18px">${esc(m.d)}</div>`).join('') : '');
+      }
     } else {
       body = `<div class="dtitle">${esc(c.name)}</div><div class="dd mini">${esc(c.work || '')}</div>` + statRows(id);
     }
@@ -206,7 +227,7 @@
       <div class="dh1">角色技能</div><button class="x" data-act="close">✕</button>
       <div class="dcard" style="--c:${c.color}"><div class="dp" style="--c:${c.color}">${avatar(c)}</div>
         <div class="dn">${esc(c.name)}</div><div class="dt">${esc(I.tags || c.work || '')}</div></div>
-      <div class="tabs">${[['skill', '技能效果'], ['mech', '角色機制'], ['stat', '人物屬性']].map(([k, n]) => `<button class="tab ${st.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${n}</button>`).join('')}</div>
+      <div class="tabs">${[['skill', '技能效果'], ['mech', '玩法介紹'], ['stat', '人物屬性']].map(([k, n]) => `<button class="tab ${st.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${n}</button>`).join('')}</div>
       ${chips}<div class="dbody ${st.tab === 'skill' ? '' : 'tall'}">${body}</div>
       <button class="bbtn main dback" data-act="close">返回選角</button>`;
   }
