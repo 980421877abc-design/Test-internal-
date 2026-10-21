@@ -67,7 +67,7 @@
 .btn.dim{opacity:.45}
 .grid{position:absolute;left:16px;right:12px;top:86px;bottom:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;overflow-y:auto;align-content:start;padding-right:4px}
 .card{position:relative;border:2px solid #1d3f6c;border-radius:8px;background:rgba(8,20,44,.9);display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px}
-.card .av{position:relative;width:78px;height:78px;border-radius:50%;border:2px solid var(--c);overflow:hidden;background:radial-gradient(circle,color-mix(in srgb,var(--c) 50%,#0a1530),#0a1530)}
+.card .av{position:relative;width:50px;height:50px;border-radius:50%;border:2px solid var(--c);overflow:hidden;background:radial-gradient(circle,color-mix(in srgb,var(--c) 50%,#0a1530),#0a1530)}
 .card .av b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff;opacity:.85}
 .card .nm{margin-top:6px;font-size:16px;font-weight:700;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .card.on{border-color:#6fd3ff;box-shadow:0 0 14px #4aa8ff88}
