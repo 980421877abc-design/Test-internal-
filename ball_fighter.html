@@ -129,7 +129,7 @@ function muzzle(f,s,a){if(!s.fx||s.noMuzzle)return;const px=f.x+Math.cos(a.ang)*
  for(let i=0;i<10;i++){const aa=a.ang+(Math.random()-.5),v=500+Math.random()*600;G.fx.push({k:'sp',x:px,y:py,vx:Math.cos(aa)*v,vy:Math.sin(aa)*v,t:.25,m:.25,col:s.col,w:3,dr:4})}
  if(s.heavy){G.fx.push({k:'flash',t:.25,m:.25,col:s.col});shake(10)}}
 function aura(f,dt){const h=f.hold,a=f.act,S=f.c.sk;let col=null,n=0,rad=0; // 蓄力吸附粒子 / 領域詠唱 / 反轉術式綠光
- if(h){const q=S[h.k];if(q.type!=='toggle'&&q.type!=='channel'&&h.t>=q.hold.start){const pr=Math.min(1,(h.t-q.hold.start)/(q.hold.full-q.hold.start));col=q.col||f.c.color;n=1+pr*2.5;rad=100+pr*80;
+ if(h){const q=S[h.k];if(q.type!=='toggle'&&q.type!=='channel'&&!q.noCharge&&h.t>=q.hold.start){const pr=Math.min(1,(h.t-q.hold.start)/(q.hold.full-q.hold.start));col=q.col||f.c.color;n=1+pr*2.5;rad=100+pr*80;
    if(!h.fd&&pr>=1){h.fd=1;G.fx.push({k:'ring',x:f.x,y:f.y,t:.35,m:.35,r:CFG.r*3.2,col:'#ffd77a'});spark(f.x,f.y,'#ffd77a',16,520,.4,3);if(f===G.p)pop(f,'蓄滿！','#ffd77a')}}}
  else if(a&&S[a.k].type==='domain'){col=S[a.k].domain.col||'#c9a3ff';n=3.5;rad=300}
  if(col){let c=Math.floor(n);if(Math.random()<n-c)c++;suck(f,col,c,rad,.32)}
@@ -560,7 +560,10 @@ function resize(){const iw=innerWidth,ih=innerHeight;rot=manualRot!==null?manual
  const dpr=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;cv.width=w*dpr;cv.height=h*dpr;
  view={s:h/CFG.viewH,dpr,w,h}}
 /* 蓄力預示：按住技能時顯示攻擊範圍（直線飛行物＝帶寬度的長條；範圍技＝落點圓）。技能可用 pv(f,是否蓄滿) 自訂形狀 */
-function drawTelegraph(f,q){const h=f.hold,full=h.t>=q.hold.full,charging=h.t>=q.hold.start,v=full&&q.full?Object.assign({},q,q.full):q;
+function drawTelegraph(f,q){const h=f.hold;
+ if(GIYU_USES.has(q.use)){if(h.t<q.hold.start)return;const foe=f===G.p?G.e:G.p,aim=G.domains.some(d=>d.own===f&&!d.clash)?{x:foe.x,y:foe.y}:h.aim;   // 義勇技能：按住時顯示方向與距離
+  drawGiyuIndicator(f,skNow(f,h.k),{ang:Math.atan2(aim.y-f.y,aim.x-f.x)},.9);return}
+ const full=h.t>=q.hold.full,charging=h.t>=q.hold.start,v=full&&q.full?Object.assign({},q,q.full):q;
  let sh=q.pv?q.pv(f,full,q):null;
  if(!sh){if(q.type==='proj'||q.type==='homing'||q.type==='channel')sh={k:'line',len:Math.min(v.speed*v.life,3000),w:v.r*2};else if(q.type==='zone')sh={k:'zone',r:v.rad,range:v.range};else if(q.type==='melee'&&q.hold)sh={k:'fan',range:v.range,arc:v.arc};else if(q.type==='throw')sh={k:'throw',range:v.range,rad:v.rad,mode:v.mode||'line',w:(v.r||22)*2}}
  if(!sh)return;
@@ -626,11 +629,22 @@ function drawClashFx(d){const T=performance.now()/1000,f=d.own,o=d.clash.own;cx.
  cx.restore()}
  function drawWaterRange(x,y,ang,arc,R,al){drawFan(x,y,ang,arc,R,al,'#4fd0ff');cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al;cx.strokeStyle='#bfeaff';cx.lineWidth=2;cx.setLineDash([18,12]);cx.lineDashOffset=-performance.now()/12;cx.beginPath();cx.arc(x,y,R*.78,ang-arc/2,ang+arc/2);cx.stroke();cx.setLineDash([]);for(const q of [0,.5,1]){const aa=ang-arc/2+arc*q;cx.beginPath();cx.moveTo(x+Math.cos(aa)*CFG.r,y+Math.sin(aa)*CFG.r);cx.lineTo(x+Math.cos(aa)*R,y+Math.sin(aa)*R);cx.stroke()}const ex=x+Math.cos(ang)*R,ey=y+Math.sin(ang)*R;cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(ex,ey,10+6*Math.sin(performance.now()/100),0,7);cx.stroke();cx.restore()}
  const GIYU_USES=new Set(['suimen','giyuB','giyuThrust','giyuWheel','giyuVortex','giyuSeq','nagi']);
- function giyuRange(q){return q.use==='suimen'?(q.lungeDist||q.range||120):(q.range||q.reach||q.lungeDist||q.rad||(q.nagi&&q.nagi.r)||220)}
- function drawGiyuIndicator(f,q,a,al){const R=giyuRange(q),ang=a.ang,col='#4fd0ff',T=performance.now()/1000;cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al;cx.lineCap='round';
-  if(q.use==='giyuVortex'||q.use==='nagi'){cx.strokeStyle='#7fd0ff';cx.lineWidth=3;cx.setLineDash([18,12]);cx.lineDashOffset=-T*80;cx.beginPath();cx.arc(f.x,f.y,R,0,7);cx.stroke();cx.setLineDash([]);cx.strokeStyle='#dffaff';cx.lineWidth=2;cx.globalAlpha=al*.7;cx.beginPath();cx.arc(f.x,f.y,R*.72,0,7);cx.stroke()}
-  else{const x0=CFG.r,x2=f.x+Math.cos(ang)*R,y2=f.y+Math.sin(ang)*R;cx.translate(f.x,f.y);cx.rotate(ang);const g=cx.createLinearGradient(x0,0,R,0);g.addColorStop(0,'#bfeaff');g.addColorStop(.55,col);g.addColorStop(1,'rgba(79,208,255,0)');cx.globalAlpha=al*.8;cx.fillStyle=g;cx.fillRect(x0,-14,R-x0,28);cx.globalAlpha=al;cx.strokeStyle=col;cx.lineWidth=3;cx.setLineDash([24,14]);cx.lineDashOffset=-T*110;cx.beginPath();cx.moveTo(x0,-14);cx.lineTo(R,-14);cx.moveTo(x0,14);cx.lineTo(R,14);cx.stroke();cx.setLineDash([]);for(let z=x0+24+(T*180)%(60);z<R-8;z+=60){cx.beginPath();cx.moveTo(z-14,-8);cx.lineTo(z,0);cx.lineTo(z-14,8);cx.stroke()}cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(R,0,13+3*Math.sin(T*10),0,7);cx.moveTo(R-22,0);cx.lineTo(R-7,0);cx.moveTo(R,-22);cx.lineTo(R,-7);cx.stroke();cx.restore();if(q.arc){cx.globalAlpha=al*.25;cx.fillStyle=col;cx.beginPath();cx.moveTo(f.x,f.y);cx.arc(f.x,f.y,R,ang-q.arc/2,ang+q.arc/2);cx.closePath();cx.fill()}}
-  cx.save();cx.globalAlpha=al;cx.fillStyle='#e8fbff';cx.font='bold 13px system-ui';cx.textAlign='center';cx.fillText((q.use==='suimen'?'最大突進 ':'距離 ')+Math.round(R),f.x+Math.cos(ang)*R*.58,f.y+Math.sin(ang)*R*.58-22);cx.restore()}
+ function giyuRange(q){const L=(q.lungeDist||0)*(q.hits||1);   // 指示器距離 = 實際能打到的最遠中心距離
+  if(q.use==='giyuVortex')return q.rad;if(q.use==='nagi')return q.nagi.r;if(q.use==='suimen')return L+q.range;return L+(q.reach||0)+CFG.r*2}
+ function drawGiyuIndicator(f,q,a,al){const R=giyuRange(q),ang=a.ang,col='#4fd0ff',T=performance.now()/1000,circ=q.use==='giyuVortex'||q.use==='nagi';
+  cx.save();cx.globalCompositeOperation='lighter';cx.lineCap='round';cx.globalAlpha=al;
+  if(circ){cx.strokeStyle='#7fd0ff';cx.lineWidth=3;cx.setLineDash([18,12]);cx.lineDashOffset=-T*80;cx.beginPath();cx.arc(f.x,f.y,R,0,7);cx.stroke();cx.setLineDash([]);
+   cx.fillStyle='rgba(79,208,255,.12)';cx.fill();cx.strokeStyle='#dffaff';cx.lineWidth=2;cx.globalAlpha=al*.7;cx.beginPath();cx.arc(f.x,f.y,R*.72,0,7);cx.stroke()}
+  else{const x0=CFG.r,lw=CFG.r;cx.save();cx.translate(f.x,f.y);cx.rotate(ang);
+   const g=cx.createLinearGradient(x0,0,R,0);g.addColorStop(0,'#bfeaff');g.addColorStop(.55,col);g.addColorStop(1,'rgba(79,208,255,0)');
+   cx.globalAlpha=al*.45;cx.fillStyle=g;cx.fillRect(x0,-lw,R-x0,lw*2);cx.globalAlpha=al;cx.strokeStyle=col;cx.lineWidth=3;cx.setLineDash([24,14]);cx.lineDashOffset=-T*110;
+   cx.beginPath();cx.moveTo(x0,-lw);cx.lineTo(R,-lw);cx.moveTo(x0,lw);cx.lineTo(R,lw);cx.stroke();cx.setLineDash([]);
+   for(let z=x0+24+(T*180)%60;z<R-8;z+=60){cx.beginPath();cx.moveTo(z-14,-9);cx.lineTo(z,0);cx.lineTo(z-14,9);cx.stroke()}
+   cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(R,0,13+3*Math.sin(T*10),0,7);cx.moveTo(R-22,0);cx.lineTo(R-7,0);cx.moveTo(R,-22);cx.lineTo(R,-7);cx.stroke();cx.restore();
+   if(q.use==='suimen'&&q.arc){const ex=f.x+Math.cos(ang)*q.lungeDist,ey=f.y+Math.sin(ang)*q.lungeDist;drawFan(ex,ey,ang,q.arc,q.range,al*.8,col)}}   // 水面斬：突進終點再畫斬擊扇形
+  cx.restore();
+  cx.save();cx.globalAlpha=Math.min(1,al+.1);cx.fillStyle='#e8fbff';cx.font='bold 15px system-ui';cx.textAlign='center';cx.shadowColor='#000';cx.shadowBlur=4;
+  const lbl=(circ?'範圍半徑 ':'距離 ')+Math.round(R),lx=circ?f.x:f.x+Math.cos(ang)*R*.5,ly=circ?f.y-R-10:f.y+Math.sin(ang)*R*.5-CFG.r-8;cx.fillText(lbl,lx,ly);cx.restore()}
  function drawFan(x,y,ang,arc,R,al,col){cx.save();cx.globalCompositeOperation='lighter';const g=cx.createRadialGradient(x,y,CFG.r,x,y,R);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,col);   // 扇形攻擊範圍
  cx.globalAlpha=al*.55;cx.fillStyle=g;cx.beginPath();cx.moveTo(x,y);cx.arc(x,y,R,ang-arc/2,ang+arc/2);cx.closePath();cx.fill();cx.globalAlpha=Math.min(1,al*1.2);cx.strokeStyle=col;cx.lineWidth=3;cx.stroke();cx.restore()}
 function domBg(){for(const d of G.domains){if(d.clash||!d.bg)continue;const img=Assets.get(d.bg);if(img)return{d,img,a:Math.min(1,d.t/.6,Math.max(0,(d.life-d.t)/.5))}}return null}   // 領域成功展開（未碰撞中）→ 場景背景換成領域圖
@@ -710,7 +724,7 @@ function draw(){
   if(f.act){const q=f.act.v||f.c.sk[f.act.k],water=q.use==='suimen',giyu=GIYU_USES.has(q.use);if(giyu){const al=.35+.65*(1-f.act.t/(q.wind||.3));drawGiyuIndicator(f,q,f.act,al)}else if(q.showRange&&q.arc&&q.range&&!sureHit(f))drawFan(f.x,f.y,f.act.ang,q.arc,q.range+CFG.r,.35+.65*(1-f.act.t/q.wind),f.c.color)}   // 前搖：義勇技能顯示方向、距離與範圍
   if(f.act){cx.strokeStyle='#ffb44a';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+8,0,7*(1-f.act.t/f.c.sk[f.act.k].wind));cx.stroke()}
   if(f.hold){const q=f.c.sk[f.hold.k];if(q.type!=='toggle'){drawTelegraph(f,q);
-   if(f.hold.t>=q.hold.start){const pr=Math.min(1,(f.hold.t-q.hold.start)/(q.hold.full-q.hold.start));cx.strokeStyle=pr>=1?'#ffd77a':'#8fd6ff';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16,-Math.PI/2,-Math.PI/2+pr*Math.PI*2);cx.stroke()}}}
+   if(!q.noCharge&&f.hold.t>=q.hold.start){const pr=Math.min(1,(f.hold.t-q.hold.start)/(q.hold.full-q.hold.start));cx.strokeStyle=pr>=1?'#ffd77a':'#8fd6ff';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16,-Math.PI/2,-Math.PI/2+pr*Math.PI*2);cx.stroke()}}}
   if(f.rct){cx.strokeStyle='#9ef09e';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+6+3*Math.sin(G.t*8),0,7);cx.stroke()}
   if(f.zen){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#4fd0ff';cx.lineWidth=3;cx.globalAlpha=.5+.25*Math.sin(performance.now()/120);cx.beginPath();cx.arc(f.x,f.y,CFG.r+10,0,7);cx.stroke();cx.restore()}   // 全集中呼吸：藍色氣息環
   if(f.enh){cx.save();cx.globalCompositeOperation='lighter';cx.fillStyle='#7fd0ff';cx.globalAlpha=.3+.15*Math.sin(performance.now()/100);cx.beginPath();cx.arc(f.x,f.y,CFG.r*.95,0,7);cx.fill();cx.restore()}   // 水面斬：下一次普攻已強化
