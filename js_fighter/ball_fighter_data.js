@@ -684,7 +684,53 @@ const CHARS = {
   },
 };
 
+  /* ═════════════════ 吉良吉影（JOJO的奇妙冒險） ═════════════════ */
+  kira: {
+    name: '吉良吉影', work: 'JOJO的奇妙冒險', color: '#ff7eb6', glyph: '影',
+    img: 'image/kira.png',
 
+    hp: 7500, speed: 500,
+    res: { name: '替身能量', max: 2500, regen: 50, blockDrain: 30, color: '#ff7eb6' },
+    aiDist: 260,
+
+    stand: { name: '殺手皇后', minEnergy: 200, hitDrain: .3 },
+
+    sk: {
+      a: { name:'拳擊', type:'melee', cost:0, cd:.4, wind:.08,
+           dmg:70, range:130, arc:1.2, kb:100,
+           markDmg:300, markDelay:2, markCd:5,
+           standHit:{ delay:.15, dmg:70 } },
+
+      b: { name:'第一炸彈', type:'melee', use:'kiraBomb',
+           cost:0, cd:6, wind:.1, aiGap:1.2,
+           dashDist:380, dashDur:.18,
+           bombDmg:500, bombRad:200, bombStun:1, bombLife:8, bombCd:6,
+           col:'#ff7eb6' },
+
+      c: { name:'空氣彈', type:'toggle', use:'kiraAir',
+           hold:{ start:0, full:99 },
+           cost:120, cd:7, wind:.1,
+           dmg:450, rad:180, slowDur:2, slowV:.5,
+           maxHold:4, speed:620, turnMax:3,
+           tag: f => (f.kira && f.kira.air) ? '飛行中' : '按住發射',
+           col:'#ffb3d9' },
+
+      d: { name:'枯萎穿心攻擊', type:'proj', use:'kiraCar',
+           cost:150, cd:9, wind:.1,
+           speed:700, life:2.5, detectRad:320, dashSpeed:1300,
+           r:24, rad:160, dmg:350, kb:200,
+           sprite:'image/kira_car.png',
+           col:'#ff4a8a' },
+
+      e: { name:'敗者食塵', type:'melee', use:'kiraBites', ult:1,
+           cost:0, cd:25, wind:.3,
+           rewind:10, dmg:2000, heal:2500, despairMax:100,
+           col:'#ff7eb6' },
+
+      x: { name:'替身開關', type:'toggle', flag:'stand', side:'L',
+           cost:0, cd:0, wind:.05 },
+    },
+  },
 /* ───────────── 附：新增「丟擲」技能的寫法（複製貼到某角色的 sk 裡，改名字與數字即可） ─────────────
  *  拖曳按鈕選擇落點，放開丟出；落地範圍內造成傷害。不拖直接放開 = 丟向對手。
  *
