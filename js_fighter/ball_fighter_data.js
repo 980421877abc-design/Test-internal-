@@ -703,7 +703,7 @@ const CHARS = {
       b: { name:'第一炸彈', type:'melee', needStand:1, use:'kiraBomb',
            hold:{ start:.05, full:99 }, aimMove:1, noCharge:1,
            cost:0, cd:6, wind:.1, aiGap:1.2,
-           dashDist:380, dashDur:.18,
+           dashDist:380, dashDur:.18, dashDmg:90,
            bombDmg:500, bombRad:200, bombStun:1, bombLife:8, bombCd:6,
            col:'#ff7eb6' },
 

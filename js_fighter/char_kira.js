@@ -60,6 +60,7 @@
       dist: s.dashDist || 380, dur: s.dashDur || .18,
       onHit: target => {
         if (!alive(target) || k.bomb) return;
+        if (typeof hit === 'function') hit(target, Math.max(1, s.dashDmg || 90), f.x, f.y, 80, 0, s, f);
         k.bomb = { type:'enemy', target, x:target.x, y:target.y, t:0, life:s.bombLife || 8 };
         f.cd.b = 0;
         if (typeof pop === 'function') pop(target, 'KILLER QUEEN', PINK);
@@ -199,8 +200,24 @@
   if(typeof oldUpdate==='function'&&!oldUpdate._kiraWrapped){const updateWrap=function(dt){oldUpdate(dt);if(G.state!=='fight')return;for(const f of [G.p,G.e])if(f&&f.c===C)updateKira(f,dt);updateCars(dt);if(G.kiraRewind){G.kiraRewind.t+=dt;if(G.kiraRewind.t>=G.kiraRewind.T)G.kiraRewind=null}};updateWrap._kiraWrapped=true;window.update=updateWrap}
 
   /* 空氣彈按鈕：捕獲階段攔截主程式的普通 toggle 行為。 */
-  function bindAir(){for(const el of document.querySelectorAll('#stage .b')){if(el.dataset.k!=='c'||el._kiraAirBound)continue;el._kiraAirBound=true;let active=false;el.addEventListener('pointerdown',e=>{const f=G.p;if(!f||f.c!==C||ensure(f).air||!canCast(f,'c'))return;e.stopPropagation();e.preventDefault();el.setPointerCapture(e.pointerId);active=true;const s=C.sk.c;f.en-=s.cost;f.cd.c=s.cd;launchAir(f,enemyOf(f),s);},true);el.addEventListener('pointermove',e=>{if(!active)return;e.stopPropagation();const f=G.p,k=f&&ensure(f);if(k&&k.air){k.airTurn=Math.max(-1,Math.min(1,(k.airTurn||0)+e.movementX/70));k.airTurn*=.96}},true);const up=e=>{if(!active)return;active=false;e.stopPropagation();const f=G.p;if(f)explodeAir(f)};el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}}
+  function bindAir(){for(const el of document.querySelectorAll('#stage .b')){if(el.dataset.k!=='c'||el._kiraAirBound)continue;el._kiraAirBound=true;let active=false,startX=0;el.addEventListener('pointerdown',e=>{const f=G.p;if(!f||f.c!==C||ensure(f).air||!canCast(f,'c'))return;e.stopPropagation();e.preventDefault();el.setPointerCapture(e.pointerId);active=true;startX=e.clientX;const s=C.sk.c;f.en-=s.cost;f.cd.c=s.cd;launchAir(f,enemyOf(f),s);},true);el.addEventListener('pointermove',e=>{if(!active)return;e.stopPropagation();const f=G.p,k=f&&ensure(f);if(k&&k.air){const dx=e.clientX-startX;k.airTurn=Math.max(-1,Math.min(1,dx/80))}},true);const up=e=>{if(!active)return;active=false;e.stopPropagation();const f=G.p;if(f)explodeAir(f)};el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}}
   if(typeof MutationObserver!=='undefined'&&document.getElementById('stage'))new MutationObserver(bindAir).observe(document.getElementById('stage'),{childList:true,subtree:true});bindAir();
+
+  /* 第一炸彈按鈕：沿用主程式的 holdStart/holdRelease，但把拖曳座標明確寫回 hold.aim。 */
+  function bindBombAim(){
+    for(const el of document.querySelectorAll('#stage .b')){
+      if(el.dataset.k!=='b'||el._kiraBombAimBound)continue;
+      el._kiraBombAimBound=true;
+      let pid=null,sx=0,sy=0;
+      const aimOf=e=>{const f=G.p,[dx,dy]=d2s(e.clientX-sx,e.clientY-sy);return Math.hypot(dx,dy)>12?{x:f.x+dx*8,y:f.y+dy*8}:{x:enemyOf(f).x,y:enemyOf(f).y}};
+      el.addEventListener('pointerdown',e=>{pid=e.pointerId;sx=e.clientX;sy=e.clientY;el.setPointerCapture(pid)},true);
+      el.addEventListener('pointermove',e=>{if(e.pointerId!==pid||!G.p||!G.p.hold||G.p.hold.k!=='b')return;G.p.hold.aim=aimOf(e)},true);
+      el.addEventListener('pointerup',()=>{pid=null},true);
+      el.addEventListener('pointercancel',()=>{pid=null},true);
+    }
+  }
+  if(typeof MutationObserver!=='undefined'&&document.getElementById('stage'))new MutationObserver(bindBombAim).observe(document.getElementById('stage'),{childList:true,subtree:true});
+  bindBombAim();
 
   function drawKiraWorld(){const T=performance.now()/1000;cx.save();cx.scale(view.s,view.s);cx.translate(-cam.x,-cam.y);for(const f of [G.p,G.e]){if(f&&f.c===C&&f._kiraMark){const p=f._kiraMark,k=p.t/p.total;cx.save();cx.translate(f.x,f.y);cx.globalCompositeOperation='lighter';cx.strokeStyle=PINK;cx.lineWidth=4;cx.beginPath();cx.arc(0,0,CFG.r+16,-Math.PI/2,-Math.PI/2+Math.PI*2*k);cx.stroke();cx.strokeStyle=LIGHT;cx.lineWidth=2;cx.beginPath();cx.arc(0,0,CFG.r+23,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-k));cx.stroke();cx.fillStyle=PINK;cx.font='bold 16px system-ui';cx.textAlign='center';cx.fillText(k.toFixed(1),0,-CFG.r-30);cx.restore()}const k= f&&f.c===C&&f.kira;if(!k)continue;if(k.bomb){const x=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.x:k.bomb.x,y=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.y:k.bomb.y;cx.save();cx.translate(x,y);cx.globalCompositeOperation='lighter';cx.fillStyle=PINK;cx.beginPath();cx.arc(0,0,18+4*Math.sin(T*12),0,7);cx.fill();cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();cx.fillStyle=GOLD;cx.beginPath();cx.arc(5,-30,5,0,7);cx.fill();cx.fillStyle='#fff';cx.font='bold 12px system-ui';cx.textAlign='center';cx.fillText(Math.max(0,(k.bomb.life||8)-k.bomb.t).toFixed(1),0,-42);cx.restore()}}if(G.kiraCars)for(const c of G.kiraCars){const o=enemyOf(c.own);cx.save();cx.globalAlpha=.35;cx.strokeStyle=c.locked?DEEP:PINK;cx.setLineDash(c.locked?[10,6]:[8,8]);cx.beginPath();cx.arc(c.x,c.y,c.locked?c.s.r*1.5:c.s.detectRad,0,7);cx.stroke();if(c.locked){cx.globalAlpha=.65;cx.beginPath();cx.moveTo(c.x,c.y);cx.lineTo(o.x,o.y);cx.stroke()}cx.restore()}for(const f of [G.p,G.e]){const k=f&&f.c===C&&f.kira;if(!k||!k.air)continue;const a=k.air;cx.save();cx.globalCompositeOperation='lighter';for(let i=0;i<a.trail.length;i++){const q=a.trail[i],v=i/a.trail.length;cx.globalAlpha=v*.45;cx.fillStyle=v>.7?LIGHT:PINK;cx.beginPath();cx.arc(q.x,q.y,5+v*12,0,7);cx.fill()}const g=cx.createRadialGradient(a.x,a.y,2,a.x,a.y,42);g.addColorStop(0,'#fff');g.addColorStop(.35,PINK);g.addColorStop(1,'rgba(255,126,182,0)');cx.globalAlpha=1;cx.fillStyle=g;cx.beginPath();cx.arc(a.x,a.y,42,0,7);cx.fill();cx.restore()}cx.restore()}
 
