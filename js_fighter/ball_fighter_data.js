@@ -135,7 +135,7 @@ const CHARS = {
         fx: 'ao',                  // 特效樣式
         hold: {                    // 按住蓄力
           start: .2,               //   按住超過幾秒才算「蓄力」（短按 = 普通版）
-          full: 1.0,               //   按住幾秒蓄滿 → 放開發射強化版（見下方 full）
+          full: 0.8,               //   按住幾秒蓄滿 → 放開發射強化版（見下方 full）
         },
         cost: 60,
         cd: 1.6,
@@ -167,7 +167,7 @@ const CHARS = {
         use: 'aka',                // 特殊行為（電腦：場上有蒼時打向蒼）
         col: '#ff4a5a',
         fx: 'aka',
-        hold: { start: .2, full: 1.2 },      // 蓄力時間，同蒼的說明
+        hold: { start: .2, full: 0.8 },      // 蓄力時間，同蒼的說明
         cost: 80,
         cd: 2.2,
         wind: .08,
@@ -191,15 +191,15 @@ const CHARS = {
         modes: ['詠唱', '無限制'], // 模式名稱：[0]=詠唱（直線大型投射物）、[1]=無限制（自身爆炸）
         modesSide: 'L',            // 模式切換鈕放在畫面左側（搖桿上方）；不寫 = 跟著技能放右側
         fullMode: 0,               // 第 0 種模式（詠唱）必須蓄滿才能放
-        hold: { start: .2, full: 1.3 },      // 蓄力時間（詠唱要按滿 1.5 秒）
+        hold: { start: .2, full: 1.0 },      // 蓄力時間（詠唱要按滿 1.5 秒）
         cost: 240,
         modeCost: [240, 300],      // 兩種模式各自的消耗（有寫就覆蓋 cost）
         cd: 8,
         wind: .15,
         proj: {                    // 模式 0「詠唱」：直線大型投射物
           dmg: 1500,
-          speed: 1000,
-          r: 55,
+          speed: 1200,
+          r: 80,
           life: 1.4,
           kb: 900,
           heavy: 1,                //   1 = 破防（打到格擋中的對手會破防）
@@ -208,9 +208,9 @@ const CHARS = {
         },
         blast: {                   // 模式 1「無限制」：以自己為中心爆炸
           rad: 500,                //   爆炸半徑（像素）
-          dmg: 1100,
+          dmg: 1500,
           kb: 700,
-          self: .25,               //   自己也會受到 25% 傷害
+          self: .40,               //   自己也會受到 25% 傷害
           col: '#b04aff',
         },
       },
@@ -276,7 +276,7 @@ const CHARS = {
     res: {
       name: '咒力',
       max: 2000,
-      regen: 60,                   // 每秒回復
+      regen: 50,                   // 每秒回復
       blockDrain: 40,              // 按住格擋每秒消耗
     },
     aiDist: 115,                   // 電腦想保持的距離：近戰型所以很近
@@ -388,7 +388,7 @@ const CHARS = {
         use: 'kai',                // 特殊行為（自己領域內變成追蹤彈 = 必中）
         col: '#ff7a2a',
         fx: 'fire',
-        hold: { start: .2, full: 2.5 },        // 按住 3 秒蓄滿
+        hold: { start: .2, full: 2.0 },        // 按住 3 秒蓄滿
         needFull: 1,               // 1 = 一定要蓄滿才能放（沒蓄滿放開 = 取消）
         autoAim: 1,                // 1 = 蓄力期間自動瞄準對手
         autoRelease: 1,            // 1 = 蓄滿後自動發射，不用放開
@@ -396,12 +396,12 @@ const CHARS = {
         cd: 8,
         wind: .15,
         dmg: 900,
-        speed: 950,
+        speed: 1500,
         r: 30,
         life: 1.6,
         kb: 350,
         apply: [                   // 命中後附加的狀態
-          { k: 'dot', dur: 4, v: 60 },       // 灼燒：持續 4 秒、每秒 60 傷害
+          { k: 'dot', dur: 4, v: 120 },       // 灼燒：持續 4 秒、每秒 60 傷害
         ],
       },
 
@@ -414,12 +414,12 @@ const CHARS = {
         lockMove: 1,
         cost: 600,
         cd: 25,
-        wind: 1.5,
-        aiRange: 420,              // 電腦：離對手多近才會展開
+        wind: 1.0,
+        aiRange: 450,              // 電腦：離對手多近才會展開
         domain: {
           r: 2000,                 //   領域範圍半徑（像素）：2000 大於場地對角線 = 全地圖
           life: 6,                 //   領域持續秒數
-          burnout: 7,              //   結束後熔斷秒數
+          burnout: 6,              //   結束後熔斷秒數
           name: '伏魔御廚子',
           col: '#e8453a',
           style: 'shrine',         //   外觀：shrine = 斬擊刻痕（沒有 bg 圖時才會用到）
@@ -582,7 +582,7 @@ const CHARS = {
     glyph: '富',
     img: 'image/giyu.png',
 
-    hp: 9000,
+    hp: 8500,
     speed: 580,
     res: {
       name: '呼吸',                  // 呼吸條
@@ -605,11 +605,11 @@ const CHARS = {
         enh: {                      // 強化版：壹之型 水面斬（範圍斬擊 + 短距離突進；命中 +40 傷害，並回復生命與呼吸條）
           name: '壹之型 水面斬',
           use: 'suimen',
-          range: 210, arc: 2.6,     //   斬擊範圍（待定）
+          range: 210, arc: 3.2,     //   斬擊範圍（待定）
           bonus: 40,                //   額外傷害
           lungeDist: 120, lungeDur: .1,   //   突進距離 / 時間（待定）
           kb: 260,
-          heal: { hp: 150, res: 80 },     //   命中回復：生命 / 呼吸條（待定）
+          heal: { hp: 200, res: 100 },     //   命中回復：生命 / 呼吸條（待定）
         },
       },
 
