@@ -626,7 +626,8 @@ const CHARS = {
           use: 'giyuThrust',
           cost: 100,                      //   （待定）
           window: 3,                      //   派生視窗：命中後幾秒內可用；逾時恢復原技能並進入冷卻
-          dmg: 400, lungeDist: 190, lungeDur: .14, reach: 55, kb: 260,
+          lungeDist: 0, lungeDur: 0,        //   0 = 不位移（避免繼承肆之型的突進數值）
+          dmg: 400, range: 300, thrustW: 36, kb: 260,   //   原地突刺（不位移）：range = 突刺長度（從義勇中心算）、thrustW = 突刺半寬
           slow: { dur: 1, v: .5 },        //   命中：減速 50%，持續 1 秒
         },
       },
@@ -637,6 +638,7 @@ const CHARS = {
         hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,   // 按住 = 顯示方向 / 距離指示器（可邊移動邊瞄準），放開施放；點一下 = 朝對手
         cost: 60, cd: 5, wind: .05,      // （待定）
         dmg: 300, lungeDist: 340, lungeDur: .22, reach: 20, kb: 240,
+        through: 1,                       //   1 = 位移時穿過對手（命中不擊退）
         derive: {
           name: '陸之型 扭轉漩渦',
           use: 'giyuVortex',
@@ -659,6 +661,7 @@ const CHARS = {
         bulge: 120,                       //   半月弧線的外凸幅度（待定）
         arcSigns: [1, -1, 1],             //   三段的弧線方向：逆時針 → 順時針 → 逆時針（1 / -1 對調即可反向）
         reach: 25, kb: 220,
+        through: 1,                       //   1 = 位移時穿過對手（命中不擊退）
         stages: [ { dmg: 200 }, { dmg: 300 }, { dmg: 500 } ],
       },
 
