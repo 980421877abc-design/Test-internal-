@@ -1,9 +1,6 @@
 /* js_fighter/char_kira.js — 吉良吉影（JOJO的奇妙冒險）
- * 殺手皇后粉紅色系 / 小車支援 sprite / 敗者食塵回溯特效 / 絕望值完整累積
- * 數值在 ball_fighter_data.js 的 CHARS.kira
- * 載入：ball_fighter.html，放在 ui_select.js 之前
- * 手機優先：空氣彈用「按住技能鍵 + 按鈕上左右滑動轉向 + 放開引爆」單指操作
- */
+ * 殺手皇后粉紅色系 / 小車支援 sprite / 敗者食塵回溯特效
+ * 載入：ball_fighter.html，放在 ui_select.js 之前 */
 (function () {
   'use strict';
   const ID = 'kira';
@@ -12,13 +9,11 @@
 
   const PINK = '#ff7eb6', LIGHT = '#ffc2dc', DEEP = '#ff4a8a', GOLD = '#ffd77a';
 
-  /* ── 每個吉良實例的自訂狀態 ── */
   function ensureKira(f) {
     if (!f.kira) f.kira = {
       bomb: null, bombCd: 0,
       air: null, airTurn: 0,
       despair: 0, snaps: [], lastSnap: 0,
-      markCd: 0,
     };
     return f.kira;
   }
@@ -39,11 +34,13 @@
     const delay = C.sk.a.markDelay || 2;
     const dmg = C.sk.a.markDmg || 300;
     t._kiraMark = { t: delay, total: delay };
+    // 掛上瞬間：粉色環收束
     G.fx.push({ k:'ring', x:t.x, y:t.y, t:.35, m:.35, r:CFG.r*1.6, col:PINK });
     spark(t.x, t.y, PINK, 12, 380, .35, 3);
     later(delay, () => {
       if (G.state !== 'fight' || !t || t.hp <= 0) return;
       hit(t, dmg, t.x, t.y, 120, 0, null, f);
+      // 引爆：三層粉色環 + 粒子
       G.fx.push({ k:'ring', x:t.x, y:t.y, t:.5, m:.5, r:130, col:PINK });
       G.fx.push({ k:'ring', x:t.x, y:t.y, t:.35, m:.35, r:80, col:'#fff' });
       G.fx.push({ k:'ring', x:t.x, y:t.y, t:.6, m:.6, r:170, col:DEEP });
@@ -64,6 +61,7 @@
         f.kira.bomb = null;
         const bx = b.type === 'enemy' ? b.target.x : b.x;
         const by = b.type === 'enemy' ? b.target.y : b.y;
+        // 粉色爆炸：多重環 + 碎片 + 閃光
         blast(f, bx, by, s.bombRad, s.bombDmg, 400, PINK, 0);
         G.fx.push({ k:'ring', x:bx, y:by, t:.6, m:.6, r:s.bombRad, col:PINK });
         G.fx.push({ k:'ring', x:bx, y:by, t:.4, m:.4, r:s.bombRad*0.6, col:'#fff' });
@@ -83,6 +81,7 @@
         f.kira.bombCd = s.bombCd || 6;
         return;
       }
+      // 衝刺：粉色拖尾（dashFx 已用 f.c.color）
       lunge(f, a.ang, {
         dist: s.dashDist, dur: s.dashDur,
         onHit: (foe) => {
@@ -111,7 +110,7 @@
     ai: (e, p, c, q) => c.d < 500 ? c.p : null,
   };
 
-  /* ── 技能二：空氣彈（AI 用；玩家走按鈕事件）── */
+  /* ── 技能二：空氣彈（AI 用）── */
   BEHAVIORS.kiraAir = {
     fire(f, o, a, s) {
       ensureKira(f);
@@ -121,7 +120,7 @@
         x: f.x + Math.cos(ang) * (CFG.r + 12),
         y: f.y + Math.sin(ang) * (CFG.r + 12),
         vx: Math.cos(ang) * s.speed, vy: Math.sin(ang) * s.speed,
-        t: 0, s, trail: [],
+        t: 0, s,
       };
     },
     ai: () => null,
@@ -160,11 +159,16 @@
   function rewind(f, o, sec) {
     const k = f.kira, snap = k && k.snaps[0];
     if (!snap) return;
-    G.kiraRewind = { t: 0, T: 1.4, snaps: k.snaps.slice(), col: PINK, light: LIGHT };
+    // 回溯特效：複製一份快照倒放
+    G.kiraRewind = {
+      t: 0, T: 1.4,
+      snaps: k.snaps.slice(),
+      col: PINK, light: LIGHT,
+    };
     f.x = snap.x; f.y = snap.y; f.hp = snap.hp; f.en = snap.en;
     o.x = snap.ox; o.y = snap.oy; o.hp = snap.ohp; o.en = snap.oen;
     if (G.t !== Infinity) G.t += sec;
-    k.snaps = [];
+    k.snaps = [];  // 重新開始記錄
   }
 
   /* ── 掛載行為 ── */
@@ -191,21 +195,16 @@
     return true;
   };
 
-  /* ── hit：直接命中傷害累積絕望值（造成 / 受到都算）── */
+  /* ── hit：絕望值疊加 ── */
   const origHit = window.hit;
   window.hit = function (t, d, fx, fy, kb, heavy, sk, att) {
-    const th0 = t.hp;
+    const th0 = t.hp, ah0 = att ? att.hp : 0;
     origHit(t, d, fx, fy, kb, heavy, sk, att);
-    const tDmg = th0 - t.hp;
-    if (tDmg <= 0) return;
-    if (att && att.c === C && att.kira) {
+    const tDmg = th0 - t.hp, aDmg = att ? ah0 - att.hp : 0;
+    if (att && att.c === C && att.kira && tDmg > 0)
       att.kira.despair = Math.min(100, att.kira.despair + tDmg / 50);
-      att._kiraHitDmg = (att._kiraHitDmg || 0) + tDmg;
-    }
-    if (t && t.c === C && t.kira) {
-      t.kira.despair = Math.min(100, t.kira.despair + tDmg / 50);
-      t._kiraHitDmg = (t._kiraHitDmg || 0) + tDmg;
-    }
+    if (t && t.c === C && t.kira && aDmg > 0)
+      t.kira.despair = Math.min(100, t.kira.despair + aDmg / 50);
   };
 
   /* ── endRound：被動敗者食塵 ── */
@@ -224,7 +223,7 @@
     return origEndRound(loser);
   };
 
-  /* ── 空氣彈：按鈕事件（捕獲階段攔截，主程式不重複觸發）── */
+  /* ── 空氣彈：按鈕事件 ── */
   function bindAirButton() {
     for (const el of document.querySelectorAll('#stage .b')) {
       if (el.dataset.k !== 'c' || el._kiraBound) continue;
@@ -323,8 +322,10 @@
         a.vx = Math.cos(ang) * sp; a.vy = Math.sin(ang) * sp;
       }
       a.x += a.vx * dt; a.y += a.vy * dt;
+      // 拖尾
       a.trail.push({ x:a.x, y:a.y });
       if (a.trail.length > 14) a.trail.shift();
+      // 飛行粒子
       if (G.fx.length < FXCAP && Math.random() < .7) {
         G.fx.push({ k:'dt', x:a.x+(Math.random()-.5)*24, y:a.y+(Math.random()-.5)*24,
           vx:-a.vx*.08+(Math.random()-.5)*60, vy:-a.vy*.08+(Math.random()-.5)*60,
@@ -352,6 +353,7 @@
       }
       if (c.locked) c.lockT = (c.lockT || 0) + dt;
       c.x += c.vx * dt; c.y += c.vy * dt;
+      // 尾跡粒子
       if (G.fx.length < FXCAP && Math.random() < .5) {
         G.fx.push({ k:'sp', x:c.x+(Math.random()-.5)*20, y:c.y+(Math.random()-.5)*20,
           vx:-c.vx*.05, vy:-c.vy*.05, t:.3, m:.3, col:c.locked ? DEEP : PINK, w:2.5, dr:4 });
@@ -381,27 +383,13 @@
     return origStepF(f, dt);
   };
 
-  /* ── update：統一累積 DOT / 領域 / 時停等「非 hit」傷害 ── */
+  /* ── 包裝 update ── */
   const origUpdate = window.update;
   window.update = function (dt) {
-    const pBefore = G.p ? G.p.hp : 0;
-    const eBefore = G.e ? G.e.hp : 0;
-    if (G.p) G.p._kiraHitDmg = 0;
-    if (G.e) G.e._kiraHitDmg = 0;
-
     origUpdate(dt);
-
     if (G.state !== 'fight') return;
-
-    for (const pair of [[G.p, pBefore], [G.e, eBefore]]) {
-      const f = pair[0], before = pair[1];
-      if (!f || f.c !== C) continue;
-      ensureKira(f);
-      const otherDmg = (before - f.hp) - (f._kiraHitDmg || 0);
-      if (otherDmg > 0)
-        f.kira.despair = Math.min(100, f.kira.despair + otherDmg / 50);
-      updateKira(f, dt);
-    }
+    for (const f of [G.p, G.e])
+      if (f && f.c === C) { ensureKira(f); updateKira(f, dt); }
     updateCars(dt);
     if (G.kiraRewind) {
       G.kiraRewind.t += dt;
@@ -412,8 +400,14 @@
   /* ── 包裝 drawProj：空氣彈 / 小車 ── */
   const origDrawProj = window.drawProj;
   window.drawProj = function (q) {
-    if (q._kiraAir) { drawAirBall(q); return; }
-    if (q._kiraCar) { drawKiraCar(q); return; }
+    if (q._kiraAir) {
+      drawAirBall(q);
+      return;
+    }
+    if (q._kiraCar) {
+      drawKiraCar(q);
+      return;
+    }
     return origDrawProj(q);
   };
 
@@ -421,6 +415,7 @@
     const T = performance.now() / 1000;
     cx.save();
     cx.globalCompositeOperation = 'lighter';
+    // 拖尾殘影
     const tr = q.trail || [];
     for (let i = 0; i < tr.length; i++) {
       const k = i / tr.length;
@@ -428,6 +423,7 @@
       cx.fillStyle = k > .7 ? LIGHT : PINK;
       cx.beginPath(); cx.arc(tr[i].x, tr[i].y, 8 + k * 10, 0, 7); cx.fill();
     }
+    // 主體：粉色球 + 光暈
     cx.globalAlpha = 1;
     const g = cx.createRadialGradient(q.x, q.y, 2, q.x, q.y, 42);
     g.addColorStop(0, '#fff');
@@ -435,8 +431,10 @@
     g.addColorStop(1, 'rgba(255,126,182,0)');
     cx.fillStyle = g;
     cx.beginPath(); cx.arc(q.x, q.y, 42, 0, 7); cx.fill();
+    // 核心
     cx.fillStyle = '#fff';
     cx.beginPath(); cx.arc(q.x, q.y, 8, 0, 7); cx.fill();
+    // 環繞粒子
     for (let i = 0; i < 4; i++) {
       const a = T * 6 + i * Math.PI / 2;
       const rr = 22 + Math.sin(T * 10 + i) * 6;
@@ -452,6 +450,7 @@
     const ang = Math.atan2(q.vy, q.vx);
     cx.save();
     cx.translate(q.x, q.y);
+    // 光暈
     cx.globalCompositeOperation = 'lighter';
     const g = cx.createRadialGradient(0, 0, 4, 0, 0, s.r * 2.2);
     g.addColorStop(0, 'rgba(255,126,182,.7)');
@@ -459,6 +458,7 @@
     cx.fillStyle = g;
     cx.beginPath(); cx.arc(0, 0, s.r * 2.2, 0, 7); cx.fill();
     cx.globalCompositeOperation = 'source-over';
+    // 鎖定時：脈動紅光
     if (q.locked) {
       const pulse = 0.5 + 0.5 * Math.sin(T * 20);
       cx.globalAlpha = pulse * 0.8;
@@ -466,6 +466,7 @@
       cx.beginPath(); cx.arc(0, 0, s.r * 1.5, 0, 7); cx.stroke();
       cx.globalAlpha = 1;
     }
+    // 圖片或備用造型
     const img = Assets.get(s.sprite);
     if (img) {
       cx.rotate(ang);
@@ -473,17 +474,21 @@
       cx.drawImage(img, -L / 2, -H / 2, L, H);
     } else {
       cx.rotate(ang);
+      // 粉色小車：車身 + 車頭 + 輪子
       cx.fillStyle = PINK;
       cx.fillRect(-s.r, -s.r * .7, s.r * 2, s.r * 1.4);
       cx.strokeStyle = '#fff'; cx.lineWidth = 2;
       cx.strokeRect(-s.r, -s.r * .7, s.r * 2, s.r * 1.4);
+      // 車頭（朝右）
       cx.fillStyle = DEEP;
       cx.beginPath();
       cx.moveTo(s.r, -s.r * .7); cx.lineTo(s.r * 1.4, 0); cx.lineTo(s.r, s.r * .7);
       cx.closePath(); cx.fill();
+      // 眼睛
       cx.fillStyle = '#fff';
       cx.beginPath(); cx.arc(s.r * .3, -s.r * .3, 3, 0, 7); cx.fill();
       cx.beginPath(); cx.arc(s.r * .3, s.r * .3, 3, 0, 7); cx.fill();
+      // 輪子
       cx.fillStyle = '#333';
       cx.beginPath(); cx.arc(-s.r * .5, -s.r * .7, 4, 0, 7); cx.fill();
       cx.beginPath(); cx.arc(-s.r * .5, s.r * .7, 4, 0, 7); cx.fill();
@@ -496,6 +501,7 @@
   /* ── 包裝 draw：世界層特效 + 回溯特效 + 絕望值條 ── */
   const origDraw = window.draw;
   window.draw = function () {
+    // 1. 空氣彈 / 小車塞 fake proj 讓主程式世界層畫
     const fake = [];
     for (const f of [G.p, G.e]) {
       if (!f || f.c !== C || !f.kira || !f.kira.air) continue;
@@ -511,11 +517,12 @@
     origDraw();
     G.projs = oldProjs;
 
+    // 2. 世界座標層：標記環、敵人身上炸彈、追蹤線
     cx.save();
     cx.scale(view.s, view.s); cx.translate(-cam.x, -cam.y);
     const T = performance.now() / 1000;
 
-    // 標記環
+    // 標記環（粉色倒數 + 脈動）
     for (const f of [G.p, G.e]) {
       if (!f || !f._kiraMark) continue;
       const p = f._kiraMark, k = p.t / p.total;
@@ -523,18 +530,21 @@
       cx.save();
       cx.translate(f.x, f.y);
       cx.globalCompositeOperation = 'lighter';
+      // 外環
       cx.globalAlpha = 0.5 + 0.5 * (1 - k);
       cx.strokeStyle = PINK;
       cx.lineWidth = 4;
       cx.beginPath();
       cx.arc(0, 0, (CFG.r + 16) * pulse, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
       cx.stroke();
+      // 內環
       cx.globalAlpha = 0.7;
       cx.strokeStyle = LIGHT;
       cx.lineWidth = 2;
       cx.beginPath();
       cx.arc(0, 0, CFG.r + 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - k));
       cx.stroke();
+      // 上方倒數
       cx.globalAlpha = 1;
       cx.fillStyle = PINK;
       cx.font = 'bold 16px system-ui';
@@ -543,7 +553,7 @@
       cx.restore();
     }
 
-    // 炸彈本體
+    // 敵人身上的炸彈 / 牆上炸彈
     for (const f of [G.p, G.e]) {
       if (!f || f.c !== C || !f.kira || !f.kira.bomb) continue;
       const b = f.kira.bomb;
@@ -553,6 +563,7 @@
       cx.save();
       cx.translate(bx, by);
       cx.globalCompositeOperation = 'lighter';
+      // 光暈
       const g = cx.createRadialGradient(0, 0, 6, 0, 0, 60 * pulse);
       g.addColorStop(0, 'rgba(255,255,255,.85)');
       g.addColorStop(0.35, 'rgba(255,126,182,.6)');
@@ -560,20 +571,24 @@
       cx.fillStyle = g;
       cx.beginPath(); cx.arc(0, 0, 60 * pulse, 0, 7); cx.fill();
       cx.globalCompositeOperation = 'source-over';
+      // 炸彈本體
       cx.fillStyle = PINK;
       cx.beginPath(); cx.arc(0, 0, 20 * pulse, 0, 7); cx.fill();
       cx.strokeStyle = '#fff'; cx.lineWidth = 2.5;
       cx.stroke();
+      // 引線
       cx.strokeStyle = GOLD;
       cx.lineWidth = 2.5;
       cx.beginPath();
       cx.moveTo(0, -20); cx.quadraticCurveTo(10, -30, 4, -40);
       cx.stroke();
+      // 火花
       const sx = 4 + Math.random() * 4, sy = -40 + Math.random() * 4;
       cx.fillStyle = '#fff';
       cx.beginPath(); cx.arc(sx, sy, 3, 0, 7); cx.fill();
       cx.fillStyle = GOLD;
       cx.beginPath(); cx.arc(sx, sy, 6, 0, 7); cx.fill();
+      // 剩餘時間
       const remain = (C.sk.b.bombLife || 8) - b.t;
       cx.globalAlpha = 1;
       cx.fillStyle = '#fff';
@@ -588,6 +603,7 @@
       const o = c.own === G.p ? G.e : G.p;
       if (!o || o.hp <= 0) continue;
       if (!c.locked) {
+        // 未被鎖定：偵測圈（淡粉）
         cx.save();
         cx.globalAlpha = 0.15;
         cx.strokeStyle = PINK;
@@ -596,6 +612,7 @@
         cx.beginPath(); cx.arc(c.x, c.y, c.s.detectRad, 0, 7); cx.stroke();
         cx.restore();
       } else {
+        // 已鎖定：粉色實線 + 箭頭
         cx.save();
         cx.globalAlpha = 0.55;
         cx.strokeStyle = DEEP;
@@ -611,7 +628,7 @@
     }
     cx.restore();
 
-    // 敗者食塵回溯特效
+    // 3. 敗者食塵回溯特效（螢幕座標）
     if (G.kiraRewind) drawRewindFx();
   };
 
@@ -621,16 +638,19 @@
     const k = Math.min(1, r.t / r.T);
     const T = performance.now() / 1000;
 
+    // a. 全屏粉色疊加（脈動）
     cx.save();
     cx.globalAlpha = (1 - k) * 0.35 * (0.8 + 0.2 * Math.sin(T * 20));
     cx.fillStyle = r.col;
     cx.fillRect(0, 0, w, h);
     cx.restore();
 
+    // b. 殘影倒放（從世界座標畫）
     const snaps = r.snaps;
     if (snaps.length > 0) {
       const totalIdx = snaps.length;
-      const curIdx = Math.floor((1 - k) * totalIdx);
+      const progress = k;
+      const curIdx = Math.floor((1 - progress) * totalIdx);
       cx.save();
       cx.scale(view.s, view.s); cx.translate(-cam.x, -cam.y);
       const count = Math.min(20, totalIdx);
@@ -639,18 +659,21 @@
         const s = snaps[idx];
         if (!s) continue;
         const alpha = (1 - i / count) * 0.35;
+        // 吉良殘影
         cx.globalAlpha = alpha;
         cx.fillStyle = r.col;
         cx.beginPath(); cx.arc(s.x, s.y, CFG.r, 0, 7); cx.fill();
         cx.strokeStyle = '#fff';
         cx.lineWidth = 2;
         cx.stroke();
+        // 敵人殘影
         cx.fillStyle = r.light;
         cx.beginPath(); cx.arc(s.ox, s.oy, CFG.r, 0, 7); cx.fill();
       }
       cx.restore();
     }
 
+    // c. 橫向時間刻度線（往後退）
     cx.save();
     cx.globalAlpha = (1 - k) * 0.35;
     for (let i = 0; i < 14; i++) {
@@ -663,13 +686,16 @@
     }
     cx.restore();
 
+    // d. 中心時鐘（指針倒轉）
     cx.save();
     cx.translate(w / 2, h / 2);
     const R = Math.min(w, h) * 0.15;
     cx.globalAlpha = Math.min(1, (1 - k) * 1.5);
+    // 外圈
     cx.strokeStyle = r.col;
     cx.lineWidth = 4;
     cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.stroke();
+    // 刻度
     for (let i = 0; i < 12; i++) {
       const a = i * Math.PI / 6 - Math.PI / 2;
       const r1 = i % 3 === 0 ? R * 0.75 : R * 0.88;
@@ -680,6 +706,7 @@
       cx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
       cx.stroke();
     }
+    // 指針：從 12 點逆時針快速轉 3 圈
     const handAng = -Math.PI / 2 - k * Math.PI * 2 * 3;
     cx.strokeStyle = r.col;
     cx.lineWidth = 5;
@@ -688,10 +715,12 @@
     cx.moveTo(0, 0);
     cx.lineTo(Math.cos(handAng) * R * 0.72, Math.sin(handAng) * R * 0.72);
     cx.stroke();
+    // 中心
     cx.fillStyle = r.col;
     cx.beginPath(); cx.arc(0, 0, 8, 0, 7); cx.fill();
     cx.fillStyle = '#fff';
     cx.beginPath(); cx.arc(0, 0, 3, 0, 7); cx.fill();
+    // 文字
     cx.globalAlpha = Math.min(1, (1 - k) * 2);
     cx.fillStyle = '#fff';
     cx.font = 'bold 22px system-ui';
@@ -699,14 +728,17 @@
     cx.fillText('BITES THE DUST', 0, R + 42);
     cx.restore();
 
+    // e. 螢幕邊緣粉色脈衝光
     cx.save();
+    const bw = 60;
     const grd = cx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.35, w/2, h/2, Math.max(w,h)*0.7);
     grd.addColorStop(0, 'rgba(255,126,182,0)');
-    grd.addColorStop(1, 'rgba(255,126,182,' + ((1-k) * 0.75 * (0.7 + 0.3*Math.sin(T*18))) + ')');
+    grd.addColorStop(1, `rgba(255,126,182,${(1-k) * 0.75 * (0.7 + 0.3*Math.sin(T*18))})`);
     cx.fillStyle = grd;
     cx.fillRect(0, 0, w, h);
     cx.restore();
 
+    // f. 時間數字（倒數）
     cx.save();
     cx.globalAlpha = (1 - k) * 0.9;
     cx.fillStyle = r.col;
@@ -723,8 +755,10 @@
     if (!kf || !kf.kira) return;
     const w = Math.min(view.w * .36, 360), x = 10, y = 62;
     cx.save();
+    // 底
     cx.fillStyle = '#0008';
     cx.fillRect(x, y, w, 8);
+    // 填充
     const val = Math.min(1, kf.kira.despair / 100);
     const g = cx.createLinearGradient(x, 0, x + w, 0);
     g.addColorStop(0, DEEP);
@@ -732,6 +766,7 @@
     g.addColorStop(1, LIGHT);
     cx.fillStyle = g;
     cx.fillRect(x, y, w * val, 8);
+    // 滿了脈動
     if (val >= 1) {
       const T = performance.now() / 1000;
       cx.globalAlpha = 0.5 + 0.5 * Math.sin(T * 12);
@@ -739,6 +774,7 @@
       cx.fillRect(x, y, w, 8);
       cx.globalAlpha = 1;
     }
+    // 文字
     cx.fillStyle = '#fff';
     cx.font = 'bold 10px system-ui';
     cx.textAlign = 'left';
@@ -746,11 +782,12 @@
     cx.restore();
   }
 
+  // 把絕望值條掛到每次 draw 最後
   const origDraw2 = window.draw;
   window.draw = function () {
     origDraw2();
     drawDespairBar();
   };
 
-  console.log('[char_kira] 吉良吉影已載入（粉色 Killer Queen / 小車 sprite / 敗者食塵回溯 / 絕望值完整累積）');
+  console.log('[char_kira] 吉良吉影已載入（粉色 Killer Queen / 小車 sprite / 敗者食塵回溯特效）');
 })();
