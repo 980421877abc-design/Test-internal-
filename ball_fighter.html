@@ -618,7 +618,13 @@ function drawClashFx(d){const T=performance.now()/1000,f=d.own,o=d.clash.own;cx.
  cx.restore()}
  function drawWaterRange(x,y,ang,arc,R,al){drawFan(x,y,ang,arc,R,al,'#4fd0ff');cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al;cx.strokeStyle='#bfeaff';cx.lineWidth=2;cx.setLineDash([18,12]);cx.lineDashOffset=-performance.now()/12;cx.beginPath();cx.arc(x,y,R*.78,ang-arc/2,ang+arc/2);cx.stroke();cx.setLineDash([]);for(const q of [0,.5,1]){const aa=ang-arc/2+arc*q;cx.beginPath();cx.moveTo(x+Math.cos(aa)*CFG.r,y+Math.sin(aa)*CFG.r);cx.lineTo(x+Math.cos(aa)*R,y+Math.sin(aa)*R);cx.stroke()}const ex=x+Math.cos(ang)*R,ey=y+Math.sin(ang)*R;cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(ex,ey,10+6*Math.sin(performance.now()/100),0,7);cx.stroke();cx.restore()}
  const GIYU_USES=new Set(['suimen','giyuB','giyuThrust','giyuWheel','giyuVortex','giyuSeq','nagi']);
- function giyuRange(q){return q.use==='suimen'?(q.lungeDist||q.range||120):(q.range||q.reach||q.lungeDist||q.rad||(q.nagi&&q.nagi.r)||220)}
+  function giyuRange(q){
+   if(q.use==='nagi')       return (q.nagi&&q.nagi.r)||260;
+   if(q.use==='giyuVortex') return q.rad||250;
+   const lunge = q.lungeDist||0;
+   const reach = q.reach||q.range||q.rad||0;
+   return (lunge+reach)||220;
+ }
  function drawGiyuIndicator(f,q,a,al){const R=giyuRange(q),ang=a.ang,col='#4fd0ff',T=performance.now()/1000;cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al;cx.lineCap='round';
   if(q.use==='giyuVortex'||q.use==='nagi'){cx.strokeStyle='#7fd0ff';cx.lineWidth=3;cx.setLineDash([18,12]);cx.lineDashOffset=-T*80;cx.beginPath();cx.arc(f.x,f.y,R,0,7);cx.stroke();cx.setLineDash([]);cx.strokeStyle='#dffaff';cx.lineWidth=2;cx.globalAlpha=al*.7;cx.beginPath();cx.arc(f.x,f.y,R*.72,0,7);cx.stroke()}
   else{const x0=CFG.r,x2=f.x+Math.cos(ang)*R,y2=f.y+Math.sin(ang)*R;cx.translate(f.x,f.y);cx.rotate(ang);const g=cx.createLinearGradient(x0,0,R,0);g.addColorStop(0,'#bfeaff');g.addColorStop(.55,col);g.addColorStop(1,'rgba(79,208,255,0)');cx.globalAlpha=al*.8;cx.fillStyle=g;cx.fillRect(x0,-14,R-x0,28);cx.globalAlpha=al;cx.strokeStyle=col;cx.lineWidth=3;cx.setLineDash([24,14]);cx.lineDashOffset=-T*110;cx.beginPath();cx.moveTo(x0,-14);cx.lineTo(R,-14);cx.moveTo(x0,14);cx.lineTo(R,14);cx.stroke();cx.setLineDash([]);for(let z=x0+24+(T*180)%(60);z<R-8;z+=60){cx.beginPath();cx.moveTo(z-14,-8);cx.lineTo(z,0);cx.lineTo(z-14,8);cx.stroke()}cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(R,0,13+3*Math.sin(T*10),0,7);cx.moveTo(R-22,0);cx.lineTo(R-7,0);cx.moveTo(R,-22);cx.lineTo(R,-7);cx.stroke();cx.restore();if(q.arc){cx.globalAlpha=al*.25;cx.fillStyle=col;cx.beginPath();cx.moveTo(f.x,f.y);cx.arc(f.x,f.y,R,ang-q.arc/2,ang+q.arc/2);cx.closePath();cx.fill()}}
@@ -706,7 +712,7 @@ function draw(){
     for(let j=0;j<3;j++){cx.lineDashOffset=(j%2?1:-1)*performance.now()/18;cx.globalAlpha=.7-.18*j;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16+j*10,0,7);cx.stroke()}cx.restore()}}
   if(f.act){const q=f.act.v||f.c.sk[f.act.k],giyu=GIYU_USES.has(q.use);if(giyu){const al=.35+.65*(1-f.act.t/(q.wind||.3));drawGiyuIndicator(f,q,f.act,al)}else if(q.showRange&&q.arc&&q.range&&!sureHit(f))drawFan(f.x,f.y,f.act.ang,q.arc,q.range+CFG.r,.35+.65*(1-f.act.t/q.wind),f.c.color)}   // 前搖：義勇技能顯示方向、距離與範圍
   if(f.act){cx.strokeStyle='#ffb44a';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+8,0,7*(1-f.act.t/f.c.sk[f.act.k].wind));cx.stroke()}
-  if(f.hold){const q=f.c.sk[f.hold.k];if(q.type!=='toggle'){if(GIYU_USES.has(q.use))drawGiyuHoldIndicator(f,q,f.hold,.4+.6*Math.min(1,f.hold.t/(q.hold.start||.05)));else drawTelegraph(f,q);
+    if(f.hold){const q=skNow(f,f.hold.k);if(q.type!=='toggle'){if(GIYU_USES.has(q.use))drawGiyuHoldIndicator(f,q,f.hold,.4+.6*Math.min(1,f.hold.t/(q.hold.start||.05)));else drawTelegraph(f,q);
    if(f.hold.t>=q.hold.start){const pr=Math.min(1,(f.hold.t-q.hold.start)/(q.hold.full-q.hold.start));cx.strokeStyle=pr>=1?'#ffd77a':'#8fd6ff';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16,-Math.PI/2,-Math.PI/2+pr*Math.PI*2);cx.stroke()}}}
   if(f.rct){cx.strokeStyle='#9ef09e';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+6+3*Math.sin(G.t*8),0,7);cx.stroke()}
   if(f.zen){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#4fd0ff';cx.lineWidth=3;cx.globalAlpha=.5+.25*Math.sin(performance.now()/120);cx.beginPath();cx.arc(f.x,f.y,CFG.r+10,0,7);cx.stroke();cx.restore()}   // 全集中呼吸：藍色氣息環
