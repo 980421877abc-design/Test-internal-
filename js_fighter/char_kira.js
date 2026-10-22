@@ -51,6 +51,7 @@
       if (typeof blast === 'function') blast(f, x, y, s.bombRad, s.bombDmg, s.bombKb || 400, PINK, 0);
       if (b.type === 'enemy' && alive(b.target)) b.target.stun = Math.max(b.target.stun, s.bombStun || 1);
       k.bombCd = s.bombCd || 6;
+      f.cd.b = k.bombCd;
       if (typeof playSfx === 'function') playSfx(typeof SFX !== 'undefined' ? SFX.hit : null);
       return;
     }
@@ -60,6 +61,7 @@
       onHit: target => {
         if (!alive(target) || k.bomb) return;
         k.bomb = { type:'enemy', target, x:target.x, y:target.y, t:0, life:s.bombLife || 8 };
+        f.cd.b = 0;
         if (typeof pop === 'function') pop(target, 'KILLER QUEEN', PINK);
         ring(target.x, target.y, 100, PINK, .5); ring(target.x, target.y, 140, LIGHT, .7);
         burst(target.x, target.y, PINK, 18, 500);
@@ -68,6 +70,7 @@
         const wall = f.x <= CFG.r + 1 || f.x >= CFG.W - CFG.r - 1 || f.y <= CFG.r + 1 || f.y >= CFG.H - CFG.r - 1;
         if (wall && !k.bomb) {
           k.bomb = { type:'wall', x:f.x, y:f.y, t:0, life:s.bombLife || 8 };
+          f.cd.b = 0;
           if (typeof pop === 'function') pop(f, '牆壁炸彈', PINK);
           ring(f.x, f.y, 110, PINK, .5); burst(f.x, f.y, PINK, 14, 450);
         }
@@ -196,13 +199,29 @@
   if(typeof oldUpdate==='function'&&!oldUpdate._kiraWrapped){const updateWrap=function(dt){oldUpdate(dt);if(G.state!=='fight')return;for(const f of [G.p,G.e])if(f&&f.c===C)updateKira(f,dt);updateCars(dt);if(G.kiraRewind){G.kiraRewind.t+=dt;if(G.kiraRewind.t>=G.kiraRewind.T)G.kiraRewind=null}};updateWrap._kiraWrapped=true;window.update=updateWrap}
 
   /* 空氣彈按鈕：捕獲階段攔截主程式的普通 toggle 行為。 */
-  function bindAir(){for(const el of document.querySelectorAll('#stage .b')){if(el.dataset.k!=='c'||el._kiraAirBound)continue;el._kiraAirBound=true;let active=false;el.addEventListener('pointerdown',e=>{const f=G.p;if(!f||f.c!==C||ensure(f).air||!canCast(f,'c'))return;e.stopPropagation();e.preventDefault();el.setPointerCapture(e.pointerId);active=true;const s=C.sk.c;f.en-=s.cost;f.cd.c=s.cd;launchAir(f,enemyOf(f),s);},true);el.addEventListener('pointermove',e=>{if(!active)return;e.stopPropagation();const f=G.p;if(f&&ensure(f).air)ensure(f).airTurn=Math.max(-1,Math.min(1,e.movementX/12));},true);const up=e=>{if(!active)return;active=false;e.stopPropagation();const f=G.p;if(f)explodeAir(f)};el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}}
+  function bindAir(){for(const el of document.querySelectorAll('#stage .b')){if(el.dataset.k!=='c'||el._kiraAirBound)continue;el._kiraAirBound=true;let active=false;el.addEventListener('pointerdown',e=>{const f=G.p;if(!f||f.c!==C||ensure(f).air||!canCast(f,'c'))return;e.stopPropagation();e.preventDefault();el.setPointerCapture(e.pointerId);active=true;const s=C.sk.c;f.en-=s.cost;f.cd.c=s.cd;launchAir(f,enemyOf(f),s);},true);el.addEventListener('pointermove',e=>{if(!active)return;e.stopPropagation();const f=G.p,k=f&&ensure(f);if(k&&k.air){k.airTurn=Math.max(-1,Math.min(1,(k.airTurn||0)+e.movementX/70));k.airTurn*=.96}},true);const up=e=>{if(!active)return;active=false;e.stopPropagation();const f=G.p;if(f)explodeAir(f)};el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}}
   if(typeof MutationObserver!=='undefined'&&document.getElementById('stage'))new MutationObserver(bindAir).observe(document.getElementById('stage'),{childList:true,subtree:true});bindAir();
 
   function drawKiraWorld(){const T=performance.now()/1000;cx.save();cx.scale(view.s,view.s);cx.translate(-cam.x,-cam.y);for(const f of [G.p,G.e]){if(f&&f.c===C&&f._kiraMark){const p=f._kiraMark,k=p.t/p.total;cx.save();cx.translate(f.x,f.y);cx.globalCompositeOperation='lighter';cx.strokeStyle=PINK;cx.lineWidth=4;cx.beginPath();cx.arc(0,0,CFG.r+16,-Math.PI/2,-Math.PI/2+Math.PI*2*k);cx.stroke();cx.strokeStyle=LIGHT;cx.lineWidth=2;cx.beginPath();cx.arc(0,0,CFG.r+23,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-k));cx.stroke();cx.fillStyle=PINK;cx.font='bold 16px system-ui';cx.textAlign='center';cx.fillText(k.toFixed(1),0,-CFG.r-30);cx.restore()}const k= f&&f.c===C&&f.kira;if(!k)continue;if(k.bomb){const x=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.x:k.bomb.x,y=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.y:k.bomb.y;cx.save();cx.translate(x,y);cx.globalCompositeOperation='lighter';cx.fillStyle=PINK;cx.beginPath();cx.arc(0,0,18+4*Math.sin(T*12),0,7);cx.fill();cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();cx.fillStyle=GOLD;cx.beginPath();cx.arc(5,-30,5,0,7);cx.fill();cx.fillStyle='#fff';cx.font='bold 12px system-ui';cx.textAlign='center';cx.fillText(Math.max(0,(k.bomb.life||8)-k.bomb.t).toFixed(1),0,-42);cx.restore()}}if(G.kiraCars)for(const c of G.kiraCars){const o=enemyOf(c.own);cx.save();cx.globalAlpha=.35;cx.strokeStyle=c.locked?DEEP:PINK;cx.setLineDash(c.locked?[10,6]:[8,8]);cx.beginPath();cx.arc(c.x,c.y,c.locked?c.s.r*1.5:c.s.detectRad,0,7);cx.stroke();if(c.locked){cx.globalAlpha=.65;cx.beginPath();cx.moveTo(c.x,c.y);cx.lineTo(o.x,o.y);cx.stroke()}cx.restore()}for(const f of [G.p,G.e]){const k=f&&f.c===C&&f.kira;if(!k||!k.air)continue;const a=k.air;cx.save();cx.globalCompositeOperation='lighter';for(let i=0;i<a.trail.length;i++){const q=a.trail[i],v=i/a.trail.length;cx.globalAlpha=v*.45;cx.fillStyle=v>.7?LIGHT:PINK;cx.beginPath();cx.arc(q.x,q.y,5+v*12,0,7);cx.fill()}const g=cx.createRadialGradient(a.x,a.y,2,a.x,a.y,42);g.addColorStop(0,'#fff');g.addColorStop(.35,PINK);g.addColorStop(1,'rgba(255,126,182,0)');cx.globalAlpha=1;cx.fillStyle=g;cx.beginPath();cx.arc(a.x,a.y,42,0,7);cx.fill();cx.restore()}cx.restore()}
 
+  function drawBombAimAndCars(){
+    cx.save(); cx.scale(view.s,view.s); cx.translate(-cam.x,-cam.y);
+    for(const f of [G.p,G.e]){
+      if(!f||f.c!==C)continue;
+      const q=f.hold&&f.hold.k==='b'?f.hold:f.act&&f.act.k==='b'?f.act:null;
+      if(q&&!ensure(f).bomb){const ang=q.ang??Math.atan2((q.aim||{}).y-f.y,(q.aim||{}).x-f.x),dist=C.sk.b.dashDist||380;
+        cx.save();cx.translate(f.x,f.y);cx.rotate(ang);cx.globalCompositeOperation='lighter';
+        cx.globalAlpha=.18;cx.fillStyle=PINK;cx.beginPath();cx.moveTo(CFG.r,0);cx.arc(0,0,dist,-.16,.16);cx.closePath();cx.fill();
+        cx.globalAlpha=.9;cx.strokeStyle=LIGHT;cx.lineWidth=3;cx.setLineDash([14,8]);cx.beginPath();cx.moveTo(CFG.r+8,0);cx.lineTo(dist,0);cx.stroke();cx.setLineDash([]);
+        cx.fillStyle='#fff';cx.font='bold 14px system-ui';cx.textAlign='center';cx.fillText('第一炸彈  '+Math.round(dist),dist*.55,-16);cx.restore();
+      }
+    }
+    if(G.kiraCars)for(const c of G.kiraCars){const ang=Math.atan2(c.vy,c.vx),r=c.s.r||24;cx.save();cx.translate(c.x,c.y);cx.rotate(ang);cx.globalCompositeOperation='lighter';cx.fillStyle='rgba(255,126,182,.35)';cx.beginPath();cx.arc(0,0,r*2.3,0,7);cx.fill();cx.globalCompositeOperation='source-over';cx.fillStyle=PINK;cx.fillRect(-r*1.35,-r*.65,r*2.1,r*1.3);cx.fillStyle=DEEP;cx.beginPath();cx.moveTo(r*.75,-r*.65);cx.lineTo(r*1.5,0);cx.lineTo(r*.75,r*.65);cx.closePath();cx.fill();cx.fillStyle='#222';for(const yy of [-1,1]){cx.beginPath();cx.arc(-r*.55,yy*r*.72,r*.18,0,7);cx.fill();cx.beginPath();cx.arc(r*.55,yy*r*.72,r*.18,0,7);cx.fill()}cx.strokeStyle='#fff';cx.lineWidth=2;cx.strokeRect(-r*1.35,-r*.65,r*2.1,r*1.3);cx.restore()}
+    cx.restore();
+  }
+
   function drawRewind(){const r=G.kiraRewind;if(!r)return;const w=view.w,h=view.h,k=Math.min(1,r.t/r.T),T=performance.now()/1000;cx.save();cx.globalAlpha=(1-k)*.3;cx.fillStyle=PINK;cx.fillRect(0,0,w,h);cx.translate(w/2,h/2);const R=Math.min(w,h)*.15;cx.globalAlpha=(1-k)*1.4;cx.strokeStyle=PINK;cx.lineWidth=4;cx.beginPath();cx.arc(0,0,R,0,7);cx.stroke();cx.lineWidth=5;cx.beginPath();cx.moveTo(0,0);cx.lineTo(Math.cos(-Math.PI/2-k*Math.PI*6)*R*.72,Math.sin(-Math.PI/2-k*Math.PI*6)*R*.72);cx.stroke();cx.fillStyle='#fff';cx.font='bold 22px system-ui';cx.textAlign='center';cx.fillText('BITES THE DUST',0,R+42);cx.restore()}
   function drawBar(){const f=G.p&&G.p.c===C?G.p:G.e&&G.e.c===C?G.e:null;if(!f)return;const w=Math.min(view.w*.36,360),x=10,y=62,v=Math.min(1,ensure(f).despair/100);cx.save();cx.fillStyle='#0008';cx.fillRect(x,y,w,8);const g=cx.createLinearGradient(x,0,x+w,0);g.addColorStop(0,DEEP);g.addColorStop(.5,PINK);g.addColorStop(1,LIGHT);cx.fillStyle=g;cx.fillRect(x,y,w*v,8);cx.fillStyle='#fff';cx.font='bold 10px system-ui';cx.textAlign='left';cx.fillText('絕望 '+Math.round(ensure(f).despair)+' / 100',x+4,y+22);cx.restore()}
-  if(typeof oldDraw==='function'&&!oldDraw._kiraWrapped){const drawWrap=function(){oldDraw();drawKiraWorld();drawRewind();drawBar()};drawWrap._kiraWrapped=true;window.draw=drawWrap}
+  if(typeof oldDraw==='function'&&!oldDraw._kiraWrapped){const drawWrap=function(){oldDraw();drawKiraWorld();drawBombAimAndCars();drawRewind();drawBar()};drawWrap._kiraWrapped=true;window.draw=drawWrap}
   console.log('[char_kira] 吉良吉影完整模組已載入');
 })();
