@@ -23,35 +23,49 @@
   /* ── 2. 狀態 ── */
   let TRAIN = null;
 
-  /* ── 3. 啟動入口 ── */
-  window.startTraining = function (pid) {
-    const id = (pid && CHARS[pid] && pid !== 'dummy') ? pid
-      : (typeof sel !== 'undefined' && CHARS[sel.p] && sel.p !== 'dummy') ? sel.p
-      : 'gojo';
-    if (typeof sel !== 'undefined') sel.p = id;
+/* ── 3. 啟動入口 ── */
+function currentPick() {
+  const selEl = document.querySelector('#stage .bfsel');
+  if (!selEl || selEl.style.display === 'none') return null;
+  const who = selEl.querySelector('.who');
+  if (who) {
+    const name = who.querySelector('b')?.textContent?.trim();
+    if (name) for (const k in CHARS) if (CHARS[k].name === name && k !== 'dummy') return k;
+  }
+  const on = selEl.querySelector('.card.on');
+  if (on?.dataset?.v && CHARS[on.dataset.v] && on.dataset.v !== 'dummy') return on.dataset.v;
+  return null;
+}
 
-    G = { round: 0, training: true };
-    const dx = CFG.W * .62, px = CFG.W * .3;
-    G.p = mk(id, px, 0, false);
-    G.e = mk('dummy', dx, 1, false);
-    G.e.isDummy = true;
-    G.e.trainX = dx; G.e.trainY = CFG.H / 2;
-    Object.assign(G, {
-      projs: [], zones: [], orbs: [], domains: [], shields: [], sched: [], throws: [], ts: null, fx: [],
-      t: Infinity, ot: true, state: 'fight'
-    });
-    TRAIN = { total: 0, combo: 0, maxCombo: 0, lastHitT: 0, dmg3s: [], dps: 0, hits: 0 };
+window.startTraining = function (pid) {
+  let id = (pid && CHARS[pid] && pid !== 'dummy') ? pid : null;
+  if (!id) id = currentPick();
+  if (!id && typeof G !== 'undefined' && G.p && CHARS[G.p.id] && G.p.id !== 'dummy') id = G.p.id;
+  if (!id) id = (typeof sel !== 'undefined' && CHARS[sel.p] && sel.p !== 'dummy') ? sel.p : 'gojo';
+  if (typeof sel !== 'undefined') sel.p = id;
 
-    cam.snap = 1;
-    if (typeof playBgm === 'function') playBgm();
-    if (typeof layoutBtns === 'function') layoutBtns();
-    if (typeof stopDomainSound === 'function') stopDomainSound();
-    if (typeof say === 'function') say('訓練模式：盡情打木樁！', 1.5);
+  G = { round: 0, training: true };
+  const dx = CFG.W * .62, px = CFG.W * .3;
+  G.p = mk(id, px, 0, false);
+  G.e = mk('dummy', dx, 1, false);
+  G.e.isDummy = true;
+  G.e.trainX = dx; G.e.trainY = CFG.H / 2;
+  Object.assign(G, {
+    projs: [], zones: [], orbs: [], domains: [], shields: [], sched: [], throws: [], ts: null, fx: [],
+    t: Infinity, ot: true, state: 'fight'
+  });
+  TRAIN = { total: 0, combo: 0, maxCombo: 0, lastHitT: 0, dmg3s: [], dps: 0, hits: 0 };
 
-    const bfsel = document.querySelector('#stage .bfsel');
-    if (bfsel) bfsel.style.display = 'none';
-    paused = false;
-  };
+  cam.snap = 1;
+  if (typeof playBgm === 'function') playBgm();
+  if (typeof layoutBtns === 'function') layoutBtns();
+  if (typeof stopDomainSound === 'function') stopDomainSound();
+  if (typeof say === 'function') say('訓練模式：盡情打木樁！', 1.5);
+
+  const bfsel = document.querySelector('#stage .bfsel');
+  if (bfsel) bfsel.style.display = 'none';
+  paused = false;
+};
 
   /* ── 4. 包裝 update：木樁固定、雙方滿血、統計 ── */
   const origUpdate = window.update;
@@ -140,7 +154,7 @@
   /* ── 9. 鍵盤：T 進訓練、R 重置統計 ── */
   addEventListener('keydown', e => {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (k === 't' && !G.training) { window.startTraining(typeof sel !== 'undefined' ? sel.p : undefined); return; }
+    if (k === 't' && !G.training) { window.startTraining(); return; }
     if (k === 'r' && G.training && TRAIN) {
       TRAIN = { total: 0, combo: 0, maxCombo: 0, lastHitT: 0, dmg3s: [], dps: 0, hits: 0 };
       if (typeof say === 'function') say('統計已重置', 1);
@@ -171,7 +185,7 @@
     btn.id = 'trainFloat';
     btn.textContent = '訓練';
     btn.style.cssText = 'position:absolute;right:12px;top:96px;z-index:4;padding:6px 12px;border:2px solid #4fd0ff;border-radius:10px;background:rgba(10,16,34,.92);color:#4fd0ff;font-size:14px;font-weight:700;touch-action:none;';
-    btn.onclick = () => window.startTraining(typeof sel !== 'undefined' ? sel.p : undefined);
+btn.onclick = () => window.startTraining();
     document.getElementById('stage').appendChild(btn);
   }
   injectFloatBtn();
