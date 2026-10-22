@@ -357,8 +357,22 @@ const BEHAVIORS={
    const swing=n=>{G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:1.6,r:s.reach+CFG.r*2,t:.18,m:.18,col:'#4fb4ff'});playSlashSfx(1);
     lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,done:h=>{any=any||h;if(n<s.hits)swing(n+1);else chainDone(f,s.key,any)}})};swing(1)},
    ai:(e,p,c,q)=>e.ch[q.key]?(c.d<q.derive.lungeDist+q.derive.reach+CFG.r*2+30?c.p:null):(c.d<q.lungeDist+q.reach+CFG.r*2+30?c.p:null)},
-  giyuThrust:{fire(f,o,a,s){G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:.7,r:s.lungeDist*.7,t:.2,m:.2,col:'#bfeaff'});playSlashSfx(1.4);   // 漆之型 雫波紋突刺：向前刺擊，命中使敵人減速
-   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,onHit:t=>addStatus(t,{k:'slow',dur:s.slow.dur,v:s.slow.v}),done:h=>chainDone(f,s.key,h)})}},
+   giyuThrust:{fire(f,o,a,s){   // 漆之型 雫波紋突刺：原地向前 range 長、半寬 thrustW 的線段判定，命中減速
+   const len=s.range||300, half=s.thrustW||36, ux=Math.cos(a.ang), uy=Math.sin(a.ang);
+   G.fx.push({k:'sl',x:f.x+ux*len*.5,y:f.y+uy*len*.5,a:a.ang,L:len,t:.22,m:.22,col:'#bfeaff'});
+   G.fx.push({k:'ring',x:f.x,y:f.y,t:.22,m:.22,r:70,col:'#7fd0ff'});
+   playSlashSfx(1.4);
+   const rx=o.x-f.x, ry=o.y-f.y;
+   const proj=clamp(rx*ux+ry*uy,0,len);          // 對手投影到突刺線段上的位置
+   const px=f.x+ux*proj, py=f.y+uy*proj;
+   let hitAny=false;
+   if(Math.hypot(o.x-px,o.y-py)<=half+CFG.r){    // 球心到線段距離 ≤ 半寬 + 球半徑
+     hit(o,s.dmg,f.x,f.y,s.kb,0,s,f);
+     if(s.slow)addStatus(o,{k:'slow',dur:s.slow.dur,v:s.slow.v});
+     hitAny=true;
+   }
+   chainDone(f,s.key,hitAny)
+  }},
   giyuWheel:{fire(f,o,a,s){playSlashSfx(1.2);G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:2.4,r:90,t:.25,m:.25,col:'#4fb4ff'});   // 貳之型 水車：向指定方向位移，過程中碰到敵人造成傷害 → 轉化為扭轉漩渦
    lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,done:h=>chainDone(f,s.key,h)})},
    ai:(e,p,c,q)=>e.ch[q.key]?(c.d<q.derive.rad?c.p:null):(c.d>140&&c.d<q.lungeDist+120?c.p:null)},
@@ -621,6 +635,7 @@ function drawClashFx(d){const T=performance.now()/1000,f=d.own,o=d.clash.own;cx.
   function giyuRange(q){
    if(q.use==='nagi')       return (q.nagi&&q.nagi.r)||260;
    if(q.use==='giyuVortex') return q.rad||250;
+   if(q.use==='giyuThrust') return q.range||300;
    const lunge = q.lungeDist||0;
    const reach = q.reach||q.range||q.rad||0;
    return (lunge+reach)||220;
