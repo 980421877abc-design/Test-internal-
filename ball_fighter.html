@@ -162,15 +162,15 @@ function hit(t,d,fx,fy,kb,heavy,sk,att){
  *          整套連段結束（派生用完 / 最後一段 / 視窗過期）才開始冷卻。行為（use）在施放完畢時呼叫 chainDone(f,key,是否命中)。
  *  enhance 角色 enhance:true → 每次使用技能（不含開關）後，下一次普攻換成 skill.enh 的強化版；不疊層，打出後消耗。
  *  凪      G.shields：圓形範圍，吃掉敵方飛行物（skill.noIntercept:true 的不吃）；範圍內的施放者不受領域的持續傷害。 */
-const skNow=(f,k)=>{const q=f.c.sk[k],c=f.ch&&f.ch[k];return !c?(q.stages?Object.assign({},q,q.stages[0]):q):Object.assign({},c.kind==='derive'?q.derive:q.stages[c.i])};   // 目前實際生效的技能（原技能 / 派生技 / 連段第 n 段）
+const skNow=(f,k)=>{const q=f.c.sk[k],c=f.ch&&f.ch[k];if(!c)return q.stages?Object.assign({},q,q.stages[0]):q;const part=c.kind==='derive'?q.derive:(q.stages&&q.stages[c.i]);return Object.assign({},q,part||{})};   // 目前實際生效的技能：連段段落只覆蓋數值，不丟失原技能行為
 function chainDone(f,k,hitAny){const q=f.c.sk[k],cp=f.cp;if(!cp||cp.k!==k)return;f.cp=null;
  if(q.stages){const nx=cp.i+1;if(nx<q.stages.length)f.ch[k]={kind:'seq',i:nx,t:q.window||2};else f.cd[k]=cdOf(f,q)}
  else if(!cp.derived&&hitAny)f.ch[k]={kind:'derive',t:q.derive.window||3};
  else f.cd[k]=cdOf(f,q)}
-function lunge(f,ang,o){f.lg=Object.assign({t:0,T:o.dur||.15,sx:f.x,sy:f.y,dx:Math.cos(ang),dy:Math.sin(ang),dist:o.dist||100,bulge:0,sign:1,reach:12,hit:false},o);f.face=ang}
+function lunge(f,ang,o){f.lg=Object.assign({t:0,T:o.dur||.15,sx:f.x,sy:f.y,dx:Math.cos(ang),dy:Math.sin(ang),dist:o.dist||100,bulge:0,sign:1,reach:12,through:!!(o.sk&&o.sk.through),hit:false},o);f.face=ang}
 function lungeStep(f,dt){const g=f.lg,foe=f===G.p?G.e:G.p;g.t+=dt;const u=Math.min(1,g.t/g.T),e=1-(1-u)*(1-u),off=g.bulge?Math.sin(Math.PI*u)*g.bulge*g.sign:0;
  f.x=clamp(g.sx+g.dx*g.dist*e-g.dy*off,CFG.r,CFG.W-CFG.r);f.y=clamp(g.sy+g.dy*g.dist*e+g.dx*off,CFG.r,CFG.H-CFG.r);dashFx(f);
- if(g.sk&&!g.hit&&Math.hypot(foe.x-f.x,foe.y-f.y)<CFG.r*2+g.reach){g.hit=true;hit(foe,g.dmg,f.x-g.dx*20,f.y-g.dy*20,g.kb||0,0,g.sk,f);if(g.onHit)g.onHit(foe)}
+ if(g.sk&&!g.hit&&Math.hypot(foe.x-f.x,foe.y-f.y)<CFG.r*2+g.reach){g.hit=true;hit(foe,g.dmg,f.x-g.dx*20,f.y-g.dy*20,g.through?0:(g.kb||0),0,g.sk,f);if(g.onHit)g.onHit(foe)}
  if(u>=1){f.lg=null;if(g.done)g.done(g.hit)}}
 const inNagi=f=>G.shields.some(z=>z.own===f&&Math.hypot(f.x-z.x,f.y-z.y)<z.r);
 function costOf(f,k){const q=skNow(f,k);return (q.modeCost?q.modeCost[f.mode[k]||0]:q.cost)*(f.c.costMult||1)} // costMult：六眼之類的消耗倍率
@@ -341,10 +341,18 @@ const BEHAVIORS={
  kai:{fire(f,o,a,s){const sure=sureHit(f);if(sure)pop(f,'必中','#ffd77a');                          // 開：自己領域內改成高轉向追蹤彈 = 必中
   ST.proj.fire(f,sure?Object.assign({},s,{type:'homing',turn:20}):s,a,o)}},
   /* ── 富岡義勇（水之呼吸）：數值全在資料檔 ── */
-  suimen:{fire(f,o,a,s){playSlashSfx(1.3);                       // 壹之型 水面斬（強化普攻）：短距離突進 → 範圍斬擊；命中回復生命與呼吸條
-   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,done:()=>{G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:s.arc,r:s.range,t:.24,m:.24,col:'#4fd0ff'});
-    const d=Math.hypot(o.x-f.x,o.y-f.y);let da=Math.abs(Math.atan2(o.y-f.y,o.x-f.x)-a.ang);da=Math.min(da,Math.PI*2-da);
-    if(d<=s.range+CFG.r&&da<=s.arc/2){hit(o,s.dmg+s.bonus,f.x,f.y,s.kb,0,s,f);f.hp=Math.min(f.c.hp,f.hp+s.heal.hp);f.en=Math.min(f.enMax,f.en+s.heal.res);pop(f,'水面斬','#7fd0ff');spark(f.x,f.y,'#7fd0ff',10,450,.35,3)}}})}},
+ suimen:{fire(f,o,a,s){playSlashSfx(1.3);G.fx.push({k:'wcharge',x:f.x,y:f.y,a:a.ang,w:s.arc,r:s.range+CFG.r,t:.42,m:.42,col:'#4fd0ff'});
+   lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,done:()=>{
+     G.fx.push({k:'warc',x:f.x,y:f.y,a:a.ang,w:s.arc,r:s.range,t:.32,m:.32,col:'#4fd0ff'});
+     G.fx.push({k:'wripple',x:f.x,y:f.y+CFG.r*.6,t:.55,m:.55,r:s.range*.55,col:'#4fd0ff'});
+     const d=Math.hypot(o.x-f.x,o.y-f.y);let da=Math.abs(Math.atan2(o.y-f.y,o.x-f.x)-a.ang);da=Math.min(da,Math.PI*2-da);
+     if(d<=s.range+CFG.r&&da<=s.arc/2){
+       hit(o,s.dmg+s.bonus,f.x,f.y,s.kb,0,s,f);
+       f.hp=Math.min(f.c.hp,f.hp+s.heal.hp);f.en=Math.min(f.enMax,f.en+s.heal.res);
+       pop(f,'水面斬','#7fd0ff');
+       G.fx.push({k:'wsplash',x:o.x,y:o.y,t:.5,m:.5,g:900,drops:Array.from({length:14},()=>{const aa=Math.random()*Math.PI*2,v=140+Math.random()*280;return{vx:Math.cos(aa)*v,vy:Math.sin(aa)*v-200,r:2+Math.random()*3,c:Math.random()<.5?'#fff':'#bfeaff'}})});
+     }}})}},
+ 
   giyuB:{fire(f,o,a,s){let any=false;                             // 肆之型 擊打潮：連續揮砍 s.hits 次，每次小幅突進；任一段命中 → 轉化為雫波紋突刺
    const swing=n=>{G.fx.push({k:'arc',x:f.x,y:f.y,a:a.ang,w:1.6,r:s.reach+CFG.r*2,t:.18,m:.18,col:'#4fb4ff'});playSlashSfx(1);
     lunge(f,a.ang,{dist:s.lungeDist,dur:s.lungeDur,sk:s,dmg:s.dmg,kb:s.kb,reach:s.reach,done:h=>{any=any||h;if(n<s.hits)swing(n+1);else chainDone(f,s.key,any)}})};swing(1)},
@@ -608,6 +616,18 @@ function drawClashFx(d){const T=performance.now()/1000,f=d.own,o=d.clash.own;cx.
  if(f===G.p)for(let j=0;j<3;j++){cx.strokeStyle=j%2?d.col:d.clash.col;cx.lineWidth=2+j;cx.globalAlpha=.5+.4*Math.random();cx.beginPath();cx.moveTo(f.x,f.y);
   for(let i=1;i<=8;i++){const t=i/8,w=Math.sin(t*Math.PI);cx.lineTo(f.x+(o.x-f.x)*t+(Math.random()-.5)*60*w,f.y+(o.y-f.y)*t+(Math.random()-.5)*60*w)}cx.stroke()}
  cx.restore()}
+ function drawWaterRange(x,y,ang,arc,R,al){drawFan(x,y,ang,arc,R,al,'#4fd0ff');cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al;cx.strokeStyle='#bfeaff';cx.lineWidth=2;cx.setLineDash([18,12]);cx.lineDashOffset=-performance.now()/12;cx.beginPath();cx.arc(x,y,R*.78,ang-arc/2,ang+arc/2);cx.stroke();cx.setLineDash([]);for(const q of [0,.5,1]){const aa=ang-arc/2+arc*q;cx.beginPath();cx.moveTo(x+Math.cos(aa)*CFG.r,y+Math.sin(aa)*CFG.r);cx.lineTo(x+Math.cos(aa)*R,y+Math.sin(aa)*R);cx.stroke()}const ex=x+Math.cos(ang)*R,ey=y+Math.sin(ang)*R;cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(ex,ey,10+6*Math.sin(performance.now()/100),0,7);cx.stroke();cx.restore()}
+ const GIYU_USES=new Set(['suimen','giyuB','giyuThrust','giyuWheel','giyuVortex','giyuSeq','nagi']);
+ function giyuRange(q){return q.use==='suimen'?(q.lungeDist||q.range||120):(q.range||q.reach||q.lungeDist||q.rad||(q.nagi&&q.nagi.r)||220)}
+ function drawGiyuIndicator(f,q,a,al){const R=giyuRange(q),ang=a.ang,col='#4fd0ff',T=performance.now()/1000;cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al;cx.lineCap='round';
+  if(q.use==='giyuVortex'||q.use==='nagi'){cx.strokeStyle='#7fd0ff';cx.lineWidth=3;cx.setLineDash([18,12]);cx.lineDashOffset=-T*80;cx.beginPath();cx.arc(f.x,f.y,R,0,7);cx.stroke();cx.setLineDash([]);cx.strokeStyle='#dffaff';cx.lineWidth=2;cx.globalAlpha=al*.7;cx.beginPath();cx.arc(f.x,f.y,R*.72,0,7);cx.stroke()}
+  else{const x0=CFG.r,x2=f.x+Math.cos(ang)*R,y2=f.y+Math.sin(ang)*R;cx.translate(f.x,f.y);cx.rotate(ang);const g=cx.createLinearGradient(x0,0,R,0);g.addColorStop(0,'#bfeaff');g.addColorStop(.55,col);g.addColorStop(1,'rgba(79,208,255,0)');cx.globalAlpha=al*.8;cx.fillStyle=g;cx.fillRect(x0,-14,R-x0,28);cx.globalAlpha=al;cx.strokeStyle=col;cx.lineWidth=3;cx.setLineDash([24,14]);cx.lineDashOffset=-T*110;cx.beginPath();cx.moveTo(x0,-14);cx.lineTo(R,-14);cx.moveTo(x0,14);cx.lineTo(R,14);cx.stroke();cx.setLineDash([]);for(let z=x0+24+(T*180)%(60);z<R-8;z+=60){cx.beginPath();cx.moveTo(z-14,-8);cx.lineTo(z,0);cx.lineTo(z-14,8);cx.stroke()}cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.arc(R,0,13+3*Math.sin(T*10),0,7);cx.moveTo(R-22,0);cx.lineTo(R-7,0);cx.moveTo(R,-22);cx.lineTo(R,-7);cx.stroke();cx.restore();if(q.arc){cx.globalAlpha=al*.25;cx.fillStyle=col;cx.beginPath();cx.moveTo(f.x,f.y);cx.arc(f.x,f.y,R,ang-q.arc/2,ang+q.arc/2);cx.closePath();cx.fill()}}
+  cx.save();cx.globalAlpha=al;cx.fillStyle='#e8fbff';cx.font='bold 13px system-ui';cx.textAlign='center';cx.fillText((q.use==='suimen'?'最大突進 ':'距離 ')+Math.round(R),f.x+Math.cos(ang)*R*.58,f.y+Math.sin(ang)*R*.58-22);cx.restore()}
+function drawGiyuHoldIndicator(f,q,h,al){
+ const aim=h.aim||{x:f.x+Math.cos(f.face)*220,y:f.y+Math.sin(f.face)*220},ang=Math.atan2(aim.y-f.y,aim.x-f.x),R=giyuRange(q),T=performance.now()/1000;
+ if(q.use==='giyuSeq'){const cx0=f.x+Math.cos(ang)*R*.55,cy0=f.y+Math.sin(ang)*R*.55,rr=Math.max(42,R*.48);cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=al*.24;cx.fillStyle='#4fd0ff';cx.beginPath();cx.moveTo(cx0,cy0);cx.arc(cx0,cy0,rr,ang-Math.PI/2,ang+Math.PI/2);cx.closePath();cx.fill();cx.globalAlpha=al;cx.strokeStyle='#bfeaff';cx.lineWidth=4;cx.setLineDash([20,12]);cx.lineDashOffset=-T*100;cx.beginPath();cx.arc(cx0,cy0,rr,ang-Math.PI/2,ang+Math.PI/2);cx.stroke();cx.setLineDash([]);cx.strokeStyle='#4fd0ff';cx.lineWidth=2;cx.globalAlpha=al*.8;cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(f.x+Math.cos(ang)*R,f.y+Math.sin(ang)*R);cx.stroke();cx.fillStyle='#e8fbff';cx.font='bold 13px system-ui';cx.textAlign='center';cx.fillText('半圓斬擊  距離 '+Math.round(R),cx0,cy0-rr-12);cx.restore();return}
+ drawGiyuIndicator(f,q,{ang},al);
+}
 function drawFan(x,y,ang,arc,R,al,col){cx.save();cx.globalCompositeOperation='lighter';const g=cx.createRadialGradient(x,y,CFG.r,x,y,R);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,col);   // 扇形攻擊範圍
  cx.globalAlpha=al*.55;cx.fillStyle=g;cx.beginPath();cx.moveTo(x,y);cx.arc(x,y,R,ang-arc/2,ang+arc/2);cx.closePath();cx.fill();cx.globalAlpha=Math.min(1,al*1.2);cx.strokeStyle=col;cx.lineWidth=3;cx.stroke();cx.restore()}
 function domBg(){for(const d of G.domains){if(d.clash||!d.bg)continue;const img=Assets.get(d.bg);if(img)return{d,img,a:Math.min(1,d.t/.6,Math.max(0,(d.life-d.t)/.5))}}return null}   // 領域成功展開（未碰撞中）→ 場景背景換成領域圖
@@ -684,9 +704,9 @@ function draw(){
   if(f.blocking){cx.strokeStyle='#8ad';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+9,0,7);cx.stroke();
    if(f.c.infinity&&!stat(f,'burnout',0)){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#8fd6ff';cx.lineWidth=2;cx.setLineDash([10,14]);   // 無下限：三層旋轉結界
     for(let j=0;j<3;j++){cx.lineDashOffset=(j%2?1:-1)*performance.now()/18;cx.globalAlpha=.7-.18*j;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16+j*10,0,7);cx.stroke()}cx.restore()}}
-  if(f.act){const q=f.act.v||f.c.sk[f.act.k];if(q.showRange&&q.arc&&q.range&&!sureHit(f))drawFan(f.x,f.y,f.act.ang,q.arc,q.range+CFG.r,.35+.65*(1-f.act.t/q.wind),f.c.color)}   // 前搖：預示範圍
+  if(f.act){const q=f.act.v||f.c.sk[f.act.k],giyu=GIYU_USES.has(q.use);if(giyu){const al=.35+.65*(1-f.act.t/(q.wind||.3));drawGiyuIndicator(f,q,f.act,al)}else if(q.showRange&&q.arc&&q.range&&!sureHit(f))drawFan(f.x,f.y,f.act.ang,q.arc,q.range+CFG.r,.35+.65*(1-f.act.t/q.wind),f.c.color)}   // 前搖：義勇技能顯示方向、距離與範圍
   if(f.act){cx.strokeStyle='#ffb44a';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+8,0,7*(1-f.act.t/f.c.sk[f.act.k].wind));cx.stroke()}
-  if(f.hold){const q=f.c.sk[f.hold.k];if(q.type!=='toggle'){drawTelegraph(f,q);
+  if(f.hold){const q=f.c.sk[f.hold.k];if(q.type!=='toggle'){if(GIYU_USES.has(q.use))drawGiyuHoldIndicator(f,q,f.hold,.4+.6*Math.min(1,f.hold.t/(q.hold.start||.05)));else drawTelegraph(f,q);
    if(f.hold.t>=q.hold.start){const pr=Math.min(1,(f.hold.t-q.hold.start)/(q.hold.full-q.hold.start));cx.strokeStyle=pr>=1?'#ffd77a':'#8fd6ff';cx.lineWidth=5;cx.beginPath();cx.arc(f.x,f.y,CFG.r+16,-Math.PI/2,-Math.PI/2+pr*Math.PI*2);cx.stroke()}}}
   if(f.rct){cx.strokeStyle='#9ef09e';cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+6+3*Math.sin(G.t*8),0,7);cx.stroke()}
   if(f.zen){cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle='#4fd0ff';cx.lineWidth=3;cx.globalAlpha=.5+.25*Math.sin(performance.now()/120);cx.beginPath();cx.arc(f.x,f.y,CFG.r+10,0,7);cx.stroke();cx.restore()}   // 全集中呼吸：藍色氣息環
@@ -704,8 +724,24 @@ function draw(){
   else if(e.k==='ds'){const p=1-k;cx.save();cx.translate(e.x,e.y);cx.rotate(e.a);cx.globalCompositeOperation='lighter';cx.globalAlpha=k;
    cx.strokeStyle=e.col;cx.lineCap='round';for(let j=-1;j<=1;j++){const off=j*e.r*.28,len=e.r*(1.45-.3*p)-Math.abs(j)*e.r*.18;cx.lineWidth=(j===0?8:4)*k+1.5;cx.beginPath();cx.moveTo(-len,-e.r*.72+off);cx.quadraticCurveTo(0,e.r*.12+off,len,e.r*.72+off);cx.stroke()}
    cx.strokeStyle='#fff4c2';cx.lineWidth=2.5*k+1;cx.beginPath();cx.moveTo(-e.r*1.15,-e.r*.58);cx.quadraticCurveTo(0,e.r*.1,e.r*1.15,e.r*.58);cx.stroke();cx.restore()}
+  else if(e.k==='wcharge'){const T=performance.now()/1000,p=1-k;cx.save();cx.translate(e.x,e.y);cx.rotate(e.a);cx.globalCompositeOperation='lighter';cx.globalAlpha=k*.9;for(let j=0;j<4;j++){const rr=CFG.r+8+j*10+Math.sin(T*8+j)*4;cx.strokeStyle=j%2?'#bfeaff':'#4fd0ff';cx.lineWidth=3-j*.4;cx.setLineDash([18+j*5,12]);cx.lineDashOffset=-T*(80+j*25);cx.beginPath();cx.arc(0,0,rr,-e.w/2,e.w/2);cx.stroke()}cx.setLineDash([]);cx.globalAlpha=k*.7;cx.strokeStyle='#fff';cx.lineWidth=2;cx.beginPath();cx.moveTo(CFG.r*.7,0);cx.lineTo(e.r*(.7+.3*p),0);cx.stroke();cx.restore()}
   else if(e.k==='arc'){const pg=Math.min(1,(1-k)*3.2),a0=e.a-e.w/2,a1=a0+e.w*pg;cx.globalCompositeOperation='lighter';cx.globalAlpha=k;cx.strokeStyle=e.col;cx.lineCap='round';cx.lineWidth=18*k+4;   // 揮砍：弧線快速掃出，前端留白色亮刃
    cx.beginPath();cx.arc(e.x,e.y,e.r*.85,a0,a1);cx.stroke();cx.strokeStyle='#fff';cx.lineWidth=4;cx.beginPath();cx.arc(e.x,e.y,e.r*.85,Math.max(a0,a1-e.w*.45),a1);cx.stroke();cx.globalCompositeOperation='source-over';cx.lineCap='butt'}
+  else if(e.k==='warc'){const pg=Math.min(1,(1-k)*3.2),a0=e.a-e.w/2,a1=a0+e.w*pg;cx.save();cx.globalCompositeOperation='lighter';cx.lineCap='round';   // 水之呼吸·水弧：多層弧 + 沿弧流動的水珠
+   cx.globalAlpha=k*.35;cx.strokeStyle='#1f6fc0';cx.lineWidth=36*k+10;cx.beginPath();cx.arc(e.x,e.y,e.r*.85,a0,a1);cx.stroke();
+   cx.globalAlpha=k;cx.strokeStyle=e.col;cx.lineWidth=16*k+5;cx.beginPath();cx.arc(e.x,e.y,e.r*.85,a0,a1);cx.stroke();
+   cx.strokeStyle='#e0f8ff';cx.lineWidth=5*k+1.5;cx.beginPath();cx.arc(e.x,e.y,e.r*.85,Math.max(a0,a1-e.w*.5),a1);cx.stroke();
+   cx.globalAlpha=k*.65;cx.strokeStyle='#7fd0ff';cx.lineWidth=2.5;cx.beginPath();cx.arc(e.x,e.y,e.r*.85-14,a0,a1);cx.stroke();
+   const Tz=performance.now()/1000,rnd=i=>{const x=Math.sin(i*127.1+1.3)*43758.5453;return x-Math.floor(x)},steps=Math.max(6,Math.floor((a1-a0)/.22));
+   cx.globalAlpha=k;for(let i=0;i<steps;i++){const u=i/steps,aa=a0+(a1-a0)*u,wob=Math.sin(u*14-Tz*16)*3,rr=e.r*.85-14+(rnd(i)-.5)*30+wob;
+    cx.fillStyle=i%3===0?'#fff':'#bfeaff';cx.beginPath();cx.arc(e.x+Math.cos(aa)*rr,e.y+Math.sin(aa)*rr,1.6+rnd(i+.5)*2.4,0,7);cx.fill()}
+   cx.restore()}
+  else if(e.k==='wripple'){const r=e.r*(1.5-k*.7);cx.save();cx.globalCompositeOperation='lighter';cx.strokeStyle=e.col;   // 地面水波：三層扁橢圓向外擴散
+   for(const [rf,lw,al] of [[1,4.5,.75],[.7,3,.45],[1.3,2,.3]]){cx.globalAlpha=k*al;cx.lineWidth=lw*k+1;cx.beginPath();cx.ellipse(e.x,e.y,r*rf,r*rf*.55,0,0,7);cx.stroke()}
+   cx.restore()}
+  else if(e.k==='wsplash'){const p=1-k;cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=k*.9;   // 水花：向上噴濺、受重力落下
+   for(const d of e.drops){const x=e.x+d.vx*p,y=e.y+d.vy*p+p*p*(e.g||600);cx.fillStyle=d.c;cx.beginPath();cx.arc(x,y,d.r*(.4+k*.6),0,7);cx.fill()}
+   cx.restore()}
   else if(e.k==='fan'){drawFan(e.x,e.y,e.a,e.w,e.r,Math.min(1,k*1.3),e.col)}
   else if(e.k==='sl'){cx.globalCompositeOperation='lighter';cx.globalAlpha=k;cx.strokeStyle=e.col;cx.lineCap='round';cx.lineWidth=10*k+2;const sx=Math.cos(e.a)*e.L/2,sy=Math.sin(e.a)*e.L/2;
    cx.beginPath();cx.moveTo(e.x-sx,e.y-sy);cx.lineTo(e.x+sx,e.y+sy);cx.stroke();cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();cx.globalCompositeOperation='source-over';cx.lineCap='butt'}
@@ -831,9 +867,7 @@ Assets.preload();
 requestAnimationFrame(loop);
 </script>
 <!-- UI 外掛（選角 / 角色詳情）：載入失敗時，上面主程式原本的選角仍然可用 -->
-<script src="js_fighter/char_kira.js"></script>
 <script src="js_fighter/mode_training.js"></script>
-<script src="js_fighter/ui_info.js"></script>
-<script src="js_fighter/ui_guide.js"></script>
+<script src="js_fighter/char_kira.js"></script>
 <script src="js_fighter/ui_select.js"></script>
 </body></html>
