@@ -21,7 +21,9 @@
     if (!f.kira) f.kira = {
       bomb: null, bombCd: 0, air: null, airTurn: 0,
       despair: 0, snaps: [], snapClock: 0, markCd: 0,
+      dirAngle: null,
     };
+    if (!Object.prototype.hasOwnProperty.call(f.kira, 'dirAngle')) f.kira.dirAngle = null;
     return f.kira;
   }
   const enemyOf = f => f === G.p ? G.e : G.p;
@@ -48,7 +50,7 @@
       const x = b.type === 'enemy' && alive(b.target) ? b.target.x : b.x;
       const y = b.type === 'enemy' && alive(b.target) ? b.target.y : b.y;
       bombFx(x, y, s, true);
-      if (typeof blast === 'function') blast(f, x, y, s.bombRad, s.bombDmg, s.bombKb || 400, PINK, 0);
+      if (typeof blast === 'function') blast(f, x, y, Number(s.bombRad) || 200, Number(s.bombDmg) || 500, Number(s.bombKb) || 400, PINK, 0);
       if (b.type === 'enemy' && alive(b.target)) b.target.stun = Math.max(b.target.stun, s.bombStun || 1);
       k.bombCd = s.bombCd || 6;
       f.cd.b = k.bombCd;
@@ -56,11 +58,12 @@
       return;
     }
     if (typeof lunge !== 'function') return;
-    lunge(f, a.ang, {
+    const launchAng = Number.isFinite(f.kiraDir) ? f.kiraDir : a.ang;
+    lunge(f, launchAng, {
       dist: s.dashDist || 380, dur: s.dashDur || .18,
       onHit: target => {
         if (!alive(target) || k.bomb) return;
-        if (typeof hit === 'function') hit(target, Math.max(1, s.dashDmg || 90), f.x, f.y, 80, 0, s, f);
+        if (typeof hit === 'function' && alive(target)) hit(target, Math.max(1, Number(s.dashDmg) || 90), f.x, f.y, 80, 0, s, f);
         k.bomb = { type:'enemy', target, x:target.x, y:target.y, t:0, life:s.bombLife || 8 };
         f.cd.b = 0;
         if (typeof pop === 'function') pop(target, 'KILLER QUEEN', PINK);
@@ -105,8 +108,9 @@
   /* 枯萎穿心攻擊：發射小車，進入偵測圈後鎖定敵人。 */
   function kiraCar(f, o, a, s) {
     if (!G.kiraCars) G.kiraCars = [];
-    G.kiraCars.push({ x:f.x + Math.cos(a.ang) * (CFG.r + 12), y:f.y + Math.sin(a.ang) * (CFG.r + 12),
-      vx:Math.cos(a.ang) * s.speed, vy:Math.sin(a.ang) * s.speed, t:0, life:s.life, s, own:f, locked:false });
+    const ang = Number.isFinite(f.kiraDir) ? f.kiraDir : a.ang;
+    G.kiraCars.push({ x:f.x + Math.cos(ang) * (CFG.r + 12), y:f.y + Math.sin(ang) * (CFG.r + 12),
+      vx:Math.cos(ang) * s.speed, vy:Math.sin(ang) * s.speed, t:0, life:s.life, s, own:f, locked:false });
     ring(f.x, f.y, 60, DEEP, .35); burst(f.x, f.y, PINK, 8, 350);
   }
 
@@ -186,7 +190,7 @@
     if(k.bomb){ k.bomb.t+=dt; if(k.bomb.type==='enemy' && alive(k.bomb.target)){k.bomb.x=k.bomb.target.x;k.bomb.y=k.bomb.target.y} if(k.bomb.t>(k.bomb.life||8)){k.bomb=null;k.bombCd=C.sk.b.bombCd||6} }
     if(k.bombCd>0){k.bombCd=Math.max(0,k.bombCd-dt);f.cd.b=Math.max(f.cd.b,k.bombCd)}
     if(f._kiraMark){f._kiraMark.t-=dt;if(f._kiraMark.t<=0)delete f._kiraMark}
-    if(k.air){const a=k.air,s=a.s;a.t+=dt;if(k.airTurn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*k.airTurn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
+    if(k.air){const a=k.air,s=a.s;a.t+=dt;let turn=k.airTurn||0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
     k.despair=Math.min(100,k.despair);
   }
   function updateCars(dt) {
@@ -206,18 +210,31 @@
   /* 第一炸彈按鈕：沿用主程式的 holdStart/holdRelease，但把拖曳座標明確寫回 hold.aim。 */
   function bindBombAim(){
     for(const el of document.querySelectorAll('#stage .b')){
-      if(el.dataset.k!=='b'||el._kiraBombAimBound)continue;
+      if((el.dataset.k!=='b'&&el.dataset.k!=='d')||el._kiraBombAimBound)continue;
       el._kiraBombAimBound=true;
       let pid=null,sx=0,sy=0;
       const aimOf=e=>{const f=G.p,[dx,dy]=d2s(e.clientX-sx,e.clientY-sy);return Math.hypot(dx,dy)>12?{x:f.x+dx*8,y:f.y+dy*8}:{x:enemyOf(f).x,y:enemyOf(f).y}};
       el.addEventListener('pointerdown',e=>{pid=e.pointerId;sx=e.clientX;sy=e.clientY;el.setPointerCapture(pid)},true);
-      el.addEventListener('pointermove',e=>{if(e.pointerId!==pid||!G.p||!G.p.hold||G.p.hold.k!=='b')return;G.p.hold.aim=aimOf(e)},true);
+      el.addEventListener('pointermove',e=>{if(e.pointerId!==pid||!G.p||!G.p.hold||G.p.hold.k!==el.dataset.k)return;const aim=aimOf(e);G.p.hold.aim=aim;G.p.kiraDir=Math.atan2(aim.y-G.p.y,aim.x-G.p.x);ensure(G.p).dirAngle=G.p.kiraDir},true);
       el.addEventListener('pointerup',()=>{pid=null},true);
       el.addEventListener('pointercancel',()=>{pid=null},true);
     }
   }
   if(typeof MutationObserver!=='undefined'&&document.getElementById('stage'))new MutationObserver(bindBombAim).observe(document.getElementById('stage'),{childList:true,subtree:true});
   bindBombAim();
+
+  /* 八方向技能鍵：只改技能方向，不會觸發移動。 */
+  function makeDirPad(){
+    if(document.getElementById('kiraDirPad'))return;
+    const stage=document.getElementById('stage'); if(!stage)return;
+    const pad=document.createElement('div'); pad.id='kiraDirPad';
+    pad.style.cssText='position:absolute;right:210px;bottom:118px;width:126px;height:126px;z-index:30;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3px;pointer-events:auto;';
+    const dirs=[[-1,-1], [0,-1], [1,-1], [-1,0], [0,0], [1,0], [-1,1], [0,1], [1,1]];
+    const marks=['↖','↑','↗','←','•','→','↙','↓','↘'];
+    dirs.forEach(([dx,dy],i)=>{const b=document.createElement('button');b.type='button';b.textContent=marks[i];b.style.cssText='border:1px solid #ffb3d9;background:#35152dcc;color:#fff;border-radius:8px;font-size:20px;padding:0;touch-action:none;';if(!dx&&!dy)b.style.visibility='hidden';b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const f=G.p;if(!f||f.c!==C)return;f.kiraDir=Math.atan2(dy,dx);ensure(f).dirAngle=f.kiraDir;b.style.background='#ff4a8a';setTimeout(()=>b.style.background='#35152dcc',120)},true);pad.appendChild(b)});
+    stage.appendChild(pad);
+  }
+  makeDirPad();
 
   function drawKiraWorld(){const T=performance.now()/1000;cx.save();cx.scale(view.s,view.s);cx.translate(-cam.x,-cam.y);for(const f of [G.p,G.e]){if(f&&f.c===C&&f._kiraMark){const p=f._kiraMark,k=p.t/p.total;cx.save();cx.translate(f.x,f.y);cx.globalCompositeOperation='lighter';cx.strokeStyle=PINK;cx.lineWidth=4;cx.beginPath();cx.arc(0,0,CFG.r+16,-Math.PI/2,-Math.PI/2+Math.PI*2*k);cx.stroke();cx.strokeStyle=LIGHT;cx.lineWidth=2;cx.beginPath();cx.arc(0,0,CFG.r+23,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-k));cx.stroke();cx.fillStyle=PINK;cx.font='bold 16px system-ui';cx.textAlign='center';cx.fillText(k.toFixed(1),0,-CFG.r-30);cx.restore()}const k= f&&f.c===C&&f.kira;if(!k)continue;if(k.bomb){const x=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.x:k.bomb.x,y=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.y:k.bomb.y;cx.save();cx.translate(x,y);cx.globalCompositeOperation='lighter';cx.fillStyle=PINK;cx.beginPath();cx.arc(0,0,18+4*Math.sin(T*12),0,7);cx.fill();cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();cx.fillStyle=GOLD;cx.beginPath();cx.arc(5,-30,5,0,7);cx.fill();cx.fillStyle='#fff';cx.font='bold 12px system-ui';cx.textAlign='center';cx.fillText(Math.max(0,(k.bomb.life||8)-k.bomb.t).toFixed(1),0,-42);cx.restore()}}if(G.kiraCars)for(const c of G.kiraCars){const o=enemyOf(c.own);cx.save();cx.globalAlpha=.35;cx.strokeStyle=c.locked?DEEP:PINK;cx.setLineDash(c.locked?[10,6]:[8,8]);cx.beginPath();cx.arc(c.x,c.y,c.locked?c.s.r*1.5:c.s.detectRad,0,7);cx.stroke();if(c.locked){cx.globalAlpha=.65;cx.beginPath();cx.moveTo(c.x,c.y);cx.lineTo(o.x,o.y);cx.stroke()}cx.restore()}for(const f of [G.p,G.e]){const k=f&&f.c===C&&f.kira;if(!k||!k.air)continue;const a=k.air;cx.save();cx.globalCompositeOperation='lighter';for(let i=0;i<a.trail.length;i++){const q=a.trail[i],v=i/a.trail.length;cx.globalAlpha=v*.45;cx.fillStyle=v>.7?LIGHT:PINK;cx.beginPath();cx.arc(q.x,q.y,5+v*12,0,7);cx.fill()}const g=cx.createRadialGradient(a.x,a.y,2,a.x,a.y,42);g.addColorStop(0,'#fff');g.addColorStop(.35,PINK);g.addColorStop(1,'rgba(255,126,182,0)');cx.globalAlpha=1;cx.fillStyle=g;cx.beginPath();cx.arc(a.x,a.y,42,0,7);cx.fill();cx.restore()}cx.restore()}
 
