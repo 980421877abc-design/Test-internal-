@@ -627,7 +627,7 @@ const CHARS = {
           cost: 100,                      //   （待定）
           window: 3,                      //   派生視窗：命中後幾秒內可用；逾時恢復原技能並進入冷卻
           lungeDist: 0, lungeDur: 0,        //   0 = 不位移（避免繼承肆之型的突進數值）
-          dmg: 400, range: 300, thrustW: 36, kb: 260,   //   原地突刺（不位移）：range = 突刺長度（從義勇中心算）、thrustW = 突刺半寬
+          dmg: 400, range: 350, thrustW: 36, kb: 260,   //   原地突刺（不位移）：range = 突刺長度（從義勇中心算）、thrustW = 突刺半寬
           slow: { dur: 1, v: .5 },        //   命中：減速 50%，持續 1 秒
         },
       },
