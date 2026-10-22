@@ -695,18 +695,19 @@ const CHARS = {
     stand: { name: '殺手皇后', minEnergy: 200, hitDrain: .3 },
 
     sk: {
-      a: { name:'拳擊', type:'melee', cost:0, cd:.4, wind:.08,
+      a: { name:'拳擊', type:'melee', needStand:1, cost:0, cd:.4, wind:.08,
            dmg:70, range:130, arc:1.2, kb:100,
            markDmg:300, markDelay:2, markCd:5,
            standHit:{ delay:.15, dmg:70 } },
 
-      b: { name:'第一炸彈', type:'melee', use:'kiraBomb',
+      b: { name:'第一炸彈', type:'melee', needStand:1, use:'kiraBomb',
+           hold:{ start:.05, full:99 }, aimMove:1, noCharge:1,
            cost:0, cd:6, wind:.1, aiGap:1.2,
            dashDist:380, dashDur:.18,
            bombDmg:500, bombRad:200, bombStun:1, bombLife:8, bombCd:6,
            col:'#ff7eb6' },
 
-      c: { name:'空氣彈', type:'toggle', use:'kiraAir',
+      c: { name:'空氣彈', type:'toggle', needStand:1, use:'kiraAir',
            hold:{ start:0, full:99 },
            cost:120, cd:7, wind:.1,
            dmg:450, rad:180, slowDur:2, slowV:.5,
@@ -714,14 +715,14 @@ const CHARS = {
            tag: f => (f.kira && f.kira.air) ? '飛行中' : '按住發射',
            col:'#ffb3d9' },
 
-      d: { name:'枯萎穿心攻擊', type:'proj', use:'kiraCar',
+      d: { name:'枯萎穿心攻擊', type:'proj', needStand:1, use:'kiraCar',
            cost:150, cd:9, wind:.1,
            speed:700, life:2.5, detectRad:320, dashSpeed:1300,
            r:24, rad:160, dmg:350, kb:200,
            sprite:'image/kira_car.png',
            col:'#ff4a8a' },
 
-      e: { name:'敗者食塵', type:'melee', use:'kiraBites', ult:1,
+      e: { name:'敗者食塵', type:'melee', needStand:1, use:'kiraBites', ult:1,
            cost:0, cd:25, wind:.3,
            rewind:10, dmg:2000, heal:2500, despairMax:100,
            col:'#ff7eb6' },
