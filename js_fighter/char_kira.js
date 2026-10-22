@@ -61,6 +61,7 @@
     const launchAng = Number.isFinite(f.kiraDir) ? f.kiraDir : a.ang;
     lunge(f, launchAng, {
       dist: s.dashDist || 380, dur: s.dashDur || .18,
+      sk: s, dmg: 0, kb: 0, reach: Math.max(20, s.reach || 12),
       onHit: target => {
         if (!alive(target) || k.bomb) return;
         if (typeof hit === 'function' && alive(target)) hit(target, Math.max(1, Number(s.dashDmg) || 90), f.x, f.y, 80, 0, s, f);
@@ -88,6 +89,7 @@
     const k = ensure(f);
     if (k.air) return;
     const a = angle == null ? Math.atan2(o.y - f.y, o.x - f.x) : angle;
+    k.dirAngle = a;
     k.air = { x:f.x + Math.cos(a) * (CFG.r + 14), y:f.y + Math.sin(a) * (CFG.r + 14),
       vx:Math.cos(a) * s.speed, vy:Math.sin(a) * s.speed, t:0, s, trail:[] };
     k.airTurn = 0;
@@ -190,7 +192,7 @@
     if(k.bomb){ k.bomb.t+=dt; if(k.bomb.type==='enemy' && alive(k.bomb.target)){k.bomb.x=k.bomb.target.x;k.bomb.y=k.bomb.target.y} if(k.bomb.t>(k.bomb.life||8)){k.bomb=null;k.bombCd=C.sk.b.bombCd||6} }
     if(k.bombCd>0){k.bombCd=Math.max(0,k.bombCd-dt);f.cd.b=Math.max(f.cd.b,k.bombCd)}
     if(f._kiraMark){f._kiraMark.t-=dt;if(f._kiraMark.t<=0)delete f._kiraMark}
-    if(k.air){const a=k.air,s=a.s;a.t+=dt;let turn=k.airTurn||0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
+    if(k.air){const a=k.air,s=a.s;a.t+=dt;const jx=(typeof joy!=='undefined'?joy.x:0)+(typeof keys!=='undefined'&&((keys.d||keys.ArrowRight)?1:0))-((typeof keys!=='undefined'&&((keys.a||keys.ArrowLeft)?1:0)));const jy=(typeof joy!=='undefined'?joy.y:0)+(typeof keys!=='undefined'&&((keys.s||keys.ArrowDown)?1:0))-((typeof keys!=='undefined'&&((keys.w||keys.ArrowUp)?1:0)));if(Math.hypot(jx,jy)>.18)k.dirAngle=Math.atan2(jy,jx);let turn=0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
     k.despair=Math.min(100,k.despair);
   }
   function updateCars(dt) {
@@ -199,12 +201,12 @@
   }
 
   const oldUpdate=window.update, oldDraw=window.draw, oldHit=window.hit, oldEnd=window.endRound;
-  if(typeof oldHit==='function'&&!oldHit._kiraWrapped){const hitWrap=function(t,d,fxx,fyy,kb,heavy,sk,att){const before=t.hp;oldHit(t,d,fxx,fyy,kb,heavy,sk,att);const dealt=Math.max(0,before-t.hp);if(dealt&&att&&att.c===C)ensure(att).despair=Math.min(100,ensure(att).despair+dealt/50);if(dealt&&t.c===C)ensure(t).despair=Math.min(100,ensure(t).despair+dealt/50)};hitWrap._kiraWrapped=true;window.hit=hitWrap}
+  if(typeof oldHit==='function'&&!oldHit._kiraWrapped){const hitWrap=function(t,d,fxx,fyy,kb,heavy,sk,att){const before=t.hp;oldHit(t,d,fxx,fyy,kb,heavy,sk,att);const dealt=Math.max(0,before-t.hp);if(dealt&&att&&att.c===C)ensure(att).despair=Math.min(100,ensure(att).despair+dealt/100);if(dealt&&t.c===C)ensure(t).despair=Math.min(100,ensure(t).despair+dealt/100)};hitWrap._kiraWrapped=true;window.hit=hitWrap}
   if(typeof oldEnd==='function'&&!oldEnd._kiraWrapped){const endWrap=function(loser){if(loser&&loser.c===C&&ensure(loser).despair>=100&&!G.ts){const o=enemyOf(loser);ensure(loser).despair=0;rewind(loser,o,C.sk.e.rewind||10);loser.hp=Math.min(loser.c.hp,loser.hp+(C.sk.e.heal||2500));G.state='fight';if(typeof say==='function')say('敗者食塵·被動觸發！',1.5);return}return oldEnd(loser)};endWrap._kiraWrapped=true;window.endRound=endWrap}
   if(typeof oldUpdate==='function'&&!oldUpdate._kiraWrapped){const updateWrap=function(dt){oldUpdate(dt);if(G.state!=='fight')return;for(const f of [G.p,G.e])if(f&&f.c===C)updateKira(f,dt);updateCars(dt);if(G.kiraRewind){G.kiraRewind.t+=dt;if(G.kiraRewind.t>=G.kiraRewind.T)G.kiraRewind=null}};updateWrap._kiraWrapped=true;window.update=updateWrap}
 
   /* 空氣彈按鈕：捕獲階段攔截主程式的普通 toggle 行為。 */
-  function bindAir(){for(const el of document.querySelectorAll('#stage .b')){if(el.dataset.k!=='c'||el._kiraAirBound)continue;el._kiraAirBound=true;let active=false,startX=0;el.addEventListener('pointerdown',e=>{const f=G.p;if(!f||f.c!==C||ensure(f).air||!canCast(f,'c'))return;e.stopPropagation();e.preventDefault();el.setPointerCapture(e.pointerId);active=true;startX=e.clientX;const s=C.sk.c;f.en-=s.cost;f.cd.c=s.cd;launchAir(f,enemyOf(f),s);},true);el.addEventListener('pointermove',e=>{if(!active)return;e.stopPropagation();const f=G.p,k=f&&ensure(f);if(k&&k.air){const dx=e.clientX-startX;k.airTurn=Math.max(-1,Math.min(1,dx/80))}},true);const up=e=>{if(!active)return;active=false;e.stopPropagation();const f=G.p;if(f)explodeAir(f)};el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}}
+  function bindAir(){for(const el of document.querySelectorAll('#stage .b')){if(el.dataset.k!=='c'||el._kiraAirBound)continue;el._kiraAirBound=true;let active=false;el.addEventListener('pointerdown',e=>{const f=G.p;if(!f||f.c!==C||ensure(f).air||!canCast(f,'c'))return;e.stopPropagation();e.preventDefault();el.setPointerCapture(e.pointerId);active=true;const s=C.sk.c;f.en-=s.cost;f.cd.c=s.cd;launchAir(f,enemyOf(f),s);},true);const up=e=>{if(!active)return;active=false;e.stopPropagation();e.preventDefault();const f=G.p;if(f)explodeAir(f)};el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}}
   if(typeof MutationObserver!=='undefined'&&document.getElementById('stage'))new MutationObserver(bindAir).observe(document.getElementById('stage'),{childList:true,subtree:true});bindAir();
 
   /* 第一炸彈按鈕：沿用主程式的 holdStart/holdRelease，但把拖曳座標明確寫回 hold.aim。 */
@@ -222,19 +224,6 @@
   }
   if(typeof MutationObserver!=='undefined'&&document.getElementById('stage'))new MutationObserver(bindBombAim).observe(document.getElementById('stage'),{childList:true,subtree:true});
   bindBombAim();
-
-  /* 八方向技能鍵：只改技能方向，不會觸發移動。 */
-  function makeDirPad(){
-    if(document.getElementById('kiraDirPad'))return;
-    const stage=document.getElementById('stage'); if(!stage)return;
-    const pad=document.createElement('div'); pad.id='kiraDirPad';
-    pad.style.cssText='position:absolute;right:210px;bottom:118px;width:126px;height:126px;z-index:30;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3px;pointer-events:auto;';
-    const dirs=[[-1,-1], [0,-1], [1,-1], [-1,0], [0,0], [1,0], [-1,1], [0,1], [1,1]];
-    const marks=['↖','↑','↗','←','•','→','↙','↓','↘'];
-    dirs.forEach(([dx,dy],i)=>{const b=document.createElement('button');b.type='button';b.textContent=marks[i];b.style.cssText='border:1px solid #ffb3d9;background:#35152dcc;color:#fff;border-radius:8px;font-size:20px;padding:0;touch-action:none;';if(!dx&&!dy)b.style.visibility='hidden';b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const f=G.p;if(!f||f.c!==C)return;f.kiraDir=Math.atan2(dy,dx);ensure(f).dirAngle=f.kiraDir;b.style.background='#ff4a8a';setTimeout(()=>b.style.background='#35152dcc',120)},true);pad.appendChild(b)});
-    stage.appendChild(pad);
-  }
-  makeDirPad();
 
   function drawKiraWorld(){const T=performance.now()/1000;cx.save();cx.scale(view.s,view.s);cx.translate(-cam.x,-cam.y);for(const f of [G.p,G.e]){if(f&&f.c===C&&f._kiraMark){const p=f._kiraMark,k=p.t/p.total;cx.save();cx.translate(f.x,f.y);cx.globalCompositeOperation='lighter';cx.strokeStyle=PINK;cx.lineWidth=4;cx.beginPath();cx.arc(0,0,CFG.r+16,-Math.PI/2,-Math.PI/2+Math.PI*2*k);cx.stroke();cx.strokeStyle=LIGHT;cx.lineWidth=2;cx.beginPath();cx.arc(0,0,CFG.r+23,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-k));cx.stroke();cx.fillStyle=PINK;cx.font='bold 16px system-ui';cx.textAlign='center';cx.fillText(k.toFixed(1),0,-CFG.r-30);cx.restore()}const k= f&&f.c===C&&f.kira;if(!k)continue;if(k.bomb){const x=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.x:k.bomb.x,y=k.bomb.type==='enemy'&&alive(k.bomb.target)?k.bomb.target.y:k.bomb.y;cx.save();cx.translate(x,y);cx.globalCompositeOperation='lighter';cx.fillStyle=PINK;cx.beginPath();cx.arc(0,0,18+4*Math.sin(T*12),0,7);cx.fill();cx.strokeStyle='#fff';cx.lineWidth=3;cx.stroke();cx.fillStyle=GOLD;cx.beginPath();cx.arc(5,-30,5,0,7);cx.fill();cx.fillStyle='#fff';cx.font='bold 12px system-ui';cx.textAlign='center';cx.fillText(Math.max(0,(k.bomb.life||8)-k.bomb.t).toFixed(1),0,-42);cx.restore()}}if(G.kiraCars)for(const c of G.kiraCars){const o=enemyOf(c.own);cx.save();cx.globalAlpha=.35;cx.strokeStyle=c.locked?DEEP:PINK;cx.setLineDash(c.locked?[10,6]:[8,8]);cx.beginPath();cx.arc(c.x,c.y,c.locked?c.s.r*1.5:c.s.detectRad,0,7);cx.stroke();if(c.locked){cx.globalAlpha=.65;cx.beginPath();cx.moveTo(c.x,c.y);cx.lineTo(o.x,o.y);cx.stroke()}cx.restore()}for(const f of [G.p,G.e]){const k=f&&f.c===C&&f.kira;if(!k||!k.air)continue;const a=k.air;cx.save();cx.globalCompositeOperation='lighter';for(let i=0;i<a.trail.length;i++){const q=a.trail[i],v=i/a.trail.length;cx.globalAlpha=v*.45;cx.fillStyle=v>.7?LIGHT:PINK;cx.beginPath();cx.arc(q.x,q.y,5+v*12,0,7);cx.fill()}const g=cx.createRadialGradient(a.x,a.y,2,a.x,a.y,42);g.addColorStop(0,'#fff');g.addColorStop(.35,PINK);g.addColorStop(1,'rgba(255,126,182,0)');cx.globalAlpha=1;cx.fillStyle=g;cx.beginPath();cx.arc(a.x,a.y,42,0,7);cx.fill();cx.restore()}cx.restore()}
 
