@@ -689,7 +689,7 @@ const CHARS = {
     img: 'image/kira.png',
 
     hp: 8000, speed: 500,
-    res: { name: '替身能量', max: 2500, regen: 50, blockDrain: 30, color: '#ff7eb6' },
+    res: { name: '替身能量', max: 2500, regen: 100, blockDrain: 30, color: '#ff7eb6' },
     aiDist: 250,
 
     stand: { name: '殺手皇后', minEnergy: 200, hitDrain: .3 },
@@ -698,7 +698,7 @@ const CHARS = {
       name: '替身護體',
       useRes: 1,                   //   1 = 消耗角色資源（替身能量），不使用獨立量條
       needStand: 1,                //   1 = 要先開啟替身才能發動
-      drain: 150,                  //   每秒消耗替身能量（吉良能量 2500，約可撐 20 秒；要更硬就調小）
+      drain: 120,                  //   每秒消耗替身能量（吉良能量 2500，約可撐 20 秒；要更硬就調小）
       lock: 0,                     //   0 = 發動時可以自由行動
     },
     sk: {
