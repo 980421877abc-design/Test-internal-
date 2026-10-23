@@ -58,6 +58,7 @@
       return;
     }
     if (typeof lunge !== 'function') return;
+        f.cd.b = 0;   // 埋彈階段不進 CD（cd:0 已讓 cast 不設，這行防禦性覆蓋）
     const launchAng = Number.isFinite(f.kiraDir) ? f.kiraDir : a.ang;
     lunge(f, launchAng, {
       dist: s.dashDist || 380, dur: s.dashDur || .18,
@@ -66,7 +67,7 @@
         if (!alive(target) || k.bomb) return;
         if (typeof hit === 'function' && alive(target)) hit(target, Math.max(1, Number(s.dashDmg) || 90), f.x, f.y, 80, 0, s, f);
         k.bomb = { type:'enemy', target, x:target.x, y:target.y, t:0, life:s.bombLife || 8 };
-        f.cd.b = 0;
+        f.cd.b = 0; k.bombCd = 0;
         if (typeof pop === 'function') pop(target, 'KILLER QUEEN', PINK);
         ring(target.x, target.y, 100, PINK, .5); ring(target.x, target.y, 140, LIGHT, .7);
         burst(target.x, target.y, PINK, 18, 500);
@@ -79,7 +80,7 @@
           if (typeof pop === 'function') pop(f, '牆壁炸彈', PINK);
           ring(f.x, f.y, 110, PINK, .5); burst(f.x, f.y, PINK, 14, 450);
         }
-        if (!k.bomb) k.bombCd = s.bombCd || 6;
+              if (!k.bomb) { k.bombCd = s.missCd || 2; f.cd.b = k.bombCd; }
       },
     });
   }
