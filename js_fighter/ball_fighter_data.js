@@ -268,10 +268,10 @@ const CHARS = {
     name: '兩面宿儺',
     work: '咒術迴戰',
     color: '#d4453a',
-    glyph: '宿',
+    glyph: '儺',
     img: 'image/sukuna.png',
 
-    hp: 8000,
+    hp: 7500,
     speed: 570,
     res: {
       name: '咒力',
@@ -443,7 +443,7 @@ const CHARS = {
     glyph: '承',
     img: 'image/jotaro.png',
 
-    hp: 10000,
+    hp: 9500,
     speed: 580,
     res: {
       name: '替身能量',
@@ -512,7 +512,7 @@ const CHARS = {
         wind: .1,
         hits: 8,                   // 連打次數
         gap: .06,                  // 每拳間隔（秒）
-        dmg: 100,                  // 每拳傷害
+        dmg: 90,                  // 每拳傷害
         lastBonus: 120,            // 最後一拳額外傷害（最後一拳 = 100 + 120）
         range: 260,                // 攻擊距離（像素）
         arc: 1.2,                  // 攻擊扇形角度（弧度）
@@ -568,7 +568,7 @@ const CHARS = {
         cost: 400,
         cd: 18,                    // 冷卻從「時停結束」才開始算（時停期間不冷卻）
         wind: .3,
-        duration: 4,               // 時停持續秒數
+        duration: 3,               // 時停持續秒數
       },
     },
   },
@@ -582,7 +582,7 @@ const CHARS = {
     glyph: '富',
     img: 'image/giyu.png',
 
-    hp: 8500,
+    hp: 8000,
     speed: 580,
     res: {
       name: '呼吸',                  // 呼吸條
@@ -627,7 +627,7 @@ const CHARS = {
           cost: 100,                      //   （待定）
           window: 3,                      //   派生視窗：命中後幾秒內可用；逾時恢復原技能並進入冷卻
           lungeDist: 0, lungeDur: 0,        //   0 = 不位移（避免繼承肆之型的突進數值）
-          dmg: 400, range: 350, thrustW: 36, kb: 260,   //   原地突刺（不位移）：range = 突刺長度（從義勇中心算）、thrustW = 突刺半寬
+          dmg: 400, range: 300, thrustW: 36, kb: 260,   //   原地突刺（不位移）：range = 突刺長度（從義勇中心算）、thrustW = 突刺半寬
           slow: { dur: 1, v: .5 },        //   命中：減速 50%，持續 1 秒
         },
       },
@@ -685,15 +685,22 @@ const CHARS = {
 
   /* ═════════════════ 吉良吉影（JOJO的奇妙冒險） ═════════════════ */
   kira: {
-    name: '吉良吉影', work: 'JOJO的奇妙冒險', color: '#ff7eb6', glyph: '影',
+    name: '吉良吉影', work: 'JOJO的奇妙冒險', color: '#ff7eb6', glyph: '吉',
     img: 'image/kira.png',
 
-    hp: 7500, speed: 500,
+    hp: 8000, speed: 500,
     res: { name: '替身能量', max: 2500, regen: 50, blockDrain: 30, color: '#ff7eb6' },
     aiDist: 250,
 
     stand: { name: '殺手皇后', minEnergy: 200, hitDrain: .3 },
 
+    domDef: {                      // 被關進敵方領域時，防禦鍵改成「替身護體」：持續消耗替身能量，免疫領域效果
+      name: '替身護體',
+      useRes: 1,                   //   1 = 消耗角色資源（替身能量），不使用獨立量條
+      needStand: 1,                //   1 = 要先開啟替身才能發動
+      drain: 150,                  //   每秒消耗替身能量（吉良能量 2500，約可撐 20 秒；要更硬就調小）
+      lock: 0,                     //   0 = 發動時可以自由行動
+    },
     sk: {
       a: { name:'拳擊', type:'melee', needStand:1, cost:0, cd:.4, wind:.08,
            dmg:70, range:130, arc:1.2, kb:100,
@@ -703,15 +710,15 @@ const CHARS = {
       b: { name:'第一炸彈', type:'melee', needStand:1, use:'kiraBomb',
            hold:{ start:.05, full:99 }, aimMove:1, noCharge:1,
            cost:50, cd:4, wind:.1, aiGap:1.2,
-           dashDist:380, dashDur:.18, dashDmg:90, range:150, arc:1.5,
+           dashDist:400, dashDur:.18, dashDmg:150, range:150, arc:1.5,
            through:1,
-           bombDmg:500, bombRad:200, bombStun:1, bombLife:8, bombCd:6,
+           bombDmg:520, bombRad:200, bombStun:1, bombLife:8, bombCd:6,
            col:'#ff7eb6' },
 
       c: { name:'空氣彈', type:'toggle', needStand:1, use:'kiraAir',
            hold:{ start:0, full:99 },
            cost:120, cd:5, wind:.1,
-           dmg:600, rad:200, slowDur:2, slowV:.5,
+           dmg:650, rad:200, slowDur:2, slowV:.5,
            maxHold:4, speed:600, turnMax:3,
            tag: f => (f.kira && f.kira.air) ? '飛行中' : '按住發射',
            col:'#ffb3d9' },
@@ -719,8 +726,8 @@ const CHARS = {
       d: { name:'枯萎穿心攻擊', type:'proj', needStand:1, use:'kiraCar',
            hold:{ start:.05, full:99 }, aimMove:1, noCharge:1,
            cost:150, cd:9, wind:.1,
-           speed:500, life:2.5, detectRad:320, dashSpeed:1000, through:1,
-           r:24, rad:160, dmg:350, kb:200,
+           speed:400, life:2.5, detectRad:320, dashSpeed:800, through:1,
+           r:24, rad:160, dmg:500, kb:200,
            sprite:'image/kira_car.png',
            col:'#ff4a8a' },
 
