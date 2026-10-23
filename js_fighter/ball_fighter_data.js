@@ -712,7 +712,7 @@ const CHARS = {
            cost:50, cd:4, wind:.1, aiGap:1.2,
            dashDist:400, dashDur:.18, dashDmg:150, range:150, arc:1.5,
            through:1,
-           bombDmg:520, bombRad:200, bombStun:1, bombLife:8, bombCd:6,
+           bombDmg:520, bombRad:200, bombStun:1, bombLife:8, bombCd:2,
            col:'#ff7eb6' },
 
       c: { name:'空氣彈', type:'toggle', needStand:1, use:'kiraAir',
