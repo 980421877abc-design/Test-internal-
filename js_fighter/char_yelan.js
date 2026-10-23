@@ -72,6 +72,7 @@
 
   /* ─── 3. 元素微粒 ─── */
   function spawnMote(x, y, vx, vy) {
+    if (!G.yelanMotes) G.yelanMotes = [];
     G.yelanMotes.push({ x, y, vx: vx || 0, vy: vy || 0, t: 0, r: 6, col: '#6fd3ff' });
   }
   function updateMotes(dt) {
@@ -128,6 +129,7 @@
     fx({ k: 'ring', x: tgt.x, y: tgt.y, r: 64, col: '#5dd4ff', t: .4, m: .4 });
   }
   function explodeAllMarks(owner, s) {
+    initGameArrays();
     for (const tgt of [G.p, G.e]) {
       if (!tgt || tgt === owner || !tgt.yelanMarks) continue;
       if (!alive(tgt)) continue;
@@ -175,6 +177,7 @@
     return Math.min(50, 1 + k.exLinglong.t * 3.5);
   }
   function linglongTrigger(f, tgt) {
+    initGameArrays();
     const k = ensure(f);
     if (!k.exLinglong || !alive(tgt)) return;
     const dmg = C.yelan.linglongDmg;
@@ -224,6 +227,7 @@
   }
 
   function skill2Fire(f, o, a, s) {
+    initGameArrays();
     const k = ensure(f);
     const ang = (a && a.ang != null) ? a.ang : Math.atan2(o.y - f.y, o.x - f.x);
     G.yelanDice.push({
@@ -266,6 +270,7 @@
   }
 
   function burstFire(f, o, a, s) {
+    initGameArrays();
     const k = ensure(f);
     if (k.burst < k.burstMax) return;
     k.burst = 0;
@@ -500,6 +505,7 @@
       const before = t.hp;
       oldHit(t, d, fx_, fy_, kb, heavy, sk, att);
       const dealt = Math.max(0, before - t.hp);
+
       if (sk && sk.yelanFortuneArrow && att && att.c === C && dealt > 0) {
         for (const tg of [G.p, G.e]) {
           if (tg === att || !alive(tg)) continue;
@@ -510,16 +516,19 @@
         fx({ k: 'ring', x: t.x, y: t.y, r: 200, col: '#ffd77a', t: .5, m: .5 });
         spark(t.x, t.y, '#ffd77a', 20, 600, .45, 3);
       }
+
       if (sk && sk.yelanWater && att && att.c === C && dealt > 0) {
+        if (!G.yelanWaters) G.yelanWaters = [];
         G.yelanWaters.push({
           x: t.x, y: t.y, r: sk.yelanWaterR || 100,
           t: 0, life: sk.yelanWaterLife || 4, own: att,
         });
         spawnMote(t.x, t.y, 0, 0);
       }
+
       if (att && att.c === C) {
         const k = ensure(att);
-        if (k.exLinglong && (sk === C.sk.a || sk === C.sk.b)) {
+        if (k.exLinglong && sk && (sk.key === 'a' || sk.key === 'b')) {
           linglongTrigger(att, t);
         }
       }
@@ -532,6 +541,7 @@
   const oldUpdate = window.update;
   if (typeof oldUpdate === 'function' && !oldUpdate._yelanWrapped) {
     const w = function (dt) {
+      initGameArrays();
       oldUpdate(dt);
       initGameArrays();
       if (G.state !== 'fight') return;
@@ -556,8 +566,7 @@
             }
           }
           if (f.hold.t >= C.sk.b.maxHold) {
-            if (canCast(f, 'b')) holdRelease(f, 'b', { x: foe.x, y: foe.y });
-            else f.hold = null;
+            holdRelease(f, 'b', { x: foe.x, y: foe.y });
           }
         } else {
           ensure(f).skill1HitTargets = [];
