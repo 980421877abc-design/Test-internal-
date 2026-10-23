@@ -31,7 +31,8 @@
            hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,
            cost: 200, cd: 8, wind: .05,
            touchDmg: 150, explodeDmg: 250, motesPerMark: 3,
-           hasteV: 1.3, maxHold: 3 },
+           hasteV: 1.3, maxHold: 3,
+           pv: (f) => ({ k: 'circle', r: CFG.r * 2.2 }) },
 
       c: { name: '玲瓏骰擊', type: 'proj',
            cost: 150, cd: 6, wind: .1,
