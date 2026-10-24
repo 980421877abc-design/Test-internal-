@@ -719,7 +719,7 @@ const CHARS = {
 
       c: { name:'空氣彈', type:'toggle', needStand:1, use:'kiraAir',
            hold:{ start:0, full:99 },
-           cost:120, cd:5, wind:.1,
+           cost:120, cd:5, wind:.1,lockMove: 1,
            dmg:900, rad:200, slowDur:2, slowV:.5,
            maxHold:4, speed:300, turnMax:3,
            tag: f => (f.kira && f.kira.air) ? '飛行中' : '按住發射',
