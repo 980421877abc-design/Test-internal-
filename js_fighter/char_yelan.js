@@ -44,7 +44,7 @@
            pv: (f) => ({ k: 'circle', r: CFG.r * 2.2 }) },
 
       c: { name: '玲瓏骰擊', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 100, cd: 4, wind: .1, hitGap: .4
+           cost: 100, cd: 4, wind: .1, hitGap: .4,
            diceSpeed: 500, diceBounces: 4, r: 40, dmg: 60, kb: 100,
            homingDmg: 120, homingSpeed: 800, homingTurn: 10,
            pv: (f, full, q) => ({ k: 'line', len: Math.min(q.diceSpeed * 1.9, 1500), w: q.r * 2.5 }) },
