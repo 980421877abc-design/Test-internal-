@@ -128,7 +128,7 @@
     if (!tgt || !owner) return;
     if (!tgt.yelanMarks) tgt.yelanMarks = [];
     if (tgt.yelanMarks.find(m => m.owner === owner)) return;
-    tgt.yelanMarks.push({ owner, t: 6 });
+    tgt.yelanMarks.push({ owner, t: 6, pulse: 0 });
     fx({ k: 'ring', x: tgt.x, y: tgt.y, r: 64, col: '#5dd4ff', t: .4, m: .4 });
   }
   function explodeAllMarks(owner, s) {
@@ -170,14 +170,26 @@
   /* ─── 6. 玄擲玲瓏 ─── */
   function linglongTick(f, dt) {
     const k = ensure(f);
-    if (!k.exLinglong) return;
+    if (!k.exLinglong) {
+      for (let i = G.yelanDice.length - 1; i >= 0; i--) if (G.yelanDice[i].orbit && G.yelanDice[i].own === f) G.yelanDice.splice(i, 1);
+      return;
+    }
     k.exLinglong.t += dt;
     if (k.exLinglong.t >= k.exLinglong.life) k.exLinglong = null;
+    if (k.exLinglong) {
+      const die = G.yelanDice.find(d => d.orbit && d.own === f);
+      if (die) {
+        const a = performance.now() / 1000 * 2.4;
+        die.x = f.x + Math.cos(a) * (CFG.r + 34);
+        die.y = f.y + Math.sin(a) * (CFG.r + 34);
+        die.ang = a + Math.PI / 2;
+      }
+    }
   }
   function updateMarks(dt) {
     for (const tgt of [G.p, G.e]) {
       if (!tgt || !tgt.yelanMarks) continue;
-      for (const m of tgt.yelanMarks) m.t -= dt;
+      for (const m of tgt.yelanMarks) { m.t -= dt; m.pulse = (m.pulse || 0) + dt; }
       tgt.yelanMarks = tgt.yelanMarks.filter(m => m.t > 0 && alive(m.owner));
     }
   }
@@ -190,20 +202,17 @@
     initGameArrays();
     const k = ensure(f);
     if (!k.exLinglong || !alive(tgt)) return;
-    // 玄擲玲瓏：一顆藍色骰子作為發射源，朝對手發射三根向量分散的協同箭矢。
+    // 玄擲玲瓏：常駐在身邊的一顆藍色骰子，朝對手發射三根追蹤協同箭矢。
     const a = Math.atan2(tgt.y - f.y, tgt.x - f.x);
-    const sx = f.x + Math.cos(a) * (CFG.r + 28), sy = f.y + Math.sin(a) * (CFG.r + 28);
-    G.yelanDice.push({
-      x: sx, y: sy, vx: 0, vy: 0, t: 0, bounces: 0, life: .28, displayOnly: true,
-      s: { r: 16, dmg: 0, kb: 0, col: '#4fd0ff' }, own: f, ang: a, trail: [],
-    });
+    const die = G.yelanDice.find(d => d.orbit && d.own === f);
+    const sx = die ? die.x : f.x + Math.cos(a) * (CFG.r + 34), sy = die ? die.y : f.y + Math.sin(a) * (CFG.r + 34);
     for (let i = -1; i <= 1; i++) {
       const aa = a + i * .16;
       G.projs.push({
         x: sx + Math.cos(aa) * 12, y: sy + Math.sin(aa) * 12,
         vx: Math.cos(aa) * 1300, vy: Math.sin(aa) * 1300,
-        s: { r: 10, dmg: C.yelan.linglongDmg, kb: 30, life: 1.2, col: '#4fd0ff', fx: 'yelan_arrow', key: 'yelan_synergy' },
-        own: f, life: 1.2, homing: false, col: '#4fd0ff', synergy: true,
+        s: { r: 10, dmg: C.yelan.linglongDmg, kb: 30, life: 1.8, col: '#4fd0ff', fx: 'yelan_arrow', key: 'yelan_synergy', turn: 13 },
+        own: f, life: 1.8, homing: true, col: '#4fd0ff', synergy: true,
       });
     }
   }
@@ -211,7 +220,8 @@
   /* ─── 7. 技能 fire ─── */
   function arrowFire(f, o, a, s) {
     const k = ensure(f);
-    const isFull = a && a.stage === 'full';
+    // 主程式 fire 會把 s.full 合併進 a.v，但不會把 stage 傳入 fire；因此同時用合併後傷害辨識滿蓄力。
+    const isFull = !!(a && (a.stage === 'full' || a.full === true)) || !!(s && s.full && s.dmg === s.full.dmg);
     const hasFortune = isFull && k.fortune > 0 && k.fortuneExpireT > 0;
     let dmg, speed, r, col, fxStyle, yelanFortuneArrow = false;
     if (hasFortune) {
@@ -279,7 +289,7 @@
         vx: Math.cos(aa) * s.arrowSpeed, vy: Math.sin(aa) * s.arrowSpeed,
         s: { r: s.r, dmg: s.dmg, kb: s.kb, life: s.life, col: '#6fd3ff',
              fx: 'yelan_arrow', key: 'd',
-             yelanWater: true, yelanWaterLife: s.waterLife, yelanWaterR: s.waterR },
+             yelanWaterSlow: s.waterSlowV, yelanWaterLife: s.waterLife },
         own: f, life: s.life, col: '#6fd3ff',
       });
     }
@@ -291,6 +301,12 @@
     if (k.burst < k.burstMax) return;
     k.burst = 0;
     k.exLinglong = { t: 0, life: s.dur };
+    G.yelanDice = G.yelanDice.filter(d => !(d.orbit && d.own === f));
+    G.yelanDice.push({
+      x: f.x + CFG.r + 34, y: f.y, vx: 0, vy: 0, t: 0, life: s.dur,
+      orbit: true, own: f, ang: 0, trail: [], bounces: 0,
+      s: { r: 16, dmg: 0, kb: 0, col: '#4fd0ff' },
+    });
     k.fortune = Math.min(C.yelan.fortuneMax, s.fortuneOnCast || 6);
     k.fortuneExpireT = C.yelan.fortuneExpire;
     for (const tg of [G.p, G.e]) {
@@ -311,6 +327,10 @@
       d.t += dt;
       if (d.displayOnly) {
         if (d.t >= d.life) G.yelanDice.splice(i, 1);
+        continue;
+      }
+      if (d.orbit) {
+        if (d.t >= d.life || !alive(d.own) || !ensure(d.own).exLinglong) G.yelanDice.splice(i, 1);
         continue;
       }
       d.trail.push({ x: d.x, y: d.y });
@@ -432,9 +452,15 @@
       cx.restore();
 
       if (f.yelanMarks && f.yelanMarks.length) {
+        const mark = f.yelanMarks[0], pulse = Math.sin((mark.pulse || T) * 10);
         cx.save(); cx.scale(view.s, view.s); cx.translate(-cam.x, -cam.y);
-        cx.globalAlpha = .7; cx.strokeStyle = '#6fd3ff'; cx.lineWidth = 3;
-        cx.beginPath(); cx.arc(f.x, f.y, CFG.r + 14 + 3 * Math.sin(T * 8), 0, 7); cx.stroke();
+        cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = .65 + .25 * pulse;
+        cx.strokeStyle = '#5dd4ff'; cx.lineWidth = 3;
+        cx.setLineDash([9, 7]); cx.lineDashOffset = -T * 100;
+        cx.beginPath(); cx.arc(f.x, f.y, CFG.r + 14 + 4 * pulse, 0, 7); cx.stroke();
+        cx.setLineDash([]); cx.globalAlpha = .8;
+        cx.fillStyle = '#bfeaff'; cx.font = 'bold 12px system-ui'; cx.textAlign = 'center';
+        cx.fillText('絡命標記 '+Math.ceil(Math.max(0, mark.t))+'s', f.x, f.y - CFG.r - 22);
         cx.restore();
       }
     }
@@ -535,15 +561,13 @@
         }
         att.hp = Math.min(att.c.hp, att.hp + 300);
         fx({ k: 'ring', x: t.x, y: t.y, r: 200, col: '#ffd77a', t: .5, m: .5 });
+        spawnMote(t.x, t.y, 0, 0);
         spark(t.x, t.y, '#ffd77a', 20, 600, .45, 3);
       }
 
-      if (sk && sk.yelanWater && att && att.c === C && dealt > 0) {
-        if (!G.yelanWaters) G.yelanWaters = [];
-        G.yelanWaters.push({
-          x: t.x, y: t.y, r: sk.yelanWaterR || 100,
-          t: 0, life: sk.yelanWaterLife || 4, own: att,
-        });
+      if (sk && sk.yelanWaterSlow && att && att.c === C && dealt > 0) {
+        addStatus(t, { k: 'slow', dur: sk.yelanWaterLife || 4, v: sk.yelanWaterSlow });
+        fx({ k: 'ring', x: t.x, y: t.y, r: CFG.r + 18, col: '#4fd0ff', t: .45, m: .45 });
         spawnMote(t.x, t.y, 0, 0);
       }
 
