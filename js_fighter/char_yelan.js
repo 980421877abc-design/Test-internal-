@@ -19,7 +19,7 @@
       fortuneInterval: 3, fortuneMax: 3, fortuneExpire: 10,
       linglongDmg: 100, linglongDur: 12,
       mote: {
-        pickupR: 50,        // 吸取範圍（px）：進入此半徑立即吃掉
+        pickupR: 70,        // 吸取範圍（px）：進入此半徑立即吃掉
         attractR: 700,      // 吸引範圍（px）：進入此半徑開始朝角色加速
         accel: 1800,        // 加速度（px/s²）：越大吸得越快
         damping: 1.5,       // 阻尼：越大速度越快衰減
@@ -30,29 +30,29 @@
     sk: {
       a: { name: '潛形隱曜弓', type: 'proj',
            hold: { start: .04, full: .42 }, aimMove: 1,
-           cost: 0, cd: .18, wind: .025,
+           cost: 0, cd: .1, wind: .025,
            dmg: 80, speed: 820, r: 14, life: 2.5, kb: 100,
-           full: { dmg: 220, speed: 900, r: 20, kb: 200 },
-           fortuneArrow: { dmg: 220, speed: 1400, r: 22, aoeDmg: 150, heal: 300 },
+           full: { dmg: 250, speed: 900, r: 20, kb: 200 },
+           fortuneArrow: { dmg: 300, speed: 1400, r: 22, aoeDmg: 300, heal: 300 },
            pv: (f, full, q) => ({ k: 'line', len: Math.min((full ? q.full.speed : q.speed) * 1.8, 1300), w: (full ? q.full.r : q.r) * 2.2 }) },
 
       b: { name: '縈絡縱命索', type: 'melee',
            hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,
            cost: 200, cd: 8, wind: .05,
            touchDmg: 150, explodeDmg: 250, motesPerMark: 3,
-           hasteV: 1.3, maxHold: 3,
+           hasteV: 2, maxHold: 3,
            pv: (f) => ({ k: 'circle', r: CFG.r * 2.2 }) },
 
       c: { name: '玲瓏骰擊', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 150, cd: 6, wind: .1,
-           diceSpeed: 800, diceBounces: 4, r: 28, dmg: 90, kb: 100,
-           homingDmg: 120, homingSpeed: 900, homingTurn: 10,
+           cost: 150, cd: 4, wind: .1,
+           diceSpeed: 600, diceBounces: 4, r: 40, dmg: 90, kb: 100,
+           homingDmg: 120, homingSpeed: 600, homingTurn: 10,
            pv: (f, full, q) => ({ k: 'line', len: Math.min(q.diceSpeed * 1.9, 1500), w: q.r * 2.5 }) },
 
       d: { name: '水幕封路', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 250, cd: 10, wind: .1,
-           arrows: 5, arrowSpeed: 900, spread: .7, dmg: 80, kb: 100, r: 16, life: 1.6,
-           waterLife: 4, waterR: 100, waterSlowV: .6,
+           cost: 250, cd: 7, wind: .1,
+           arrows: 6, arrowSpeed: 900, spread: .7, dmg: 80, kb: 100, r: 16, life: 1.6,
+           waterLife: 2, waterR: 100, waterSlowV: .6,
            pv: (f, full, q) => ({ k: 'line', len: Math.min(q.arrowSpeed * q.life, 1500), w: q.r * 3.2 }) },
 
       e: { name: '淵圖玲瓏骰', type: 'melee', ult: 1,
@@ -509,7 +509,7 @@
     cx.fillStyle = '#fff';
     cx.font = 'bold 14px system-ui';
     cx.textAlign = 'center';
-    cx.fillText('破局矢：AOE 150 傷害', tx, ty - r - 14);
+    cx.fillText('破局矢', tx, ty - r - 14);
     cx.restore();
   }
 
