@@ -351,7 +351,7 @@ const CHARS = {
         fx: 'slash',               // 特效樣式：新月形劍氣
         noMuzzle: 1,               // 1 = 發射時不要閃光（連發太吵）
         cost: 30,                  // 每一道劍氣的咒力消耗（所以持續消耗 = 30 ÷ 0.3 = 每秒 100）
-        cd: 0,
+        cd: .03,
         wind: .05,
         dmg: 130,                  // 每道劍氣傷害
         speed: 1600,
@@ -709,19 +709,19 @@ const CHARS = {
 
           b: { name:'第一炸彈', type:'melee', needStand:1, use:'kiraBomb',
            hold:{ start:.12, full:99 }, aimMove:1, noCharge:1,
-           cost:0, cd:0, wind:.02, aiGap:1.2,
-           dashDist:340, dashDur:.22, dashDmg:90, range:130, arc:1.1,
+           cost:0, cd:2, wind:.02, aiGap:1.2,
+           dashDist:350, dashDur:.22, dashDmg:120, range:130, arc:1.1,
            through:1,
            bombDmg:500, bombRad:200, bombStun:1, bombLife:8,
-           bombCd:4, missCd:2,
+           bombCd:2, missCd:2,
            col:'#ff7eb6',
            pv:(f,full,q)=>({ k:'line', len:q.dashDist, w:CFG.r*2.2 }) },
 
       c: { name:'空氣彈', type:'toggle', needStand:1, use:'kiraAir',
            hold:{ start:0, full:99 },
            cost:120, cd:5, wind:.1,
-           dmg:650, rad:200, slowDur:2, slowV:.5,
-           maxHold:4, speed:600, turnMax:3,
+           dmg:900, rad:200, slowDur:2, slowV:.5,
+           maxHold:4, speed:300, turnMax:3,
            tag: f => (f.kira && f.kira.air) ? '飛行中' : '按住發射',
            col:'#ffb3d9' },
 
@@ -735,7 +735,7 @@ const CHARS = {
 
       e: { name:'敗者食塵', type:'melee', needStand:1, use:'kiraBites', ult:1,
            cost:0, cd:25, wind:.3,
-           rewind:10, dmg:2000, heal:2500, despairMax:100,
+           rewind:10, dmg:2500, heal:2500, despairMax:100,
            col:'#ff7eb6' },
 
       x: { name:'替身開關', type:'toggle', flag:'stand', side:'L',
