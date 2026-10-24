@@ -348,26 +348,20 @@
       if (d.trail.length > 20) d.trail.shift();
       d.x += d.vx * dt; d.y += d.vy * dt;
 
-         if (!d.hitTargets) d.hitTargets = { p: -999, e: -999 };
-      const gap = d.s.hitGap || 999;   // 沒設 hitGap 就當作只打一次
-      let removed = false;
-      
-      for (const tg of [G.p, G.e]) {
+       for (const tg of [G.p, G.e]) {
         if (!alive(tg) || tg === d.own) continue;
-        const who = tg === G.p ? 'p' : 'e';
-        if (d.t - d.hitTargets[who] < gap) continue;
+        if (d.t - d.lastHit < .1) continue;
         if (Math.hypot(tg.x - d.x, tg.y - d.y) < d.s.r + CFG.r) {
-          d.hitTargets[who] = d.t;
+          d.lastHit = d.t;
           hit(tg, d.s.dmg, d.x, d.y, d.s.kb, 0, d.s, d.own);
           for (let j = 0; j < 2; j++) {
             const a = Math.random() * Math.PI * 2;
             spawnMote(tg.x, tg.y, Math.cos(a) * 150, Math.sin(a) * 150);
           }
           spark(d.x, d.y, d.synergy ? '#ffd77a' : '#6fd3ff', 10, 400, .3, 3);
-          if (d.oneHit) { G.yelanDice.splice(i, 1); removed = true; break; }
+          if (d.oneHit) { G.yelanDice.splice(i, 1); continue; }
         }
       }
-      if (removed) continue;
       
       const wl = d.x < CFG.r, wr = d.x > CFG.W - CFG.r;
       const wt = d.y < CFG.r, wb = d.y > CFG.H - CFG.r;
