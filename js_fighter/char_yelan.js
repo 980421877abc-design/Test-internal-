@@ -37,7 +37,7 @@
       c: { name: '玲瓏骰擊', type: 'proj',
            cost: 150, cd: 6, wind: .1,
            diceSpeed: 800, diceBounces: 4, r: 28, dmg: 90, kb: 100,
-           homingDmg: 120, homingSpeed: 900 },
+           homingDmg: 120, homingSpeed: 900, homingTurn: 10 },
 
       d: { name: '水幕封路', type: 'proj',
            cost: 250, cd: 10, wind: .1,
@@ -51,6 +51,9 @@
     },
   };
   const C = CHARS.yelan;
+
+  // 補上 key（主程式掃描 CHARS 時 CHARS.yelan 還不存在，所以這裡要自己設）
+  for (const k of Object.keys(C.sk)) C.sk[k].key = k;
 
   /* ─── 2. 狀態初始化 ─── */
   function ensure(f) {
@@ -102,7 +105,6 @@
       }
       m.vx *= Math.exp(-1.2 * dt); m.vy *= Math.exp(-1.2 * dt);
       m.x += m.vx * dt; m.y += m.vy * dt;
-      if (m.t > 60) G.yelanMotes.splice(i, 1);
     }
   }
   function drawMotes() {
@@ -172,6 +174,13 @@
     k.exLinglong.t += dt;
     if (k.exLinglong.t >= k.exLinglong.life) k.exLinglong = null;
   }
+  function updateMarks(dt) {
+    for (const tgt of [G.p, G.e]) {
+      if (!tgt || !tgt.yelanMarks) continue;
+      for (const m of tgt.yelanMarks) m.t -= dt;
+      tgt.yelanMarks = tgt.yelanMarks.filter(m => m.t > 0 && alive(m.owner));
+    }
+  }
   function linglongPct(f) {
     const k = ensure(f);
     if (!k.exLinglong) return 0;
@@ -181,15 +190,21 @@
     initGameArrays();
     const k = ensure(f);
     if (!k.exLinglong || !alive(tgt)) return;
-    const dmg = C.yelan.linglongDmg;
-    for (let i = 0; i < 3; i++) {
-      const tx = tgt.x, ty = tgt.y;
-      later(0.05 * i, () => {
-        if (!alive(tgt) || !ensure(f).exLinglong) return;
-        hit(tgt, dmg, tx, ty, 30, 0, null, f);
-        fx({ k: 'ring', x: tx, y: ty, r: 40, col: '#6fd3ff', t: .3, m: .3 });
-        spark(tx, ty, '#6fd3ff', 8, 300, .25, 2);
-      }, f);
+    // 玄擲玲瓏：一顆藍色骰子作為發射源，朝對手發射三根向量分散的協同箭矢。
+    const a = Math.atan2(tgt.y - f.y, tgt.x - f.x);
+    const sx = f.x + Math.cos(a) * (CFG.r + 28), sy = f.y + Math.sin(a) * (CFG.r + 28);
+    G.yelanDice.push({
+      x: sx, y: sy, vx: 0, vy: 0, t: 0, bounces: 0, life: .28, displayOnly: true,
+      s: { r: 16, dmg: 0, kb: 0, col: '#4fd0ff' }, own: f, ang: a, trail: [],
+    });
+    for (let i = -1; i <= 1; i++) {
+      const aa = a + i * .16;
+      G.projs.push({
+        x: sx + Math.cos(aa) * 12, y: sy + Math.sin(aa) * 12,
+        vx: Math.cos(aa) * 1300, vy: Math.sin(aa) * 1300,
+        s: { r: 10, dmg: C.yelan.linglongDmg, kb: 30, life: 1.2, col: '#4fd0ff', fx: 'yelan_arrow', key: 'yelan_synergy' },
+        own: f, life: 1.2, homing: false, col: '#4fd0ff', synergy: true,
+      });
     }
   }
 
@@ -217,7 +232,7 @@
       y: f.y + Math.sin(ang) * (CFG.r + 12),
       vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
       s: { r, dmg, kb: isFull ? 200 : 100, life: 2.5, col, fx: fxStyle,
-           yelanArrow: true, yelanFortuneArrow },
+           key: 'a', yelanArrow: true, yelanFortuneArrow },
       own: f, life: 2.5, col, homing: false,
     });
   }
@@ -245,7 +260,7 @@
           y: f.y + Math.sin(hAng) * (CFG.r + 12),
           vx: Math.cos(hAng) * s.homingSpeed, vy: Math.sin(hAng) * s.homingSpeed,
           s: { r: 16, dmg: s.homingDmg, kb: 80, life: 2, col: '#6fd3ff',
-               fx: 'yelan_homing' },
+               fx: 'yelan_homing', key: 'c', turn: s.homingTurn || 10 },
           own: f, life: 2, homing: true, col: '#6fd3ff',
         });
       }
@@ -263,7 +278,7 @@
         y: f.y + Math.sin(aa) * (CFG.r + 12),
         vx: Math.cos(aa) * s.arrowSpeed, vy: Math.sin(aa) * s.arrowSpeed,
         s: { r: s.r, dmg: s.dmg, kb: s.kb, life: s.life, col: '#6fd3ff',
-             fx: 'yelan_arrow',
+             fx: 'yelan_arrow', key: 'd',
              yelanWater: true, yelanWaterLife: s.waterLife, yelanWaterR: s.waterR },
         own: f, life: s.life, col: '#6fd3ff',
       });
@@ -275,14 +290,14 @@
     const k = ensure(f);
     if (k.burst < k.burstMax) return;
     k.burst = 0;
+    k.exLinglong = { t: 0, life: s.dur };
+    k.fortune = Math.min(C.yelan.fortuneMax, s.fortuneOnCast || 6);
+    k.fortuneExpireT = C.yelan.fortuneExpire;
     for (const tg of [G.p, G.e]) {
       if (tg === f || !alive(tg)) continue;
       if (Math.hypot(tg.x - f.x, tg.y - f.y) < s.rad + CFG.r)
         hit(tg, s.dmg, f.x, f.y, 400, 1, s, f);
     }
-    k.exLinglong = { t: 0, life: s.dur };
-    k.fortune = s.fortuneOnCast || 6;
-    k.fortuneExpireT = C.yelan.fortuneExpire;
     fx({ k: 'ring', x: f.x, y: f.y, r: s.rad, col: '#6fd3ff', t: .6, m: .6 });
     fx({ k: 'ring', x: f.x, y: f.y, r: s.rad * 1.4, col: '#bfeaff', t: .8, m: .8 });
     fx({ k: 'flash', t: .3, m: .3, col: '#6fd3ff', a: .5 });
@@ -294,6 +309,10 @@
     for (let i = G.yelanDice.length - 1; i >= 0; i--) {
       const d = G.yelanDice[i];
       d.t += dt;
+      if (d.displayOnly) {
+        if (d.t >= d.life) G.yelanDice.splice(i, 1);
+        continue;
+      }
       d.trail.push({ x: d.x, y: d.y });
       if (d.trail.length > 20) d.trail.shift();
       d.x += d.vx * dt; d.y += d.vy * dt;
@@ -308,7 +327,8 @@
             const a = Math.random() * Math.PI * 2;
             spawnMote(tg.x, tg.y, Math.cos(a) * 150, Math.sin(a) * 150);
           }
-          spark(d.x, d.y, '#6fd3ff', 10, 400, .3, 3);
+          spark(d.x, d.y, d.synergy ? '#ffd77a' : '#6fd3ff', 10, 400, .3, 3);
+          if (d.oneHit) { G.yelanDice.splice(i, 1); continue; }
         }
       }
       const wl = d.x < CFG.r, wr = d.x > CFG.W - CFG.r;
@@ -582,6 +602,7 @@
           }
         }
       }
+      updateMarks(dt);
       updateMotes(dt);
       updateDice(dt);
       updateWaters(dt);
