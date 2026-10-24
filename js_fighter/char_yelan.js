@@ -18,6 +18,14 @@
       burstMax: 70,
       fortuneInterval: 3, fortuneMax: 3, fortuneExpire: 10,
       linglongDmg: 100, linglongDur: 12,
+      mote: {
+        pickupR: 50,        // 吸取範圍（px）：進入此半徑立即吃掉
+        attractR: 700,      // 吸引範圍（px）：進入此半徑開始朝角色加速
+        accel: 1800,        // 加速度（px/s²）：越大吸得越快
+        damping: 1.5,       // 阻尼：越大速度越快衰減
+        value: 5,           // 每顆微粒回復的爆發條點數
+        expire: 25,         // 自然消散秒數（保險用，正常情況 700px 內早被吸走）
+      },
     },
     sk: {
       a: { name: '潛形隱曜弓', type: 'proj',
@@ -83,30 +91,32 @@
     G.yelanMotes.push({ x, y, vx: vx || 0, vy: vy || 0, t: 0, r: 6, col: '#6fd3ff' });
   }
   function updateMotes(dt) {
+    const M = C.yelan.mote;
     const xs = [G.p, G.e].filter(f => f && f.c === C);
     if (!xs.length) { G.yelanMotes.length = 0; return; }
     for (let i = G.yelanMotes.length - 1; i >= 0; i--) {
       const m = G.yelanMotes[i];
       m.t += dt;
+      if (m.t > M.expire) { G.yelanMotes.splice(i, 1); continue; }
       let best = null, bestD = 1e9;
       for (const f of xs) {
         const d = Math.hypot(m.x - f.x, m.y - f.y);
         if (d < bestD) { bestD = d; best = f; }
       }
       if (!best) continue;
-      if (bestD < 40) {
+      if (bestD < M.pickupR) {
         const k = ensure(best);
-        k.burst = Math.min(k.burstMax, k.burst + 5);
+        k.burst = Math.min(k.burstMax, k.burst + M.value);
         fx({ k: 'ring', x: m.x, y: m.y, r: 30, col: m.col, t: .3, m: .3 });
         G.yelanMotes.splice(i, 1);
         continue;
       }
-      if (bestD < 600) {
+      if (bestD < M.attractR) {
         const a = Math.atan2(best.y - m.y, best.x - m.x);
-        m.vx += Math.cos(a) * 1400 * dt;
-        m.vy += Math.sin(a) * 1400 * dt;
+        m.vx += Math.cos(a) * M.accel * dt;
+        m.vy += Math.sin(a) * M.accel * dt;
       }
-      m.vx *= Math.exp(-1.2 * dt); m.vy *= Math.exp(-1.2 * dt);
+      m.vx *= Math.exp(-M.damping * dt); m.vy *= Math.exp(-M.damping * dt);
       m.x += m.vx * dt; m.y += m.vy * dt;
     }
   }
@@ -205,7 +215,6 @@
     initGameArrays();
     const k = ensure(f);
     if (!k.exLinglong || !alive(tgt)) return;
-    // 玄擲玲瓏：常駐在身邊的一顆藍色骰子，朝對手發射三根追蹤協同箭矢。
     const a = Math.atan2(tgt.y - f.y, tgt.x - f.x);
     const die = G.yelanDice.find(d => d.orbit && d.own === f);
     const sx = die ? die.x : f.x + Math.cos(a) * (CFG.r + 34), sy = die ? die.y : f.y + Math.sin(a) * (CFG.r + 34);
@@ -223,7 +232,6 @@
   /* ─── 7. 技能 fire ─── */
   function arrowFire(f, o, a, s) {
     const k = ensure(f);
-    // 主程式 fire 會把 s.full 合併進 a.v，但不會把 stage 傳入 fire；因此同時用合併後傷害辨識滿蓄力。
     const isFull = !!(a && (a.stage === 'full' || a.full === true)) || !!(s && s.full && s.dmg === s.full.dmg);
     const hasFortune = isFull && k.fortune > 0 && k.fortuneExpireT > 0;
     let dmg, speed, r, col, fxStyle, yelanFortuneArrow = false;
@@ -469,6 +477,42 @@
     }
   }
 
+  /* ─── 10.5 破局矢 AOE 範圍預覽 ─── */
+  function drawFortuneAoe() {
+    const f = G.p;
+    if (!f || f.c !== C || !f.hold || f.hold.k !== 'a') return;
+    const kk = ensure(f);
+    if (kk.fortune <= 0 || kk.fortuneExpireT <= 0) return;
+    const fastFull = C.sk.a.hold.full * 0.2;
+    if (f.hold.t < fastFull) return;
+    const foe = f === G.p ? G.e : G.p;
+    let tx, ty;
+    if (foe && foe.hp > 0) { tx = foe.x; ty = foe.y; }
+    else { const a = f.hold.aim || { x: f.x + Math.cos(f.face) * 400, y: f.y + Math.sin(f.face) * 400 }; tx = a.x; ty = a.y; }
+    const T = performance.now() / 1000;
+    const pulse = 1 + 0.05 * Math.sin(T * 6);
+    const r = 200 * pulse;
+    cx.save();
+    cx.scale(view.s, view.s);
+    cx.translate(-cam.x, -cam.y);
+    cx.globalCompositeOperation = 'lighter';
+    cx.globalAlpha = 0.18 + 0.08 * Math.sin(T * 4);
+    cx.fillStyle = '#ffd77a';
+    cx.beginPath(); cx.arc(tx, ty, r, 0, 7); cx.fill();
+    cx.globalAlpha = 0.85;
+    cx.strokeStyle = '#ffd77a';
+    cx.lineWidth = 3;
+    cx.setLineDash([16, 10]);
+    cx.lineDashOffset = -T * 60;
+    cx.beginPath(); cx.arc(tx, ty, r, 0, 7); cx.stroke();
+    cx.setLineDash([]);
+    cx.fillStyle = '#fff';
+    cx.font = 'bold 14px system-ui';
+    cx.textAlign = 'center';
+    cx.fillText('破局矢：AOE 150 傷害', tx, ty - r - 14);
+    cx.restore();
+  }
+
   /* ─── 11. 技能按鈕爆發條 UI ─── */
   function updateBurstButton() {
     if (typeof skBtns === 'undefined' || !skBtns) return;
@@ -593,6 +637,23 @@
       oldUpdate(dt);
       initGameArrays();
       if (G.state !== 'fight') return;
+
+      // 破局快速蓄力：有破局時，蓄力達 20% 立即頂到 full
+      if (G.p && G.p.c === C && G.p.hold && G.p.hold.k === 'a') {
+        const kk = ensure(G.p);
+        if (kk.fortune > 0 && kk.fortuneExpireT > 0) {
+          const fastFull = C.sk.a.hold.full * 0.2;
+          if (G.p.hold.t >= fastFull && G.p.hold.t < C.sk.a.hold.full) {
+            G.p.hold.t = C.sk.a.hold.full;
+            if (!G.p.hold._fortuneReady) {
+              G.p.hold._fortuneReady = true;
+              if (typeof pop === 'function') pop(G.p, '破局矢 就緒', '#ffd77a');
+              if (typeof playSfx === 'function' && typeof SFX !== 'undefined' && SFX.dash) playSfx(SFX.dash);
+            }
+          }
+        }
+      }
+
       for (const f of [G.p, G.e]) {
         if (!f || f.c !== C) continue;
         ensure(f);
@@ -601,13 +662,23 @@
 
         if (f.hold && f.hold.k === 'b') {
           if (!f.hold.dashDone) {
-            const ha = Math.atan2(f.hold.aim.y - f.y, f.hold.aim.x - f.x);
+            // 優先搖桿方向，沒輸入才用瞄準方向
+            const mx = f.mx || 0, my = f.my || 0;
+            let ha;
+            if (Math.hypot(mx, my) > 0.15) {
+              ha = Math.atan2(my, mx);
+            } else {
+              const ax = (f.hold.aim ? f.hold.aim.x : f.x + 1) - f.x;
+              const ay = (f.hold.aim ? f.hold.aim.y : f.y + 1) - f.y;
+              ha = Math.atan2(ay, ax);
+            }
             const dashDist = 92;
             f.x = clamp(f.x + Math.cos(ha) * dashDist, CFG.r, CFG.W - CFG.r);
             f.y = clamp(f.y + Math.sin(ha) * dashDist, CFG.r, CFG.H - CFG.r);
             f.face = ha;
             f.hold.dashDone = true;
-            f.dashT = Math.max(f.dashT || 0, .12);
+            f.dx = Math.cos(ha); f.dy = Math.sin(ha);
+            fx({ k: 'gh', x: f.x - Math.cos(ha) * 40, y: f.y - Math.sin(ha) * 40, t: .3, m: .3, col: f.c.color });
             fx({ k: 'ring', x: f.x, y: f.y, r: CFG.r * 1.8, col: '#5dd4ff', t: .25, m: .25 });
             spark(f.x, f.y, '#bfeaff', 12, 420, .25, 2.5);
           }
@@ -630,7 +701,6 @@
         } else {
           ensure(f).skill1HitTargets = [];
         }
-
       }
       updateMarks(dt);
       updateMotes(dt);
@@ -651,6 +721,7 @@
       drawDice();
       drawWaters();
       drawYelan();
+      drawFortuneAoe();
       updateBurstButton();
     };
     w._yelanWrapped = true;
