@@ -605,11 +605,11 @@ const CHARS = {
         enh: {                      // 強化版：壹之型 水面斬（範圍斬擊 + 短距離突進；命中 +40 傷害，並回復生命與呼吸條）
           name: '壹之型 水面斬',
           use: 'suimen',
-          range: 210, arc: 3.2,     //   斬擊範圍（待定）
+          range: 220, arc: 3.2,     //   斬擊範圍（待定）
           bonus: 40,                //   額外傷害
-          lungeDist: 120, lungeDur: .1,   //   突進距離 / 時間（待定）
+          lungeDist: 80, lungeDur: .1,   //   突進距離 / 時間（待定）
           kb: 260,
-          heal: { hp: 200, res: 100 },     //   命中回復：生命 / 呼吸條（待定）
+          heal: { hp: 200, res: 60 },     //   命中回復：生命 / 呼吸條（待定）
         },
       },
 
@@ -678,7 +678,7 @@ const CHARS = {
         name: '全集中呼吸',
         type: 'toggle', flag: 'zen',
         minEn: 150,                       //   呼吸條低於這個值無法開啟（待定）；開著時用完會自動關閉
-        cost: 0, cd: .4, wind: .05,
+        cost: 30, cd: .4, wind: .05,
       },
     },
   },
