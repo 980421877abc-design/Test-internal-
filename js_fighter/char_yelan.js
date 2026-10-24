@@ -12,16 +12,16 @@
     name: '夜蘭', work: '原神', color: '#6fd3ff', glyph: '蘭',
     img: 'image/yelan.png',
     hp: 8000, speed: 540,
-    res: { name: '元素力', max: 2000, regen: 50, color: '#6fd3ff', blockDrain: 25 },
-    aiDist: 380,
+    res: { name: '元素力', max: 1000, regen: 50, color: '#6fd3ff', blockDrain: 25 },
+    aiDist: 350,
     yelan: {
       burstMax: 70,
       fortuneInterval: 3, fortuneMax: 3, fortuneExpire: 10,
       linglongDmg: 100, linglongDur: 12,
       mote: {
         pickupR: 70,        // 吸取範圍（px）：進入此半徑立即吃掉
-        attractR: 700,      // 吸引範圍（px）：進入此半徑開始朝角色加速
-        accel: 1800,        // 加速度（px/s²）：越大吸得越快
+        attractR: 500,      // 吸引範圍（px）：進入此半徑開始朝角色加速
+        accel: 2500,        // 加速度（px/s²）：越大吸得越快
         damping: 1.5,       // 阻尼：越大速度越快衰減
         value: 5,           // 每顆微粒回復的爆發條點數
         expire: 25,         // 自然消散秒數（保險用，正常情況 700px 內早被吸走）
@@ -31,33 +31,33 @@
       a: { name: '潛形隱曜弓', type: 'proj',
            hold: { start: .04, full: .42 }, aimMove: 1,
            cost: 0, cd: .1, wind: .025,
-           dmg: 80, speed: 820, r: 14, life: 2.5, kb: 100,
+           dmg: 60, speed: 820, r: 14, life: 2.5, kb: 100,
            full: { dmg: 250, speed: 900, r: 20, kb: 200 },
-           fortuneArrow: { dmg: 300, speed: 1400, r: 22, aoeDmg: 300, heal: 300 },
+           fortuneArrow: { dmg: 250, speed: 1400, r: 22, aoeDmg: 3250, heal: 300 },
            pv: (f, full, q) => ({ k: 'line', len: Math.min((full ? q.full.speed : q.speed) * 1.8, 1300), w: (full ? q.full.r : q.r) * 2.2 }) },
 
       b: { name: '縈絡縱命索', type: 'melee',
            hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,
            cost: 200, cd: 8, wind: .05,
            touchDmg: 150, explodeDmg: 250, motesPerMark: 3,
-           hasteV: 2, maxHold: 3,
+           hasteV: 3, maxHold: 3,
            pv: (f) => ({ k: 'circle', r: CFG.r * 2.2 }) },
 
       c: { name: '玲瓏骰擊', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 150, cd: 4, wind: .1,
-           diceSpeed: 600, diceBounces: 4, r: 40, dmg: 90, kb: 100,
-           homingDmg: 120, homingSpeed: 600, homingTurn: 10,
+           cost: 100, cd: 4, wind: .1, hitGap: .4
+           diceSpeed: 500, diceBounces: 4, r: 40, dmg: 60, kb: 100,
+           homingDmg: 120, homingSpeed: 800, homingTurn: 10,
            pv: (f, full, q) => ({ k: 'line', len: Math.min(q.diceSpeed * 1.9, 1500), w: q.r * 2.5 }) },
 
       d: { name: '水幕封路', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 250, cd: 7, wind: .1,
+           cost: 200, cd: 7, wind: .1,
            arrows: 6, arrowSpeed: 900, spread: .7, dmg: 80, kb: 100, r: 16, life: 1.6,
            waterLife: 2, waterR: 100, waterSlowV: .6,
            pv: (f, full, q) => ({ k: 'line', len: Math.min(q.arrowSpeed * q.life, 1500), w: q.r * 3.2 }) },
 
       e: { name: '淵圖玲瓏骰', type: 'melee', ult: 1,
            cost: 0, cd: 20, wind: .3,
-           dmg: 400, rad: 300, dur: 12,
+           dmg: 300, rad: 300, dur: 12,
            fortuneOnCast: 6 },
     },
   };
@@ -348,20 +348,27 @@
       if (d.trail.length > 20) d.trail.shift();
       d.x += d.vx * dt; d.y += d.vy * dt;
 
+         if (!d.hitTargets) d.hitTargets = { p: -999, e: -999 };
+      const gap = d.s.hitGap || 999;   // 沒設 hitGap 就當作只打一次
+      let removed = false;
+      
       for (const tg of [G.p, G.e]) {
         if (!alive(tg) || tg === d.own) continue;
-        if (d.t - d.lastHit < .1) continue;
+        const who = tg === G.p ? 'p' : 'e';
+        if (d.t - d.hitTargets[who] < gap) continue;
         if (Math.hypot(tg.x - d.x, tg.y - d.y) < d.s.r + CFG.r) {
-          d.lastHit = d.t;
+          d.hitTargets[who] = d.t;
           hit(tg, d.s.dmg, d.x, d.y, d.s.kb, 0, d.s, d.own);
           for (let j = 0; j < 2; j++) {
             const a = Math.random() * Math.PI * 2;
             spawnMote(tg.x, tg.y, Math.cos(a) * 150, Math.sin(a) * 150);
           }
           spark(d.x, d.y, d.synergy ? '#ffd77a' : '#6fd3ff', 10, 400, .3, 3);
-          if (d.oneHit) { G.yelanDice.splice(i, 1); continue; }
+          if (d.oneHit) { G.yelanDice.splice(i, 1); removed = true; break; }
         }
       }
+      if (removed) continue;
+      
       const wl = d.x < CFG.r, wr = d.x > CFG.W - CFG.r;
       const wt = d.y < CFG.r, wb = d.y > CFG.H - CFG.r;
       if (wl || wr || wt || wb) {
