@@ -21,11 +21,12 @@
     },
     sk: {
       a: { name: '潛形隱曜弓', type: 'proj',
-           hold: { start: .2, full: 1.2 }, aimMove: 1,
-           cost: 0, cd: .4, wind: .08,
-           dmg: 80, speed: 600, r: 14, life: 2.5, kb: 100,
+           hold: { start: .04, full: .42 }, aimMove: 1,
+           cost: 0, cd: .18, wind: .025,
+           dmg: 80, speed: 820, r: 14, life: 2.5, kb: 100,
            full: { dmg: 220, speed: 900, r: 20, kb: 200 },
-           fortuneArrow: { dmg: 220, speed: 1400, r: 22, aoeDmg: 150, heal: 300 } },
+           fortuneArrow: { dmg: 220, speed: 1400, r: 22, aoeDmg: 150, heal: 300 },
+           pv: (f, full, q) => ({ k: 'line', len: Math.min((full ? q.full.speed : q.speed) * 1.8, 1300), w: (full ? q.full.r : q.r) * 2.2 }) },
 
       b: { name: '縈絡縱命索', type: 'melee',
            hold: { start: .05, full: 99 }, aimMove: 1, noCharge: 1,
@@ -34,15 +35,17 @@
            hasteV: 1.3, maxHold: 3,
            pv: (f) => ({ k: 'circle', r: CFG.r * 2.2 }) },
 
-      c: { name: '玲瓏骰擊', type: 'proj',
+      c: { name: '玲瓏骰擊', type: 'proj', hold: { start: .01, full: .06 },
            cost: 150, cd: 6, wind: .1,
            diceSpeed: 800, diceBounces: 4, r: 28, dmg: 90, kb: 100,
-           homingDmg: 120, homingSpeed: 900, homingTurn: 10 },
+           homingDmg: 120, homingSpeed: 900, homingTurn: 10,
+           pv: (f, full, q) => ({ k: 'line', len: Math.min(q.diceSpeed * 1.9, 1500), w: q.r * 2.5 }) },
 
-      d: { name: '水幕封路', type: 'proj',
+      d: { name: '水幕封路', type: 'proj', hold: { start: .01, full: .06 },
            cost: 250, cd: 10, wind: .1,
            arrows: 5, arrowSpeed: 900, spread: .7, dmg: 80, kb: 100, r: 16, life: 1.6,
-           waterLife: 4, waterR: 100, waterSlowV: .6 },
+           waterLife: 4, waterR: 100, waterSlowV: .6,
+           pv: (f, full, q) => ({ k: 'line', len: Math.min(q.arrowSpeed * q.life, 1500), w: q.r * 3.2 }) },
 
       e: { name: '淵圖玲瓏骰', type: 'melee', ult: 1,
            cost: 0, cd: 20, wind: .3,
@@ -242,8 +245,8 @@
       y: f.y + Math.sin(ang) * (CFG.r + 12),
       vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
       s: { r, dmg, kb: isFull ? 200 : 100, life: 2.5, col, fx: fxStyle,
-           key: 'a', yelanArrow: true, yelanFortuneArrow },
-      own: f, life: 2.5, col, homing: false,
+           key: 'a', turn: 4.5, yelanArrow: true, yelanFortuneArrow },
+      own: f, life: 2.5, col, homing: true,
     });
   }
 
@@ -597,6 +600,17 @@
         linglongTick(f, dt);
 
         if (f.hold && f.hold.k === 'b') {
+          if (!f.hold.dashDone) {
+            const ha = Math.atan2(f.hold.aim.y - f.y, f.hold.aim.x - f.x);
+            const dashDist = 92;
+            f.x = clamp(f.x + Math.cos(ha) * dashDist, CFG.r, CFG.W - CFG.r);
+            f.y = clamp(f.y + Math.sin(ha) * dashDist, CFG.r, CFG.H - CFG.r);
+            f.face = ha;
+            f.hold.dashDone = true;
+            f.dashT = Math.max(f.dashT || 0, .12);
+            fx({ k: 'ring', x: f.x, y: f.y, r: CFG.r * 1.8, col: '#5dd4ff', t: .25, m: .25 });
+            spark(f.x, f.y, '#bfeaff', 12, 420, .25, 2.5);
+          }
           const eh = f.sts.find(s => s.k === 'haste');
           if (eh) { eh.t = .15; eh.v = C.sk.b.hasteV; }
           else f.sts.push({ k: 'haste', t: .15, v: C.sk.b.hasteV });
@@ -617,14 +631,6 @@
           ensure(f).skill1HitTargets = [];
         }
 
-        for (const w of G.yelanWaters) {
-          if (w.own === f) continue;
-          if (Math.hypot(f.x - w.x, f.y - w.y) < w.r + CFG.r) {
-            const es = f.sts.find(s => s.k === 'slow');
-            if (es) { es.t = .15; es.v = C.sk.d.waterSlowV; }
-            else f.sts.push({ k: 'slow', t: .15, v: C.sk.d.waterSlowV });
-          }
-        }
       }
       updateMarks(dt);
       updateMotes(dt);
