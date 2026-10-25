@@ -973,9 +973,12 @@
   const oldDraw = window.draw;
   if (typeof oldDraw === 'function' && !oldDraw._yelanWrapped) {
     const w = function () {
+      // G 尚未初始化（選角前）→ 直接讓主程式畫（它自己有 if(!G.p)return）
+      if (typeof G === 'undefined' || !G || !G.p || !G.projs) { oldDraw(); return; }
       // 先抽出夜蘭的投射物，讓主程式不畫（主程式會畫成光球）
       const yelanProjs = [];
       for (let i = G.projs.length - 1; i >= 0; i--) {
+        
         const q = G.projs[i];
         if (q.own && q.own.c === C) {
           yelanProjs.push(q);
