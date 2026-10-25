@@ -35,9 +35,9 @@
       a: { name: '潛形隱曜弓', type: 'proj',
            hold: { start: .04, full: .42 }, aimMove: 1,
            cost: 0, cd: .18, wind: .025,
-           dmg: 80, speed: 820, r: 14, life: 2.5, kb: 100,
-           full: { dmg: 200, speed: 900, r: 20, kb: 200 },
-           fortuneArrow: { dmg: 350, speed: 1400, r: 22, aoeDmg: 250, heal: 300 },
+           dmg: 60, speed: 700, r: 14, life: 2.5, kb: 100,
+           full: { dmg: 180, speed: 800, r: 20, kb: 200 },
+           fortuneArrow: { dmg: 250, speed: 1200, r: 22, aoeDmg: 200, heal: 300 },
            pv: (f, full, q) => ({ k: 'line', len: Math.min((full ? q.full.speed : q.speed) * 1.8, 1300), w: (full ? q.full.r : q.r) * 2.2 }) },
 
       b: { name: '縈絡縱命索', type: 'melee',
@@ -48,21 +48,21 @@
            pv: (f) => ({ k: 'circle', r: CFG.r * 2.2 }) },
 
       c: { name: '玲瓏骰擊', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 100, cd: 6, wind: .1,
-           diceSpeed: 800, diceBounces: 4, r: 28, dmg: 70, kb: 100,
+           cost: 100, cd: 4, wind: .1,
+           diceSpeed: 800, diceBounces: 4, r: 28, dmg: 60, kb: 100,
            hitGap: .4,
-           homingDmg: 120, homingSpeed: 900, homingTurn: 10,
+           homingDmg: 100, homingSpeed: 900, homingTurn: 10,
            pv: (f, full, q) => ({ k: 'line', len: Math.min(q.diceSpeed * 1.9, 1500), w: q.r * 2.5 }) },
 
-      d: { name: '水幕封路', type: 'proj', hold: { start: .01, full: .06 },
-           cost: 150, cd: 10, wind: .1,
+      d: { name: '流散射', type: 'proj', hold: { start: .01, full: .06 },
+           cost: 150, cd: 6, wind: .1,
            arrows: 6, arrowSpeed: 900, spread: .8, dmg: 60, kb: 100, r: 16, life: 1.6,
            waterLife: 2, waterR: 100, waterSlowV: .5,
            pv: (f, full, q) => ({ k: 'fan', range: Math.min(q.arrowSpeed * q.life, 1400), arc: q.spread + 0.12 }) },
 
       e: { name: '淵圖玲瓏骰', type: 'melee', ult: 1,
            cost: 0, cd: 20, wind: .3,
-           dmg: 400, rad: 300, dur: 12,
+           dmg: 400, rad: 250, dur: 12,
            fortuneOnCast: 6 },
     },
   };
@@ -231,7 +231,7 @@
     G.projs.push({
       x: sx + Math.cos(a) * 12, y: sy + Math.sin(a) * 12,
       vx: Math.cos(a) * 1300, vy: Math.sin(a) * 1300,
-      s: { r: 14, dmg: C.yelan.linglongDmg * 3, kb: 60, life: 1.8, col: '#4fd0ff',
+      s: { r: 14, dmg: C.yelan.linglongDmg * 2, kb: 60, life: 1.8, col: '#4fd0ff',
            fx: 'yelan_synergy', key: 'yelan_synergy', turn: 3.5 },
       own: f, life: 1.8, homing: true, col: '#4fd0ff', synergy: true,
     });
@@ -666,7 +666,7 @@
     cx.fillStyle = '#fff';
     cx.font = 'bold 14px system-ui';
     cx.textAlign = 'center';
-    cx.fillText('破局矢：AOE 150 傷害', tx, ty - r - 14);
+    cx.fillText('破局矢', tx, ty - r - 14);
     cx.restore();
   }
 
