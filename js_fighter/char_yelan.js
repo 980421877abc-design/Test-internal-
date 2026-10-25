@@ -219,7 +219,7 @@
     if (!k.exLinglong) return 0;
     return Math.min(50, 1 + k.exLinglong.t * 3.5);
   }
-  /* 協同攻擊：改成 1 根追蹤水箭；總傷害 = linglongDmg * 3（原本 3 根各 1 份，現在 1 根 3 份） */
+  /* 協同攻擊：目前為 1 根追蹤水箭；總傷害 = linglongDmg * 3 */
   function linglongTrigger(f, tgt) {
     initGameArrays();
     const k = ensure(f);
@@ -232,7 +232,7 @@
       x: sx + Math.cos(a) * 12, y: sy + Math.sin(a) * 12,
       vx: Math.cos(a) * 1300, vy: Math.sin(a) * 1300,
       s: { r: 14, dmg: C.yelan.linglongDmg * 3, kb: 60, life: 1.8, col: '#4fd0ff',
-           fx: 'yelan_synergy', key: 'yelan_synergy', turn: 13 },
+           fx: 'yelan_synergy', key: 'yelan_synergy', turn: 3.5 },
       own: f, life: 1.8, homing: true, col: '#4fd0ff', synergy: true,
     });
   }
@@ -261,7 +261,7 @@
       y: f.y + Math.sin(ang) * (CFG.r + 12),
       vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
       s: { r, dmg, kb: isFull ? 200 : 100, life: 2.5, col, fx: fxStyle,
-           key: 'a', turn: 4.5, yelanArrow: true, yelanFortuneArrow },
+           key: 'a', turn: 1.8, yelanArrow: true, yelanFortuneArrow },
       own: f, life: 2.5, col, homing: true,
     });
   }
