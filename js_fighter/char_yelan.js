@@ -974,7 +974,8 @@
   if (typeof oldDraw === 'function' && !oldDraw._yelanWrapped) {
     const w = function () {
       // G 尚未初始化（選角前）→ 直接讓主程式畫（它自己有 if(!G.p)return）
-      if (typeof G === 'undefined' || !G || !G.p || !G.projs) { oldDraw(); return; }
+      // 某些訓練模式／切換回合會先建立 G.p，再稍後才建立 G.projs；這裡不能直接讀 length。
+      if (typeof G === 'undefined' || !G || !G.p || !Array.isArray(G.projs)) { oldDraw(); return; }
       // 先抽出夜蘭的投射物，讓主程式不畫（主程式會畫成光球）
       const yelanProjs = [];
       for (let i = G.projs.length - 1; i >= 0; i--) {
