@@ -1,5 +1,5 @@
 /* js_fighter/char_nanami.js — 七海建人（咒術迴戰）
- * 包含：十劃咒法（10刻度弱點）、加班時間、兩段式技能三。
+ * 包含：十劃咒法（10刻度弱點）、加班時間、兩段式技能三、精準斬擊特殊 PV。
  */
 (function () {
   'use strict';
@@ -19,22 +19,20 @@
 
     sk: {
       a: { name: '鈍刀', type: 'melee', bf: 1, cost: 0, cd: .35, wind: .08, dmg: 80, range: 140, arc: 1.2, kb: 180 },
-
-      // 技能一：十劃咒法（補上 hold 才能顯示 pv）
+      
       b: { name: '十劃咒法', type: 'melee', cost: 50, cd: 4, wind: .1, range: 1000, arc: 3.14,
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            pv: (f) => ({ k: 'circle', r: CFG.r * 3 }) },
-
-      // 技能二：精準斬擊（補上 hold）
+           
+      // 技能二：精準斬擊（PV 交給外掛自繪，所以回傳 none）
       c: { name: '精準斬擊', type: 'melee', cost: 100, cd: 6, wind: .1, dmg: 150, range: 180, arc: 1.6, kb: 250, lungeDist: 280, lungeDur: .15,
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           pv: (f, full, q) => ({ k: 'fan', range: q.lungeDist + q.range, arc: 1.1 }) },
-
-      // 技能三：瓦落瓦落（補上 hold）
+           pv: (f) => ({ k: 'none' }) },
+           
       d: { name: '瓦落瓦落', type: 'zone', cost: 0, cd: 0, wind: .15, dmg: 250, rad: 160, range: 700, kb: 200,
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            pv: (f, full, q) => {
-             if (f.nanamiState && f.nanamiState.rock) return { k: 'line', len: 500, w: 60 };
+             if (f.nanamiState && f.nanamiState.rock) return { k: 'none' };
              return { k: 'zone', r: q.rad, range: q.range };
            } },
     },
@@ -53,30 +51,20 @@
   const alive = f => !!f && f.hp > 0;
   const fx = o => G.fx.push(o);
   
-  /* ─── 3. 弱點計算核心（移到球外） ─── */
   function getWeakData(target) {
     if (!target.nanamiWeak) return null;
     const w = target.nanamiWeak;
     const angle = w.angle;
-    
-    // 將線段中心往外推 (CFG.r + 30)，確保畫在球外
     const cx = target.x + Math.cos(angle) * (CFG.r + 30);
     const cy = target.y + Math.sin(angle) * (CFG.r + 30);
-    
-    // 線段方向與法線垂直
     const lineAng = angle + Math.PI / 2; 
     const len = 100; 
     const step = len / 9; 
     const idx = w.pointIdx; 
-    
-    // 起點
     const sx = cx - Math.cos(lineAng) * (len / 2);
     const sy = cy - Math.sin(lineAng) * (len / 2);
-    
-    // 金圈座標
     const wx = sx + Math.cos(lineAng) * (step * idx);
     const wy = sy + Math.sin(lineAng) * (step * idx);
-    
     return { sx, sy, lineAng, len, step, idx, wx, wy, angle };
   }
 
@@ -84,10 +72,8 @@
   function applyWeakness(attacker, target, isActive) {
     const st = ensure(attacker);
     if (isActive) st.weakTimer = 0;
-    
     const angle = Math.random() * Math.PI * 2;
     const pointIdx = Math.random() < 0.5 ? 2 : 7;
-    
     target.nanamiWeak = { angle, pointIdx, owner: attacker };
     pop(target, '七三弱點', '#d4b843');
     fx({ k: 'ring', x: target.x, y: target.y, r: CFG.r + 40, col: '#d4b843', t: .3, m: .3 });
@@ -98,15 +84,30 @@
     if (alive(foe)) applyWeakness(f, foe, true);
   };
 
+  // ★ 技能二：衝刺完畢後，再朝敵人方向進行扇形斬擊（衝刺時穿透敵人）
   C.sk.c.fire = function (f, o, a, s) {
-    // 改為使用拖曳的方向 (a.ang)，若沒拖曳才朝對手
     const ang = a.ang !== undefined ? a.ang : Math.atan2(o.y - f.y, o.x - f.x);
+    
     lunge(f, ang, {
-      dist: s.lungeDist, dur: s.lungeDur,
-      sk: s, dmg: s.dmg, kb: s.kb, reach: s.range,
-      onHit: () => {
-        G.fx.push({ k: 'arc', x: f.x, y: f.y, a: ang, w: s.arc, r: s.range, t: .2, m: .2, col: '#d4b843' });
+      dist: s.lungeDist, dur: s.lungeDur, // 單純位移，不設 sk，這樣途中不會有任何傷害與阻擋
+      done: () => {
+        if (G.state !== 'fight') return;
+        const foe = enemyOf(f);
+        
+        // 落地後，強制朝向敵人方位砍出
+        const atkAng = Math.atan2(foe.y - f.y, foe.x - f.x);
+        
+        G.fx.push({ k: 'arc', x: f.x, y: f.y, a: atkAng, w: s.arc, r: s.range, t: .25, m: .25, col: '#d4b843' });
         playSlashSfx(1.2);
+        
+        // 扇形範圍判定
+        const dist = Math.hypot(foe.x - f.x, foe.y - f.y);
+        let da = Math.abs(Math.atan2(foe.y - f.y, foe.x - f.x) - atkAng);
+        da = Math.min(da, Math.PI * 2 - da);
+        
+        if (dist <= s.range + CFG.r && da <= s.arc / 2) {
+          hit(foe, s.dmg, f.x, f.y, s.kb, 0, s, f);
+        }
       }
     });
   };
@@ -116,6 +117,10 @@
     if (st.rock) {
       const rock = st.rock;
       st.rock = null;
+      const cdBase = 8;
+      const cdReduce = (st.overtimeStack || 0) * 0.5;
+      f.cd.d = Math.max(0, cdBase - cdReduce);
+      
       const baseAng = Math.atan2(a.ay - rock.y, a.ax - rock.x);
       const pebbleS = { r: 20, dmg: 100, kb: 150, life: 1.2, col: '#9ea8b8', fx: 'nanami_rock', noWeak: true };
       
@@ -130,10 +135,6 @@
       shake(6);
     } else {
       f.en -= 150;
-      const cdBase = 8;
-      const cdReduce = (st.overtimeStack || 0) * 0.5;
-      f.cd.d = Math.max(0, cdBase - cdReduce);
-      
       const d = Math.min(Math.hypot(a.ax - f.x, a.ay - f.y), s.range);
       const tx = clamp(f.x + Math.cos(a.ang) * d, CFG.r, CFG.W - CFG.r);
       const ty = clamp(f.y + Math.sin(a.ang) * d, CFG.r, CFG.H - CFG.r);
@@ -147,7 +148,13 @@
         blast(f, tx, ty, s.rad, s.dmg, s.kb, '#d4b843', 0);
         shake(12);
         fx({ k: 'flash', t: .2, m: .2, col: '#fff' });
-        later(10, () => { if (st.rock && st.rock.x === tx) st.rock = null; }, f);
+        later(10, () => { 
+          if (st.rock && st.rock.x === tx) {
+            st.rock = null; 
+            const cdReduce = (st.overtimeStack || 0) * 0.5;
+            f.cd.d = Math.max(0, 8 - cdReduce);
+          }
+        }, f);
       }, f);
     }
   };
@@ -272,6 +279,21 @@
       oldDraw();
       if (!G.p) return;
       
+      // 替換按鈕文字
+      if (typeof skBtns !== 'undefined' && G.p.c === C) {
+        const st = ensure(G.p);
+        for (const b of skBtns) {
+          if (b.k === 'd') {
+            if (st.rock) {
+              if (b.el.innerHTML.indexOf('碎石') === -1) {
+                b.el.innerHTML = b.el.innerHTML.replace('瓦落瓦落', '碎石');
+              }
+            }
+            break;
+          }
+        }
+      }
+      
       cx.save();
       cx.scale(view.s, view.s);
       cx.translate(-cam.x, -cam.y);
@@ -280,6 +302,55 @@
       for (const f of [G.p, G.e]) {
         if (!f) continue;
 
+        // ★ 七海專屬自繪 PV：技能二（直線 + 朝向敵人的斬擊扇形） ★
+        if (f === G.p && f.hold && f.hold.k === 'c') {
+          const aim = f.hold.aim || { x: f.x, y: f.y };
+          const ang = Math.atan2(aim.y - f.y, aim.x - f.x);
+          const tx = f.x + Math.cos(ang) * C.sk.c.lungeDist;
+          const ty = f.y + Math.sin(ang) * C.sk.c.lungeDist;
+          
+          const foe = enemyOf(f);
+          // 如果在落點，敵人方向會是什麼？
+          const atkAng = Math.atan2(foe.y - ty, foe.x - tx);
+          
+          // 畫移動直線
+          cx.save();
+          cx.globalAlpha = 0.6;
+          cx.strokeStyle = 'rgba(212, 184, 67, 0.7)';
+          cx.lineWidth = 3;
+          cx.setLineDash([10, 8]);
+          cx.beginPath();
+          cx.moveTo(f.x, f.y);
+          cx.lineTo(tx, ty);
+          cx.stroke();
+          cx.setLineDash([]);
+          
+          // 畫落點扇形
+          cx.translate(tx, ty);
+          cx.rotate(atkAng);
+          
+          cx.fillStyle = 'rgba(212, 184, 67, 0.15)';
+          cx.beginPath();
+          cx.moveTo(0, 0);
+          cx.arc(0, 0, C.sk.c.range, -C.sk.c.arc / 2, C.sk.c.arc / 2);
+          cx.closePath();
+          cx.fill();
+          
+          cx.strokeStyle = 'rgba(212, 184, 67, 0.8)';
+          cx.lineWidth = 2;
+          cx.beginPath();
+          cx.arc(0, 0, C.sk.c.range, -C.sk.c.arc / 2, C.sk.c.arc / 2);
+          cx.stroke();
+          
+          // 畫一條指向敵人的中線
+          cx.beginPath();
+          cx.moveTo(0, 0);
+          cx.lineTo(C.sk.c.range, 0);
+          cx.stroke();
+          cx.restore();
+        }
+
+        // 畫弱點
         if (f.nanamiWeak) {
           const wd = getWeakData(f);
           if (wd) {
@@ -321,10 +392,38 @@
           }
         }
 
+        // 畫石頭與第二段 PV
         if (f.c === C) {
           const st = ensure(f);
           if (st.rock) {
             const r = st.rock;
+            
+            if (f === G.p && f.hold && f.hold.k === 'd') {
+              const aim = f.hold.aim || { x: f.x, y: f.y };
+              const ang = Math.atan2(aim.y - r.y, aim.x - r.x);
+              const len = 500;
+              const spread = 4 * 0.18;
+              
+              cx.save();
+              cx.translate(r.x, r.y);
+              cx.rotate(ang);
+              cx.fillStyle = 'rgba(212, 184, 67, 0.15)';
+              cx.beginPath();
+              cx.moveTo(0, 0);
+              cx.arc(0, 0, len, -spread/2, spread/2);
+              cx.closePath();
+              cx.fill();
+              
+              cx.strokeStyle = 'rgba(212, 184, 67, 0.6)';
+              cx.lineWidth = 2;
+              cx.beginPath();
+              cx.moveTo(0, 0); cx.lineTo(len, 0);
+              cx.moveTo(0, 0); cx.lineTo(Math.cos(-spread/2)*len, Math.sin(-spread/2)*len);
+              cx.moveTo(0, 0); cx.lineTo(Math.cos(spread/2)*len, Math.sin(spread/2)*len);
+              cx.stroke();
+              cx.restore();
+            }
+            
             cx.fillStyle = '#4a505c';
             cx.strokeStyle = '#d4b843';
             cx.lineWidth = 3;
@@ -353,5 +452,5 @@
     window.draw = w;
   }
 
-  console.log('[char_nanami] 七海建人已載入 (七三弱點刻度版)');
+  console.log('[char_nanami] 七海建人已載入 (完全體)');
 })();
