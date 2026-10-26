@@ -1,5 +1,5 @@
-/* js_fighter/char_nanami.js — 七海建人（咒術迴戰）
- * 包含：十劃咒法（10刻度弱點）、加班時間、兩段式技能三、精準斬擊特殊 PV。
+/* js_fighter/char_nanami.js — 七海建人（咒術迴戰）獨立模組
+ * 包含：十劃咒法（10刻度弱點）、加班時間被動、兩段式技能三、技能二專屬自繪 PV。
  */
 (function () {
   'use strict';
@@ -20,15 +20,15 @@
     sk: {
       a: { name: '鈍刀', type: 'melee', bf: 1, cost: 0, cd: .35, wind: .08, dmg: 80, range: 140, arc: 1.2, kb: 180 },
       
-      b: { name: '十劃咒法', type: 'melee', cost: 50, cd: 4, wind: .1, range: 1000, arc: 3.14,
-           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           pv: (f) => ({ k: 'circle', r: CFG.r * 3 }) },
+      // 技能一：十劃咒法（移除 hold，改為單點觸發全地圖標記）
+      b: { name: '十劃咒法', type: 'melee', cost: 50, cd: 4, wind: .1, range: 1000, arc: 3.14 },
            
-      // 技能二：精準斬擊（PV 交給外掛自繪，所以回傳 none）
+      // 技能二：精準斬擊（加入 noLock 解除強制鎖敵）
       c: { name: '精準斬擊', type: 'melee', cost: 100, cd: 6, wind: .1, dmg: 150, range: 180, arc: 1.6, kb: 250, lungeDist: 280, lungeDur: .15,
-           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
+           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1, noLock: 1,
            pv: (f) => ({ k: 'none' }) },
            
+      // 技能三：瓦落瓦落（第一段 zone 預示，第二段交給自訂繪製）
       d: { name: '瓦落瓦落', type: 'zone', cost: 0, cd: 0, wind: .15, dmg: 250, rad: 160, range: 700, kb: 200,
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            pv: (f, full, q) => {
@@ -40,7 +40,7 @@
   const C = CHARS.nanami;
   for (const k of Object.keys(C.sk)) C.sk[k].key = k;
 
-  /* ─── 2. 狀態與輔助 ─── */
+  /* ─── 2. 狀態與輔助函式 ─── */
   function ensure(f) {
     if (!f.nanamiState) {
       f.nanamiState = { overtimeT: 0, overtimeStack: 0, weakTimer: 0, rock: null };
@@ -68,7 +68,6 @@
     return { sx, sy, lineAng, len, step, idx, wx, wy, angle };
   }
 
-  /* ─── 4. 技能施放與施加弱點 ─── */
   function applyWeakness(attacker, target, isActive) {
     const st = ensure(attacker);
     if (isActive) st.weakTimer = 0;
@@ -79,22 +78,20 @@
     fx({ k: 'ring', x: target.x, y: target.y, r: CFG.r + 40, col: '#d4b843', t: .3, m: .3 });
   }
 
+  /* ─── 3. 技能行為綁定 ─── */
   C.sk.b.fire = function (f, o, a, s) {
     const foe = enemyOf(f);
     if (alive(foe)) applyWeakness(f, foe, true);
   };
 
-  // ★ 技能二：衝刺完畢後，再朝敵人方向進行扇形斬擊（衝刺時穿透敵人）
   C.sk.c.fire = function (f, o, a, s) {
     const ang = a.ang !== undefined ? a.ang : Math.atan2(o.y - f.y, o.x - f.x);
-    
     lunge(f, ang, {
-      dist: s.lungeDist, dur: s.lungeDur, // 單純位移，不設 sk，這樣途中不會有任何傷害與阻擋
+      dist: s.lungeDist, dur: s.lungeDur,
       done: () => {
         if (G.state !== 'fight') return;
         const foe = enemyOf(f);
-        
-        // 落地後，強制朝向敵人方位砍出
+        // 落地後朝向敵人方位砍出
         const atkAng = Math.atan2(foe.y - f.y, foe.x - f.x);
         
         G.fx.push({ k: 'arc', x: f.x, y: f.y, a: atkAng, w: s.arc, r: s.range, t: .25, m: .25, col: '#d4b843' });
@@ -148,6 +145,7 @@
         blast(f, tx, ty, s.rad, s.dmg, s.kb, '#d4b843', 0);
         shake(12);
         fx({ k: 'flash', t: .2, m: .2, col: '#fff' });
+        
         later(10, () => { 
           if (st.rock && st.rock.x === tx) {
             st.rock = null; 
@@ -159,7 +157,7 @@
     }
   };
 
-  /* ─── 5. 弱點命中判定 (`hit` 包裝) ─── */
+  /* ─── 4. 全域函式覆寫 (Hit / CD / Update / CanCast) ─── */
   const oldHit = window.hit;
   if (typeof oldHit === 'function' && !oldHit._nanamiWrapped) {
     const w = function (t, d, fx_, fy_, kb, heavy, sk, att) {
@@ -196,7 +194,6 @@
     window.hit = w;
   }
 
-  /* ─── 6. 狀態更新 (`update` 包裝) ─── */
   const oldCdOf = window.cdOf;
   if (typeof oldCdOf === 'function' && !oldCdOf._nanamiWrapped) {
     const w = function (f, s) {
@@ -221,6 +218,7 @@
         if (!f || f.c !== C) continue;
         const st = ensure(f);
 
+        // 加班被動
         st.overtimeT += dt;
         if (st.overtimeT >= 10) {
           st.overtimeT -= 10;
@@ -231,6 +229,7 @@
           }
         }
 
+        // 移速加成
         if (st.overtimeStack > 0) {
           const hasteV = (C.speed + 20 * st.overtimeStack) / C.speed;
           const eh = f.sts.find(s => s.k === 'haste' && s._nanami);
@@ -238,6 +237,7 @@
           else f.sts.push({ k: 'haste', t: .1, v: hasteV, _nanami: 1 });
         }
 
+        // 6秒自動弱點
         const foe = enemyOf(f);
         if (alive(foe)) {
           st.weakTimer += dt;
@@ -254,7 +254,6 @@
     window.update = w;
   }
 
-  /* ─── 7. canCast 包裝 ─── */
   const oldCanCast = window.canCast;
   if (typeof oldCanCast === 'function' && !oldCanCast._nanamiWrapped) {
     const w = function (f, k) {
@@ -272,14 +271,14 @@
     window.canCast = w;
   }
 
-  /* ─── 8. 繪製 (`draw` 包裝) ─── */
+  /* ─── 5. 繪製覆寫 (Draw) ─── */
   const oldDraw = window.draw;
   if (typeof oldDraw === 'function' && !oldDraw._nanamiWrapped) {
     const w = function () {
       oldDraw();
       if (!G.p) return;
       
-      // 替換按鈕文字
+      // 替換技能按鈕文字
       if (typeof skBtns !== 'undefined' && G.p.c === C) {
         const st = ensure(G.p);
         for (const b of skBtns) {
@@ -302,18 +301,16 @@
       for (const f of [G.p, G.e]) {
         if (!f) continue;
 
-        // ★ 七海專屬自繪 PV：技能二（直線 + 朝向敵人的斬擊扇形） ★
-        if (f === G.p && f.hold && f.hold.k === 'c') {
+        // 1. 專屬自繪 PV：技能二（補上了 f.c === C，防止誤植給其他角色）
+        if (f === G.p && f.c === C && f.hold && f.hold.k === 'c') {
           const aim = f.hold.aim || { x: f.x, y: f.y };
           const ang = Math.atan2(aim.y - f.y, aim.x - f.x);
           const tx = f.x + Math.cos(ang) * C.sk.c.lungeDist;
           const ty = f.y + Math.sin(ang) * C.sk.c.lungeDist;
           
           const foe = enemyOf(f);
-          // 如果在落點，敵人方向會是什麼？
           const atkAng = Math.atan2(foe.y - ty, foe.x - tx);
           
-          // 畫移動直線
           cx.save();
           cx.globalAlpha = 0.6;
           cx.strokeStyle = 'rgba(212, 184, 67, 0.7)';
@@ -325,7 +322,6 @@
           cx.stroke();
           cx.setLineDash([]);
           
-          // 畫落點扇形
           cx.translate(tx, ty);
           cx.rotate(atkAng);
           
@@ -342,7 +338,6 @@
           cx.arc(0, 0, C.sk.c.range, -C.sk.c.arc / 2, C.sk.c.arc / 2);
           cx.stroke();
           
-          // 畫一條指向敵人的中線
           cx.beginPath();
           cx.moveTo(0, 0);
           cx.lineTo(C.sk.c.range, 0);
@@ -350,7 +345,7 @@
           cx.restore();
         }
 
-        // 畫弱點
+        // 2. 繪製球體外的弱點線與金圈
         if (f.nanamiWeak) {
           const wd = getWeakData(f);
           if (wd) {
@@ -392,13 +387,13 @@
           }
         }
 
-        // 畫石頭與第二段 PV
+        // 3. 繪製巨石與第二段扇形 PV（補上 f.c === C）
         if (f.c === C) {
           const st = ensure(f);
           if (st.rock) {
             const r = st.rock;
             
-            if (f === G.p && f.hold && f.hold.k === 'd') {
+            if (f === G.p && f.c === C && f.hold && f.hold.k === 'd') {
               const aim = f.hold.aim || { x: f.x, y: f.y };
               const ang = Math.atan2(aim.y - r.y, aim.x - r.x);
               const len = 500;
@@ -452,5 +447,5 @@
     window.draw = w;
   }
 
-  console.log('[char_nanami] 七海建人已載入 (完全體)');
+  console.log('[char_nanami] 七海建人專屬模組已載入');
 })();
