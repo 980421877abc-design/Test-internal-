@@ -1,6 +1,5 @@
 /* js_fighter/char_nanami.js — 七海建人（咒術迴戰）
  * 包含：十劃咒法（10刻度弱點）、加班時間、兩段式技能三。
- * 載入順序：ball_fighter.html 主程式之後、ui_select.js 之前。
  */
 (function () {
   'use strict';
@@ -20,10 +19,20 @@
 
     sk: {
       a: { name: '鈍刀', type: 'melee', bf: 1, cost: 0, cd: .35, wind: .08, dmg: 80, range: 140, arc: 1.2, kb: 180 },
-      b: { name: '十劃咒法', type: 'toggle', cost: 50, cd: 4, wind: .1 },
+
+      // 技能一：十劃咒法（補上 hold 才能顯示 pv）
+      b: { name: '十劃咒法', type: 'melee', cost: 50, cd: 4, wind: .1, range: 1000, arc: 3.14,
+           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
+           pv: (f) => ({ k: 'circle', r: CFG.r * 3 }) },
+
+      // 技能二：精準斬擊（補上 hold）
       c: { name: '精準斬擊', type: 'melee', cost: 100, cd: 6, wind: .1, dmg: 150, range: 180, arc: 1.6, kb: 250, lungeDist: 280, lungeDur: .15,
+           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            pv: (f, full, q) => ({ k: 'fan', range: q.lungeDist + q.range, arc: 1.1 }) },
+
+      // 技能三：瓦落瓦落（補上 hold）
       d: { name: '瓦落瓦落', type: 'zone', cost: 0, cd: 0, wind: .15, dmg: 250, rad: 160, range: 700, kb: 200,
+           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            pv: (f, full, q) => {
              if (f.nanamiState && f.nanamiState.rock) return { k: 'line', len: 500, w: 60 };
              return { k: 'zone', r: q.rad, range: q.range };
@@ -44,26 +53,31 @@
   const alive = f => !!f && f.hp > 0;
   const fx = o => G.fx.push(o);
   
-  /* ─── 3. 弱點計算核心 ─── */
-  // 取得弱點線段與金圈的位置
+  /* ─── 3. 弱點計算核心（移到球外） ─── */
   function getWeakData(target) {
     if (!target.nanamiWeak) return null;
     const w = target.nanamiWeak;
-    // 線段角度（垂直於角色與施法者的連線，或者固定角度）
-    const ang = w.angle; 
-    const len = 90; // 線段總長
-    const sx = target.x - Math.cos(ang) * (len / 2);
-    const sy = target.y - Math.sin(ang) * (len / 2);
+    const angle = w.angle;
     
-    // 10 個點，間距為 len / 9
-    const step = len / 9;
-    // 第 3 個點 (索引 2) 或第 8 個點 (索引 7)
+    // 將線段中心往外推 (CFG.r + 30)，確保畫在球外
+    const cx = target.x + Math.cos(angle) * (CFG.r + 30);
+    const cy = target.y + Math.sin(angle) * (CFG.r + 30);
+    
+    // 線段方向與法線垂直
+    const lineAng = angle + Math.PI / 2; 
+    const len = 100; 
+    const step = len / 9; 
     const idx = w.pointIdx; 
     
-    const wx = sx + Math.cos(ang) * (step * idx);
-    const wy = sy + Math.sin(ang) * (step * idx);
+    // 起點
+    const sx = cx - Math.cos(lineAng) * (len / 2);
+    const sy = cy - Math.sin(lineAng) * (len / 2);
     
-    return { sx, sy, ang, len, step, idx, wx, wy };
+    // 金圈座標
+    const wx = sx + Math.cos(lineAng) * (step * idx);
+    const wy = sy + Math.sin(lineAng) * (step * idx);
+    
+    return { sx, sy, lineAng, len, step, idx, wx, wy, angle };
   }
 
   /* ─── 4. 技能施放與施加弱點 ─── */
@@ -71,14 +85,12 @@
     const st = ensure(attacker);
     if (isActive) st.weakTimer = 0;
     
-    // 隨機決定線段角度（這裡設為固定朝向或根據連線垂直，這裡用完全隨機的直線）
     const angle = Math.random() * Math.PI * 2;
-    // 隨機決定弱點在第3個點(2)還是第8個點(7)
     const pointIdx = Math.random() < 0.5 ? 2 : 7;
     
     target.nanamiWeak = { angle, pointIdx, owner: attacker };
     pop(target, '七三弱點', '#d4b843');
-    fx({ k: 'ring', x: target.x, y: target.y, r: CFG.r + 20, col: '#d4b843', t: .3, m: .3 });
+    fx({ k: 'ring', x: target.x, y: target.y, r: CFG.r + 40, col: '#d4b843', t: .3, m: .3 });
   }
 
   C.sk.b.fire = function (f, o, a, s) {
@@ -87,7 +99,8 @@
   };
 
   C.sk.c.fire = function (f, o, a, s) {
-    const ang = Math.atan2(o.y - f.y, o.x - f.x);
+    // 改為使用拖曳的方向 (a.ang)，若沒拖曳才朝對手
+    const ang = a.ang !== undefined ? a.ang : Math.atan2(o.y - f.y, o.x - f.x);
     lunge(f, ang, {
       dist: s.lungeDist, dur: s.lungeDur,
       sk: s, dmg: s.dmg, kb: s.kb, reach: s.range,
@@ -145,17 +158,16 @@
     const w = function (t, d, fx_, fy_, kb, heavy, sk, att) {
       if (att && att.c === C) {
         const st = ensure(att);
-        // 加班加成
         if (st.overtimeStack > 0) d *= (1 + 0.1 * st.overtimeStack);
         
-        // 弱點判定
         if (t.nanamiWeak && sk && !sk.noWeak) {
           const wd = getWeakData(t);
           if (wd) {
-            // 計算攻擊來源點 (fx_, fy_) 距離金圈 (wd.wx, wd.wy) 多近
-            const dist = Math.hypot(fx_ - wd.wx, fy_ - wd.wy);
-            // 若攻擊起點靠近金圈 (容錯 60 像素)，算命中弱點
-            if (dist < 60) {
+            const attAng = Math.atan2(fy_ - t.y, fx_ - t.x);
+            let diff = Math.abs(attAng - wd.angle);
+            while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
+            
+            if (diff < 0.6) {
               d *= 3;
               pop(t, 'WEAK! x3', '#ffd77a');
               fx({ k: 'ring', x: wd.wx, y: wd.wy, r: 80, col: '#ffd77a', t: .5, m: .5 });
@@ -202,7 +214,6 @@
         if (!f || f.c !== C) continue;
         const st = ensure(f);
 
-        // 加班被動
         st.overtimeT += dt;
         if (st.overtimeT >= 10) {
           st.overtimeT -= 10;
@@ -213,7 +224,6 @@
           }
         }
 
-        // 移速加成
         if (st.overtimeStack > 0) {
           const hasteV = (C.speed + 20 * st.overtimeStack) / C.speed;
           const eh = f.sts.find(s => s.k === 'haste' && s._nanami);
@@ -221,7 +231,6 @@
           else f.sts.push({ k: 'haste', t: .1, v: hasteV, _nanami: 1 });
         }
 
-        // 6秒自動弱點
         const foe = enemyOf(f);
         if (alive(foe)) {
           st.weakTimer += dt;
@@ -271,15 +280,13 @@
       for (const f of [G.p, G.e]) {
         if (!f) continue;
 
-        // 繪製 10 刻度弱點線
         if (f.nanamiWeak) {
           const wd = getWeakData(f);
           if (wd) {
             cx.save();
             cx.translate(wd.sx, wd.sy);
-            cx.rotate(wd.ang);
+            cx.rotate(wd.lineAng);
             
-            // 畫底線
             cx.strokeStyle = 'rgba(212, 184, 67, 0.4)';
             cx.lineWidth = 2;
             cx.beginPath();
@@ -287,13 +294,11 @@
             cx.lineTo(wd.len, 0);
             cx.stroke();
 
-            // 畫 10 個點
             for (let i = 0; i < 10; i++) {
               const px = wd.step * i;
               const isTarget = i === wd.idx;
               
               if (isTarget) {
-                // 高亮圈圈 (第3個或第8個點)
                 cx.beginPath();
                 cx.arc(px, 0, 7 + 2 * Math.sin(T * 10), 0, 7);
                 cx.fillStyle = '#d4b843';
@@ -301,13 +306,11 @@
                 cx.strokeStyle = '#fff';
                 cx.lineWidth = 2;
                 cx.stroke();
-                // 光暈
                 cx.beginPath();
                 cx.arc(px, 0, 14, 0, 7);
                 cx.fillStyle = 'rgba(212, 184, 67, 0.3)';
                 cx.fill();
               } else {
-                // 普通小點
                 cx.beginPath();
                 cx.arc(px, 0, 2, 0, 7);
                 cx.fillStyle = 'rgba(255, 255, 255, 0.5)';
@@ -318,7 +321,6 @@
           }
         }
 
-        // 繪製巨石
         if (f.c === C) {
           const st = ensure(f);
           if (st.rock) {
