@@ -58,7 +58,6 @@
       return;
     }
     if (typeof lunge !== 'function') return;
-        f.cd.b = 0;   // 埋彈階段不進 CD（cd:0 已讓 cast 不設，這行防禦性覆蓋）
     const launchAng = Number.isFinite(f.kiraDir) ? f.kiraDir : a.ang;
     lunge(f, launchAng, {
       dist: s.dashDist || 380, dur: s.dashDur || .18,
@@ -67,7 +66,7 @@
         if (!alive(target) || k.bomb) return;
         if (typeof hit === 'function' && alive(target)) hit(target, Math.max(1, Number(s.dashDmg) || 90), f.x, f.y, 80, 0, s, f);
         k.bomb = { type:'enemy', target, x:target.x, y:target.y, t:0, life:s.bombLife || 8 };
-        f.cd.b = 0; k.bombCd = 0;
+        f.cd.b = 0;
         if (typeof pop === 'function') pop(target, 'KILLER QUEEN', PINK);
         ring(target.x, target.y, 100, PINK, .5); ring(target.x, target.y, 140, LIGHT, .7);
         burst(target.x, target.y, PINK, 18, 500);
@@ -80,7 +79,7 @@
           if (typeof pop === 'function') pop(f, '牆壁炸彈', PINK);
           ring(f.x, f.y, 110, PINK, .5); burst(f.x, f.y, PINK, 14, 450);
         }
-              if (!k.bomb) { k.bombCd = s.missCd || 2; f.cd.b = k.bombCd; }
+        if (!k.bomb) k.bombCd = s.bombCd || 6;
       },
     });
   }
@@ -205,7 +204,8 @@
     if(k.bomb){ k.bomb.t+=dt; if(k.bomb.type==='enemy' && alive(k.bomb.target)){k.bomb.x=k.bomb.target.x;k.bomb.y=k.bomb.target.y} if(k.bomb.t>(k.bomb.life||8)){k.bomb=null;k.bombCd=C.sk.b.bombCd||6} }
     if(k.bombCd>0){k.bombCd=Math.max(0,k.bombCd-dt);f.cd.b=Math.max(f.cd.b,k.bombCd)}
     if(f._kiraMark){f._kiraMark.t-=dt;if(f._kiraMark.t<=0)delete f._kiraMark}
-    if(k.air){setAirRoot(f,true);const a=k.air,s=a.s;a.t+=dt;const jx=(typeof joy!=='undefined'?joy.x:0)+(typeof keys!=='undefined'&&((keys.d||keys.ArrowRight)?1:0))-((typeof keys!=='undefined'&&((keys.a||keys.ArrowLeft)?1:0)));const jy=(typeof joy!=='undefined'?joy.y:0)+(typeof keys!=='undefined'&&((keys.s||keys.ArrowDown)?1:0))-((typeof keys!=='undefined'&&((keys.w||keys.ArrowUp)?1:0)));if(Math.hypot(jx,jy)>.18)k.dirAngle=Math.atan2(jy,jx);let turn=0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
+    if(k.air) setAirRoot(f,true);
+    if(k.air){const a=k.air,s=a.s;a.t+=dt;const jx=(typeof joy!=='undefined'?joy.x:0)+(typeof keys!=='undefined'&&((keys.d||keys.ArrowRight)?1:0))-((typeof keys!=='undefined'&&((keys.a||keys.ArrowLeft)?1:0)));const jy=(typeof joy!=='undefined'?joy.y:0)+(typeof keys!=='undefined'&&((keys.s||keys.ArrowDown)?1:0))-((typeof keys!=='undefined'&&((keys.w||keys.ArrowUp)?1:0)));if(Math.hypot(jx,jy)>.18)k.dirAngle=Math.atan2(jy,jx);let turn=0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
     k.despair=Math.min(100,k.despair);
   }
   function updateCars(dt) {
