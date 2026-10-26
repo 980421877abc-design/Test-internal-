@@ -10,7 +10,7 @@
   CHARS.nanami = {
     name: '七海建人', work: '咒術迴戰', color: '#d4b843', glyph: '海',
     img: 'image/nanami.png',
-    hp: 7000, speed: 540,
+    hp: 7500, speed: 540,
     res: { name: '咒力', max: 1500, regen: 30, color: '#b09eff', blockDrain: 25 },
     aiDist: 220,
 
@@ -18,18 +18,18 @@
     bf: { chance: .5, window: 1.5, ready: 5, mult: 2.5, heal: 300, kbMul: 2 },
 
     sk: {
-      a: { name: '鈍刀', type: 'melee', bf: 1, cost: 0, cd: .35, wind: .08, dmg: 80, range: 140, arc: 1.2, kb: 180 },
+      a: { name: '鈍刀', type: 'melee', bf: 1, cost: 0, cd: .30, wind: .08, dmg: 80, range: 160, arc: 1.2, kb: 180 },
       
       // 技能一：十劃咒法（移除 hold，改為單點觸發全地圖標記）
-      b: { name: '十劃咒法', type: 'melee', cost: 50, cd: 4, wind: .1, range: 1000, arc: 3.14 },
+      b: { name: '十劃咒法', type: 'melee', cost: 50, cd: 3, wind: .1, range: 1000, arc: 3.14 },
            
       // 技能二：精準斬擊（加入 noLock 解除強制鎖敵）
-      c: { name: '精準斬擊', type: 'melee', cost: 100, cd: 6, wind: .1, dmg: 150, range: 180, arc: 1.6, kb: 250, lungeDist: 280, lungeDur: .15,
+      c: { name: '精準斬擊', type: 'melee', cost: 100, cd: 4, wind: .1, dmg: 300, range: 180, arc: 2, kb: 250, lungeDist: 300, lungeDur: .15,
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1, noLock: 1,
            pv: (f) => ({ k: 'none' }) },
            
       // 技能三：瓦落瓦落（第一段 zone 預示，第二段交給自訂繪製）
-      d: { name: '瓦落瓦落', type: 'zone', cost: 0, cd: 0, wind: .15, dmg: 250, rad: 160, range: 700, kb: 200,
+      d: { name: '瓦落瓦落', type: 'zone', cost: 120, cd: 0, wind: .15, dmg: 250, rad: 160, range: 700, kb: 200,
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            pv: (f, full, q) => {
              if (f.nanamiState && f.nanamiState.rock) return { k: 'none' };
@@ -114,12 +114,12 @@
     if (st.rock) {
       const rock = st.rock;
       st.rock = null;
-      const cdBase = 8;
+      const cdBase = 6;
       const cdReduce = (st.overtimeStack || 0) * 0.5;
       f.cd.d = Math.max(0, cdBase - cdReduce);
       
       const baseAng = Math.atan2(a.ay - rock.y, a.ax - rock.x);
-      const pebbleS = { r: 20, dmg: 100, kb: 150, life: 1.2, col: '#9ea8b8', fx: 'nanami_rock', noWeak: true };
+      const pebbleS = { r: 20, dmg: 200, kb: 150, life: 1.2, col: '#9ea8b8', fx: 'nanami_rock', noWeak: true };
       
       for (let i = -2; i <= 2; i++) {
         const ang = baseAng + i * 0.18;
