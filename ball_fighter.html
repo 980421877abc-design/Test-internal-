@@ -455,7 +455,7 @@ function stepF(f,dt){
  let vx=0,vy=0;
  if(f.lg){if(f.stun>0){const g=f.lg;f.lg=null;if(g.done)g.done(g.hit)}else lungeStep(f,dt);vx=vy=0;f.kx=f.ky=0}   // 技能位移中：不受輸入與擊退影響（被打到硬直會中斷）
   else if(f.dashT>0){f.dashT-=dt;const v=CFG.dash.dist/CFG.dash.dur;vx=f.dx*v;vy=f.dy*v;dashFx(f)}
- else if(f.stun<=0){const sp=f.c.speed*(f.blocking?CFG.block.speed:1)*(f.act?(f.c.sk[f.act.k].lockMove?0:.5):1)*stat(f,'slow',1)*stat(f,'haste',1)*(stat(f,'root',0)?0:1)*(stat(f,'bind',0)?0:1)*(f.dd&&f.c.domDef.lock?0:1)*chargeLock(f);vx=f.mx*sp;vy=f.my*sp;
+ else if(f.stun<=0){const sp=f.c.speed*(f.blocking?CFG.block.speed:1)*(f.act?(f.c.sk[f.act.k].lockMove?0:.5):1)*(f.c===CHARS.kira&&f.kira&&f.kira.air?0:1)*stat(f,'slow',1)*stat(f,'haste',1)*(stat(f,'root',0)?0:1)*(stat(f,'bind',0)?0:1)*(f.dd&&f.c.domDef.lock?0:1)*chargeLock(f);vx=f.mx*sp;vy=f.my*sp;
   if((f.mx||f.my)&&!f.act)f.face=Math.atan2(f.my,f.mx)}
  if(f.dashT<=0&&Math.hypot(vx,vy)>f.c.speed*.7&&G.fx.length<FXCAP&&Math.random()<.45)G.fx.push({k:'sp',x:f.x-vx*.03+(Math.random()-.5)*CFG.r,y:f.y-vy*.03+(Math.random()-.5)*CFG.r,vx:-vx*.5,vy:-vy*.5,t:.18,m:.18,col:'#cfe6ff',w:2,dr:2,al:.5});
  f.x+=(vx+f.kx)*dt;f.y+=(vy+f.ky)*dt;const dec=Math.exp(-CFG.kbDecay*dt);f.kx*=dec;f.ky*=dec;
