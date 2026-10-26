@@ -329,12 +329,12 @@ const CHARS = {
         type: 'toggle',
         side: 'L',
         hold: { start: .4, full: 99 },       // 長按 = 加速治療
-        cost: 0,
+        cost: 30,
         cd: 0,
         wind: .05,
         toggleHeal: {
           rate: 200,               //   開啟時每秒回復生命
-          drain: 50,               //   開啟時每秒消耗咒力
+          drain: 60,               //   開啟時每秒消耗咒力
           boost: 3,                //   長按時回復倍率
         },
       },
@@ -351,7 +351,7 @@ const CHARS = {
         fx: 'slash',               // 特效樣式：新月形劍氣
         noMuzzle: 1,               // 1 = 發射時不要閃光（連發太吵）
         cost: 30,                  // 每一道劍氣的咒力消耗（所以持續消耗 = 30 ÷ 0.3 = 每秒 100）
-        cd: .03,
+        cd: 2,
         wind: .05,
         dmg: 130,                  // 每道劍氣傷害
         speed: 1600,
@@ -607,7 +607,7 @@ const CHARS = {
           use: 'suimen',
           range: 220, arc: 3.2,     //   斬擊範圍（待定）
           bonus: 40,                //   額外傷害
-          lungeDist: 80, lungeDur: .1,   //   突進距離 / 時間（待定）
+          lungeDist: 150, lungeDur: .1,   //   突進距離 / 時間（待定）
           kb: 260,
           heal: { hp: 200, res: 60 },     //   命中回復：生命 / 呼吸條（待定）
         },
