@@ -729,6 +729,7 @@ const CHARS = {
            hold:{ start:.05, full:99 }, aimMove:1, noCharge:1,
            cost:150, cd:9, wind:.1,
            speed:400, life:2.5, detectRad:320, dashSpeed:800, through:1,
+           secondWait:.8, secondLife:2.5, secondSpeed:800, secondDmg:500,
            r:24, rad:160, dmg:500, kb:200,
            sprite:'image/kira_car.png',
            col:'#ff4a8a' },

@@ -93,13 +93,25 @@
     k.dirAngle = a;
     k.air = { x:f.x + Math.cos(a) * (CFG.r + 14), y:f.y + Math.sin(a) * (CFG.r + 14),
       vx:Math.cos(a) * s.speed, vy:Math.sin(a) * s.speed, t:0, s, trail:[] };
+    setAirRoot(f, true);
     k.airTurn = 0;
     ring(k.air.x, k.air.y, 48, PINK, .3); burst(k.air.x, k.air.y, LIGHT, 8, 300);
+  }
+  function setAirRoot(f, on) {
+    if (!f || !Array.isArray(f.sts)) return;
+    const own = f.sts.find(x => x.k === 'root' && x._kiraAir);
+    if (on) {
+      if (own) own.t = .2;
+      else f.sts.push({ k:'root', t:.2, v:0, _kiraAir:true });
+    } else {
+      for (let i=f.sts.length-1;i>=0;i--) if (f.sts[i]._kiraAir) f.sts.splice(i,1);
+    }
   }
   function explodeAir(f) {
     const k = ensure(f), a = k.air;
     if (!a) return;
     k.air = null;
+    setAirRoot(f, false);
     const s = a.s;
     if (typeof blast === 'function') blast(f, a.x, a.y, s.rad, s.dmg, 300, PINK, 0);
     bombFx(a.x, a.y, Object.assign({}, s, { bombRad:s.rad }), false);
@@ -113,7 +125,7 @@
     if (!G.kiraCars) G.kiraCars = [];
     const ang = Number.isFinite(f.kiraDir) ? f.kiraDir : a.ang;
     G.kiraCars.push({ x:f.x + Math.cos(ang) * (CFG.r + 12), y:f.y + Math.sin(ang) * (CFG.r + 12),
-      vx:Math.cos(ang) * s.speed, vy:Math.sin(ang) * s.speed, t:0, life:s.life, s, own:f, locked:false });
+      vx:Math.cos(ang) * s.speed, vy:Math.sin(ang) * s.speed, t:0, life:s.life, stage:1, s, own:f, locked:false });
     ring(f.x, f.y, 60, DEEP, .35); burst(f.x, f.y, PINK, 8, 350);
   }
 
@@ -193,17 +205,69 @@
     if(k.bomb){ k.bomb.t+=dt; if(k.bomb.type==='enemy' && alive(k.bomb.target)){k.bomb.x=k.bomb.target.x;k.bomb.y=k.bomb.target.y} if(k.bomb.t>(k.bomb.life||8)){k.bomb=null;k.bombCd=C.sk.b.bombCd||6} }
     if(k.bombCd>0){k.bombCd=Math.max(0,k.bombCd-dt);f.cd.b=Math.max(f.cd.b,k.bombCd)}
     if(f._kiraMark){f._kiraMark.t-=dt;if(f._kiraMark.t<=0)delete f._kiraMark}
-    if(k.air){const a=k.air,s=a.s;a.t+=dt;const jx=(typeof joy!=='undefined'?joy.x:0)+(typeof keys!=='undefined'&&((keys.d||keys.ArrowRight)?1:0))-((typeof keys!=='undefined'&&((keys.a||keys.ArrowLeft)?1:0)));const jy=(typeof joy!=='undefined'?joy.y:0)+(typeof keys!=='undefined'&&((keys.s||keys.ArrowDown)?1:0))-((typeof keys!=='undefined'&&((keys.w||keys.ArrowUp)?1:0)));if(Math.hypot(jx,jy)>.18)k.dirAngle=Math.atan2(jy,jx);let turn=0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
+    if(k.air){setAirRoot(f,true);const a=k.air,s=a.s;a.t+=dt;const jx=(typeof joy!=='undefined'?joy.x:0)+(typeof keys!=='undefined'&&((keys.d||keys.ArrowRight)?1:0))-((typeof keys!=='undefined'&&((keys.a||keys.ArrowLeft)?1:0)));const jy=(typeof joy!=='undefined'?joy.y:0)+(typeof keys!=='undefined'&&((keys.s||keys.ArrowDown)?1:0))-((typeof keys!=='undefined'&&((keys.w||keys.ArrowUp)?1:0)));if(Math.hypot(jx,jy)>.18)k.dirAngle=Math.atan2(jy,jx);let turn=0;if(Number.isFinite(k.dirAngle)){let cur=Math.atan2(a.vy,a.vx),df=k.dirAngle-cur;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;turn=Math.max(-1,Math.min(1,df/(s.turnMax*.18||.5)))}if(turn){const ang=Math.atan2(a.vy,a.vx)+s.turnMax*turn*dt,sp=Math.hypot(a.vx,a.vy);a.vx=Math.cos(ang)*sp;a.vy=Math.sin(ang)*sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.trail.push({x:a.x,y:a.y});if(a.trail.length>18)a.trail.shift();if(Math.random()<.7)fx({k:'dt',x:a.x,y:a.y,vx:-a.vx*.08,vy:-a.vy*.08,t:.35,m:.35,col:Math.random()<.5?PINK:LIGHT,r:3,dr:4});if(a.x<CFG.r||a.x>CFG.W-CFG.r||a.y<CFG.r||a.y>CFG.H-CFG.r||a.t>(s.maxHold||4)||f.stun>0||stat(f,'root',0))explodeAir(f)}
     k.despair=Math.min(100,k.despair);
   }
   function updateCars(dt) {
-    if(!G.kiraCars)return;
-    for(let i=G.kiraCars.length-1;i>=0;i--){const c=G.kiraCars[i],o=enemyOf(c.own);if(!alive(c.own)||!alive(o)){G.kiraCars.splice(i,1);continue}c.t+=dt;if(!c.locked&&Math.hypot(o.x-c.x,o.y-c.y)<c.s.detectRad){c.locked=true;const a=Math.atan2(o.y-c.y,o.x-c.x);c.vx=Math.cos(a)*c.s.dashSpeed;c.vy=Math.sin(a)*c.s.dashSpeed}c.x+=c.vx*dt;c.y+=c.vy*dt;if(Math.random()<.5)fx({k:'sp',x:c.x,y:c.y,vx:-c.vx*.05,vy:-c.vy*.05,t:.3,m:.3,col:c.locked?DEEP:PINK,w:3,dr:4});const hitTarget=Math.hypot(o.x-c.x,o.y-c.y)<(c.s.r||24)+CFG.r,wall=c.x<CFG.r||c.x>CFG.W-CFG.r||c.y<CFG.r||c.y>CFG.H-CFG.r;if(hitTarget||(c.locked&&wall)){if(typeof blast==='function')blast(c.own,c.x,c.y,c.s.rad,c.s.dmg,c.s.kb,PINK,0);bombFx(c.x,c.y,Object.assign({},c.s,{bombRad:c.s.rad}),false);G.kiraCars.splice(i,1);continue}if((!c.locked&&wall)||c.t>c.life)G.kiraCars.splice(i,1)}
+    if (!G.kiraCars) return;
+    for (let i=G.kiraCars.length-1;i>=0;i--) {
+      const c=G.kiraCars[i], o=enemyOf(c.own);
+      if (!alive(c.own) || !alive(o)) { G.kiraCars.splice(i,1); continue; }
+
+      // 第一次爆炸後：原地待機，等候第二次追捕。
+      if (c.stage === 2) {
+        c.wait -= dt;
+        if (c.wait <= 0) {
+          c.stage = 3;
+          c.t = 0;
+          c.locked = false;
+          c.life = c.s.secondLife || c.s.life;
+          const aa = Math.atan2(o.y-c.y, o.x-c.x);
+          c.vx = Math.cos(aa) * (c.s.secondSpeed || c.s.dashSpeed || c.s.speed);
+          c.vy = Math.sin(aa) * (c.s.secondSpeed || c.s.dashSpeed || c.s.speed);
+        }
+        continue;
+      }
+
+      c.t += dt;
+      if (!c.locked && Math.hypot(o.x-c.x,o.y-c.y) < c.s.detectRad) {
+        c.locked = true;
+        const aa = Math.atan2(o.y-c.y,o.x-c.x);
+        c.vx = Math.cos(aa) * c.s.dashSpeed;
+        c.vy = Math.sin(aa) * c.s.dashSpeed;
+      }
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      if (Math.random()<.5) fx({k:'sp',x:c.x,y:c.y,vx:-c.vx*.05,vy:-c.vy*.05,t:.3,m:.3,col:c.locked?DEEP:PINK,w:3,dr:4});
+
+      const hitTarget = Math.hypot(o.x-c.x,o.y-c.y) < (c.s.r||24)+CFG.r;
+      const wall = c.x<CFG.r || c.x>CFG.W-CFG.r || c.y<CFG.r || c.y>CFG.H-CFG.r;
+      if (hitTarget || wall) {
+        const dmg = c.stage === 3 ? (c.s.secondDmg || c.s.dmg) : c.s.dmg;
+        const rad = c.s.rad;
+        if (typeof blast==='function') blast(c.own,c.x,c.y,rad,dmg,c.s.kb,PINK,0);
+        bombFx(c.x,c.y,Object.assign({},c.s,{bombRad:rad}),false);
+
+        if (c.stage === 1) {
+          // 第一次爆炸後不刪除小車，改為待機並準備第二次追捕。
+          c.stage = 2;
+          c.wait = c.s.secondWait == null ? .8 : c.s.secondWait;
+          c.t = 0;
+          c.locked = false;
+          c.vx = c.vy = 0;
+          ring(c.x,c.y,rad*1.15,GOLD,.45);
+          continue;
+        }
+        G.kiraCars.splice(i,1);
+        continue;
+      }
+      if (c.t > c.life) G.kiraCars.splice(i,1);
+    }
   }
 
   const oldUpdate=window.update, oldDraw=window.draw, oldHit=window.hit, oldEnd=window.endRound;
   if(typeof oldHit==='function'&&!oldHit._kiraWrapped){const hitWrap=function(t,d,fxx,fyy,kb,heavy,sk,att){const before=t.hp;oldHit(t,d,fxx,fyy,kb,heavy,sk,att);const dealt=Math.max(0,before-t.hp);if(dealt&&att&&att.c===C)ensure(att).despair=Math.min(100,ensure(att).despair+dealt/100);if(dealt&&t.c===C)ensure(t).despair=Math.min(100,ensure(t).despair+dealt/100)};hitWrap._kiraWrapped=true;window.hit=hitWrap}
-  if(typeof oldEnd==='function'&&!oldEnd._kiraWrapped){const endWrap=function(loser){if(loser&&loser.c===C&&ensure(loser).despair>=100&&!G.ts){const o=enemyOf(loser);ensure(loser).despair=0;rewind(loser,o,C.sk.e.rewind||10);loser.hp=Math.min(loser.c.hp,loser.hp+(C.sk.e.heal||2500));G.state='fight';if(typeof say==='function')say('敗者食塵·被動觸發！',1.5);return}return oldEnd(loser)};endWrap._kiraWrapped=true;window.endRound=endWrap}
+  if(typeof oldEnd==='function'&&!oldEnd._kiraWrapped){const endWrap=function(loser){const isActualKiraLoser=!!loser&&loser.hp<=0&&(loser===G.p||loser===G.e)&&loser.c===C;if(isActualKiraLoser&&ensure(loser).despair>=100&&!G.ts){const o=enemyOf(loser);ensure(loser).despair=0;rewind(loser,o,C.sk.e.rewind||10);loser.hp=Math.min(loser.c.hp,loser.hp+(C.sk.e.heal||2500));G.state='fight';if(typeof say==='function')say('敗者食塵·被動觸發！',1.5);return}return oldEnd(loser)};endWrap._kiraWrapped=true;window.endRound=endWrap}
   if(typeof oldUpdate==='function'&&!oldUpdate._kiraWrapped){const updateWrap=function(dt){oldUpdate(dt);if(G.state!=='fight')return;for(const f of [G.p,G.e])if(f&&f.c===C)updateKira(f,dt);updateCars(dt);if(G.kiraRewind){G.kiraRewind.t+=dt;if(G.kiraRewind.t>=G.kiraRewind.T)G.kiraRewind=null}};updateWrap._kiraWrapped=true;window.update=updateWrap}
 
   /* 空氣彈按鈕：捕獲階段攔截主程式的普通 toggle 行為。 */
