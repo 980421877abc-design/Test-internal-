@@ -6,17 +6,14 @@
   if (window.__bfCustomSettings) return;
   window.__bfCustomSettings = true;
 
-  /* ─── 音樂清單設定 (已精簡為兩首) ─── */
+  /* ─── 音樂清單設定 ─── */
   const BGM_LIST = [
     { name: '雨爱', url: 'sound/gojo_boss_bgm.mp3' },
     { name: 'AIZO', url: 'sound/aizo.mp3' }
   ];
   
   const BGM_KEY = 'bf_bgm_selected';
-  // 預設選擇第一首（雨爱），如果玩家之前選過，會從 localStorage 讀取
   let currentBgm = localStorage.getItem(BGM_KEY) || BGM_LIST[0].url;
-  
-  // 防呆：如果玩家存的音樂已經不在清單裡了，強制退回第一首
   if (!BGM_LIST.some(b => b.url === currentBgm)) currentBgm = BGM_LIST[0].url;
 
   /* ─── 劫持音樂播放 ─── */
@@ -39,38 +36,65 @@
   /* ─── CSS 樣式注入 ─── */
   const style = document.createElement('style');
   style.innerHTML = `
-    #bf-custom-settings { position: absolute; inset: 0; background: #0b1020; z-index: 9999; display: flex; align-items: center; justify-content: center; font-family: system-ui, sans-serif; color: #e8ecff; }
-    .bf-cs-container { display: flex; width: 960px; max-width: 95%; height: 600px; max-height: 90vh; background: #0f1a2c; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.6); border: 1px solid #1c3454; position: relative; }
+    /* 修正 1：允許外層滾動，且填滿整個畫面 */
+    #bf-custom-settings { 
+      position: fixed; inset: 0; background: #0b1020; z-index: 9999; 
+      display: flex; font-family: system-ui, sans-serif; color: #e8ecff; 
+      overflow-y: auto; padding: 20px; box-sizing: border-box;
+    }
+    
+    /* 修正 2：改為 min-height，讓內容過長時撐開容器 */
+    .bf-cs-container { 
+      display: flex; width: 960px; max-width: 100%; min-height: 600px; margin: auto;
+      background: #0f1a2c; border-radius: 16px; overflow: hidden; 
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6); border: 1px solid #1c3454; position: relative; 
+    }
+    
     .bf-cs-sidebar { width: 220px; background: #0a1322; border-right: 1px solid #1c3454; padding: 30px 20px; display: flex; flex-direction: column; gap: 12px; }
     .bf-cs-logo { font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 0 10px #72d5ff; margin-bottom: 30px; text-align: center; letter-spacing: 2px; }
     .bf-cs-nav { padding: 14px 20px; border-radius: 10px; cursor: pointer; background: transparent; color: #8899b5; transition: 0.2s; font-weight: bold; font-size: 16px; display: flex; align-items: center; gap: 10px; }
     .bf-cs-nav.active { background: #72d5ff; color: #0b1020; box-shadow: 0 0 15px rgba(114,213,255,0.4); }
-    .bf-cs-content { flex: 1; padding: 30px 40px; display: flex; flex-direction: column; overflow-y: auto; }
+    
+    .bf-cs-content { flex: 1; padding: 30px 40px; display: flex; flex-direction: column; }
     .bf-cs-title { margin: 0 0 20px 0; font-size: 24px; font-weight: bold; color: #fff; }
+    
     .bf-cs-tabs { display: flex; gap: 15px; margin-bottom: 20px; }
     .bf-cs-tab { flex: 1; padding: 12px; text-align: center; background: #13233b; border: 1px solid #1c3454; border-radius: 8px; cursor: pointer; color: #8899b5; font-weight: bold; transition: 0.2s; }
     .bf-cs-tab.active { background: #72d5ff; color: #0b1020; border-color: #72d5ff; }
+    
     .bf-cs-music-area { flex: 1; display: flex; flex-direction: column; }
     .bf-cs-music-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
     .bf-cs-current { font-size: 18px; font-weight: bold; }
     .bf-cs-btn-try { background: transparent; border: 1px solid #72d5ff; color: #72d5ff; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; }
+    
     .bf-cs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
     .bf-cs-item { background: #13233b; border: 1px solid #1c3454; color: #fff; padding: 14px; border-radius: 8px; cursor: pointer; text-align: center; font-weight: bold; position: relative; transition: 0.2s; }
     .bf-cs-item:hover { background: #1a304e; }
     .bf-cs-item.active { background: #72d5ff; color: #0b1020; border-color: #72d5ff; }
     .bf-cs-item.active::before { content: "✓"; margin-right: 8px; }
+    
     .bf-cs-sliders { margin-top: auto; padding-top: 20px; border-top: 1px solid #1c3454; }
     .bf-cs-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
     .bf-cs-row span.lbl { width: 100px; font-weight: bold; color: #8899b5; }
     .bf-cs-row input[type="range"] { flex: 1; accent-color: #72d5ff; height: 6px; }
     .bf-cs-val { width: 60px; text-align: right; font-weight: bold; background: #000; padding: 6px 10px; border-radius: 6px; border: 1px solid #1c3454; color: #72d5ff; }
+    
     .bf-cs-footer { position: absolute; bottom: 20px; right: 40px; display: flex; gap: 15px; }
     .bf-cs-btn { padding: 10px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 16px; transition: 0.2s; }
     .bf-cs-btn.back { background: #13233b; color: #fff; border: 1px solid #1c3454; }
     .bf-cs-btn.save { background: #72d5ff; color: #0b1020; box-shadow: 0 0 10px rgba(114,213,255,0.4); }
+    
     .bf-cs-panel { display: none; flex-direction: column; height: 100%; }
     .bf-cs-panel.active { display: flex; }
     .bf-cs-other-btn { padding: 12px; border-radius: 8px; background: #13233b; color: #fff; border: 1px solid #1c3454; cursor: pointer; font-weight: bold; margin-bottom: 10px; text-align: left; }
+
+    /* 新增：右上角關閉按鈕 */
+    .bf-cs-close {
+      position: absolute; top: 15px; right: 20px; background: transparent;
+      border: none; color: #8899b5; font-size: 28px; font-weight: bold;
+      cursor: pointer; transition: 0.2s; z-index: 10;
+    }
+    .bf-cs-close:hover { color: #ff8a5a; transform: scale(1.1); }
   `;
   document.head.appendChild(style);
 
@@ -80,6 +104,8 @@
   wrap.style.display = 'none';
   wrap.innerHTML = `
     <div class="bf-cs-container">
+      <button class="bf-cs-close" id="bf-cs-close">✕</button>
+      
       <div class="bf-cs-sidebar">
         <div class="bf-cs-logo">咒術小球</div>
         <div class="bf-cs-nav active" data-tab="audio">🔊 音频设置</div>
@@ -157,11 +183,10 @@
   document.getElementById('stage').appendChild(wrap);
 
   /* ─── 事件綁定與邏輯 ─── */
-  // 預設顯示當前歌曲名稱
   const initCurName = BGM_LIST.find(b => b.url === currentBgm);
   document.getElementById('bf-cs-cur-name').innerText = initCurName ? initCurName.name : '';
 
-  // 1. 分頁切換
+  // 分頁切換
   const navs = wrap.querySelectorAll('.bf-cs-nav');
   navs.forEach(nav => {
     nav.onclick = () => {
@@ -185,7 +210,7 @@
     };
   });
 
-  // 2. 音樂選擇
+  // 音樂選擇
   const grid = document.getElementById('bf-cs-grid');
   grid.onclick = (e) => {
     if (!e.target.classList.contains('bf-cs-item')) return;
@@ -210,7 +235,7 @@
     }
   };
 
-  // 3. 音量與其他設定
+  // 音量設定
   function syncFromSet() {
     document.getElementById('bf-cs-sBgm').value = SET.bgm;
     document.getElementById('bf-cs-val-bgm').innerText = SET.bgm + '%';
@@ -241,29 +266,22 @@
     applySettings();
   };
 
-  // 4. 按鈕操作
-  document.getElementById('bf-cs-btn-edit').onclick = () => {
-    closeMenu();
-    setEdit(true);
-  };
-  document.getElementById('bf-cs-btn-reset').onclick = () => {
-    if(confirm('確定要重置所有按鈕位置嗎？')) resetPos();
-  };
-  document.getElementById('bf-cs-btn-pick').onclick = () => {
-    closeMenu();
-    pick();
-  };
+  // 按鈕操作
+  document.getElementById('bf-cs-btn-edit').onclick = () => { closeMenu(); setEdit(true); };
+  document.getElementById('bf-cs-btn-reset').onclick = () => { if(confirm('確定要重置所有按鈕位置嗎？')) resetPos(); };
+  document.getElementById('bf-cs-btn-pick').onclick = () => { closeMenu(); pick(); };
 
-  // 5. 返回與完成
+  // 關閉操作
   document.getElementById('bf-cs-back').onclick = () => closeMenu();
   document.getElementById('bf-cs-save').onclick = () => closeMenu();
+  document.getElementById('bf-cs-close').onclick = () => closeMenu(); // 右上角新增的關閉
 
   // ─── 劫持主程式的 openMenu / closeMenu ───
   window.openMenu = function () {
     if (!G.p) return;
     paused = true;
     syncFromSet();
-    document.getElementById('menu').classList.add('hide'); // 隱藏原生選單
+    document.getElementById('menu').classList.add('hide');
     wrap.style.display = 'flex';
   };
   
@@ -278,5 +296,5 @@
     else window.openMenu();
   };
 
-  console.log('[ui_settings] 自訂設定介面已載入 (精簡版)');
+  console.log('[ui_settings] 自訂設定介面已載入 (修正滾動與關閉鍵)');
 })();
