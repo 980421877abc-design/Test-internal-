@@ -1,6 +1,5 @@
 /* js_fighter/char_sasuke.js
- * 宇智波佐助｜普通／咒印雙形態完整模組
- * 依技能設計稿 v1.0：普攻在第一技能鍵、咒印負荷、白蛇、黑色千鳥、三段麒麟、替身術與 PV。
+ * 宇智波佐助｜雙形態完整模組（特效強化版）
  */
 (function () {
   'use strict';
@@ -12,21 +11,28 @@
     res: { name: '查克拉', max: 1500, regen: 40, color: '#765cff', blockDrain: 25 },
     aiDist: 260,
     sk: {
-      // a 必須是第一個技能：主程式會把第一個技能放在右下角普攻鍵。
       a: { name: '體術', type: 'melee', cost: 0, cd: .3, wind: .06, dmg: 60, range: 140, arc: 1.2, kb: 140 },
+      
+      // 補上 hold 讓 PV 可以觸發
       b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 28, col: '#ff6338',
-        pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:430, w:CFG.r*1.4 } : { k:'line', len:650, w:CFG.r*.9 },
-        ai: (e,p,c,q) => c.d < (e.sasukeState && e.sasukeState.curse ? 520 : 720) ? c.p : null },
+           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
+           pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:430, w:CFG.r*1.4 } : { k:'line', len:650, w:CFG.r*.9 },
+           ai: (e,p,c,q) => c.d < (e.sasukeState && e.sasukeState.curse ? 520 : 720) ? c.p : null },
+           
       c: { name: '風魔手裡劍／黑色千鳥', type: 'proj', cost: 150, cd: 6, wind: .1, range: 360, speed: 900, r: 22, col: '#9bd7ff',
-        pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:CFG.r*4.5, w:CFG.r*1.45 } : { k:'line', len:CFG.r*5, w:CFG.r*.8 },
-        ai: (e,p,c,q) => c.d < 760 ? c.p : null },
+           hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
+           pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:CFG.r*4.5, w:CFG.r*1.45 } : { k:'line', len:CFG.r*5, w:CFG.r*.8 },
+           ai: (e,p,c,q) => c.d < 760 ? c.p : null },
+           
       d: { name: '麒麟', type: 'melee', cost: 200, cd: 0, wind: .15, hold: { start: .05, full: 1.5 }, lockMove: 1,
-        pv: (f,full,q) => ({ k:'zone', range: q.range || 300, r: full ? 170 : 110 }),
-        ai: (e,p,c,q) => c.d < 760 ? c.p : null },
+           pv: (f,full,q) => ({ k:'zone', range: q.range || 300, r: full ? 170 : 110 }),
+           ai: (e,p,c,q) => c.d < 760 ? c.p : null },
+           
       e: { name: '替身術', type: 'melee', cost: 50, cd: 15, wind: .05,
-        pv: () => ({ k:'circle', r: CFG.r*1.7 }) },
+           pv: () => ({ k:'circle', r: CFG.r*1.7 }) },
+           
       x: { name: '咒印模式', type: 'toggle', side: 'L', cost: 0, cd: .1, wind: .03, hold: { start: .35, full: 99 },
-        modes: ['普通', '咒印'], modesSide: 'L', tag: f => f.sasukeState && f.sasukeState.curse ? '咒印｜負荷 '+(f.sasukeState.load||0)+'/10' : '普通模式' }
+           modes: ['普通', '咒印'], modesSide: 'L', tag: f => f.sasukeState && f.sasukeState.curse ? '咒印｜負荷 '+(f.sasukeState.load||0)+'/10' : '普通模式' }
     }
   };
   for (const k of Object.keys(C.sk)) C.sk[k].key = k;
@@ -44,7 +50,7 @@
       curse:false, load:0, loadTimer:0, modeNotice:0,
       combo:0, comboT:0, snake:null, chidori:null,
       kirinCd:[0,0,0], kirin:null, kirinPending:null,
-      projectiles:[], grounds:[], substitution:0
+      projectiles:[], grounds:[], substitution:0, bolts:[] // 新增 bolts 用於畫天降雷柱
     };
     return f.sasukeState;
   }
@@ -57,17 +63,6 @@
     fx({k:'ring',x:f.x,y:f.y,t:.5,m:.5,r:CFG.r*2.2,col:next?P.purple:P.white});
     spark(f.x,f.y,next?P.purple:P.white,22,520,.35,3.5);
   }
-  function curseSkillHit(f, target, sk, dmg) {
-    if (!alive(target)) return false;
-    const before = target.hp;
-    hit(target,dmg,f.x,f.y,sk.kb||0,sk.heavy||0,sk,f);
-    const dealt = Math.max(0,before-target.hp);
-    if (dealt > 0 && ensure(f).curse) {
-      const s=ensure(f), old=s.load; s.load=Math.max(0,s.load-2);
-      if (old!==s.load) pop(f,'咒印命中 負荷 -2',P.green);
-    }
-    return dealt > 0;
-  }
   function fanHit(f,o,ang,range,arc,sk,dmg,kb) {
     if (!alive(o)) return false;
     const dx=o.x-f.x,dy=o.y-f.y,d=Math.hypot(dx,dy),da=Math.abs(wrapAngle(Math.atan2(dy,dx)-ang));
@@ -75,7 +70,7 @@
     return false;
   }
 
-  /* 咒印負荷：咒印中每 3 秒 +1；退回普通模式每 2 秒 -1。 */
+  /* 咒印負荷 */
   function updateLoad(f,dt) {
     const s=ensure(f); s.modeNotice=Math.max(0,s.modeNotice-dt);
     if (s.curse) {
@@ -87,25 +82,28 @@
     }
   }
 
-  /* 普攻：普通模式全部近身；咒印模式 1A、2A 近身，3A 手裡劍。 */
+  /* 普攻 */
   C.sk.a.fire = function (f,o,a,s) {
     const st=ensure(f),ang=a.ang, now=performance.now()/1000;
     if (now-st.comboT>1.1) st.combo=0;
     st.comboT=now;
+    
     if (st.curse && st.combo===2) {
       st.combo=0;
+      // 修復判定：設定固定半徑 24 取代 undefined 的 range
       const q={kind:'shuriken',x:f.x+Math.cos(ang)*(CFG.r+12),y:f.y+Math.sin(ang)*(CFG.r+12),vx:Math.cos(ang)*1050,vy:Math.sin(ang)*1050,ang,travel:0,maxDist:CFG.r*6,life:1.8,own:f,stopped:false,stay:0,tick:0,hit:false,sk:s,col:P.dark};
-      st.projectiles.push(q); fx({k:'ring',x:q.x,y:q.y,t:.2,m:.2,r:38,col:P.purple}); spark(q.x,q.y,P.dark,12,500,.25,3);
+      st.projectiles.push(q); 
+      fx({k:'ring',x:q.x,y:q.y,t:.2,m:.2,r:38,col:P.purple}); 
+      spark(q.x,q.y,P.dark,15,500,.25,3);
       return;
     }
     st.combo=(st.combo+1)%3;
-    const fast=st.curse?1.25:1;
     fx({k:'arc',x:f.x,y:f.y,a:ang,w:s.arc+(st.curse?.25:0),r:s.range+(st.curse?24:0),t:.13,m:.13,col:st.curse?P.purple:'#d7e9ff'});
-    spark(f.x+Math.cos(ang)*70,f.y+Math.sin(ang)*70,st.curse?P.purple:P.white,8,460*fast,.2,3);
+    spark(f.x+Math.cos(ang)*70,f.y+Math.sin(ang)*70,st.curse?P.purple:P.white,8,460,.2,3);
     fanHit(f,o,ang,s.range+(st.curse?35:0),s.arc+(st.curse?.25:0),s,s.dmg,s.kb);
   };
 
-  /* 豪火球／白蛇。 */
+  /* 豪火球／白蛇 */
   C.sk.b.fire = function (f,o,a,s) {
     const st=ensure(f),ang=a.ang;
     if (!st.curse) {
@@ -134,7 +132,7 @@
     return {x:sn.sx+(sn.tx-sn.sx)*p+nx*Math.sin(p*Math.PI*4)*sn.amp,y:sn.sy+(sn.ty-sn.sy)*p+ny*Math.sin(p*Math.PI*4)*sn.amp};
   }
 
-  /* 風魔手裡劍／黑色千鳥。 */
+  /* 風魔手裡劍／黑色千鳥 */
   C.sk.c.fire = function (f,o,a,s) {
     const st=ensure(f),ang=a.ang;
     if (!st.curse) {
@@ -147,12 +145,22 @@
   };
   function explodeWind(f,q) {
     if (q.split) return;
-    q.split=true; fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:90,col:P.blue}); spark(q.x,q.y,P.white,18,600,.35,3);
-    for(let i=0;i<4;i++){const aa=q.ang+(i-1.5)*.32;ensure(f).projectiles.push({kind:'blade',x:q.x,y:q.y,vx:Math.cos(aa)*sSpeed(f,330),vy:Math.sin(aa)*sSpeed(f,330),life:.38,own:f,sk:q.sk,col:P.blue});}
+    q.split=true; 
+    fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:90,col:P.blue}); 
+    spark(q.x,q.y,P.white,18,600,.35,3);
+    // 修正：精準四方向 (十字) 炸開
+    for(let i=0;i<4;i++){
+      const aa=q.ang+i*(Math.PI/2);
+      ensure(f).projectiles.push({
+        kind:'blade',x:q.x,y:q.y,
+        vx:Math.cos(aa)*sSpeed(f,330),vy:Math.sin(aa)*sSpeed(f,330),
+        life:.38,own:f,sk:q.sk,col:P.blue
+      });
+    }
   }
   function sSpeed(f,v){return v*(ensure(f).curse?1.05:1);}
 
-  /* 麒麟：三段各自獨立冷卻，蓄力時不能移動，受硬直會中斷並進入該段冷卻。 */
+  /* 麒麟 */
   const oldHoldStart=window.holdStart, oldHoldRelease=window.holdRelease;
   if (typeof oldHoldStart==='function' && !oldHoldStart._sasukeWrapped) {
     window.holdStart=function(f,k,aim){
@@ -175,18 +183,21 @@
     const cd=[6,9,15][tier],dmg=[300,800,2200][tier],rad=[90,145,220][tier],hits=[1,4,8][tier];
     st.kirinCd[tier]=cd; f.cd.d=0;
     st.kirin={tier,t:0,next:.12,hits:0,max:hits,x:f.x+Math.cos(a.ang)*320,y:f.y+Math.sin(a.ang)*320,ang:a.ang,dmg,rad,sk:s};
+    
+    // 加入落雷柱特效
+    st.bolts.push({ x: st.kirin.x, y: st.kirin.y, t:0, max:0.4, tier });
+    
     fx({k:'ring',x:st.kirin.x,y:st.kirin.y,t:tier===2?.75:.4,m:tier===2?.75:.4,r:rad,col:P.purple});
     if(tier===2){shake(18);fx({k:'flash',t:.45,m:.45,col:P.white,a:1.4});pop(f,'麒麟・三段',P.purple)} else pop(f,'麒麟・'+(tier+1)+'段',P.blue);
   };
 
-  /* 替身術：瞬間消失，在隨機位置出現，施放點與現身後 2 秒無敵。 */
+  /* 替身術 */
   C.sk.e.fire=function(f,o,a,s){
     const ox=f.x,oy=f.y; f.inv=Math.max(f.inv,.25); fx({k:'ring',x:ox,y:oy,t:.35,m:.35,r:CFG.r*1.7,col:P.white});spark(ox,oy,P.white,25,680,.4,4);
     f.x=CFG.r+Math.random()*(CFG.W-CFG.r*2);f.y=CFG.r+Math.random()*(CFG.H-CFG.r*2);f.kx=f.ky=0;f.inv=Math.max(f.inv,2);ensure(f).substitution=2;
     fx({k:'ring',x:f.x,y:f.y,t:.55,m:.55,r:CFG.r*2.2,col:P.purple});spark(f.x,f.y,P.purple,30,620,.5,4);pop(f,'替身術',P.white);
   };
 
-  /* 咒印切換按鈕與模式小按鈕共用同一個狀態。 */
   C.sk.x.fire=function(f){const st=ensure(f);f.mode.x=st.curse?0:1;modeSync(f);f.cd.x=.1;};
 
   const oldHit=window.hit;
@@ -206,20 +217,44 @@
     const st=ensure(f),o=enemyOf(f);
     for(let i=st.projectiles.length-1;i>=0;i--){
       const q=st.projectiles[i]; q.life-=dt;
-      if(q.kind==='fireball'||q.kind==='wind'||q.kind==='blade'){
-        const ox=q.x,oy=q.y;q.x+=q.vx*dt;q.y+=q.vy*dt;q.travel+=(Math.hypot(q.vx,q.vy)*dt);
-        const wall=q.x<CFG.r||q.x>CFG.W-CFG.r||q.y<CFG.r||q.y>CFG.H-CFG.r,hitTarget=alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<(q.kind==='fireball'?q.sk.r:q.kind==='wind'?q.sk.r:18)+CFG.r;
-        if(q.kind==='fireball'&&hitTarget){hit(o,q.sk.dmg,q.x,q.y,q.sk.kb,0,q.sk,f);addStatus(o,{k:'dot',dur:1.1,v:55});fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:70,col:P.fire});q.life=0;}
+      
+      // 手裡劍修復
+      if(q.kind==='shuriken'){
+        if(!q.stopped){
+          q.x+=q.vx*dt; q.y+=q.vy*dt; q.travel+=Math.hypot(q.vx,q.vy)*dt;
+          const hitTarget = alive(o) && Math.hypot(o.x-q.x, o.y-q.y) < 24 + CFG.r; // 改用固定 24
+          const wall = q.x<CFG.r || q.x>CFG.W-CFG.r || q.y<CFG.r || q.y>CFG.H-CFG.r;
+          if(hitTarget){
+            q.stopped=true; q.vx=q.vy=0; q.stay=1; q.tick=0;
+            hit(o, 80, q.x, q.y, 100, 0, q.sk, f);
+            fx({k:'ring',x:q.x,y:q.y,t:.3,m:.3,r:50,col:P.purple});
+            spark(q.x, q.y, P.purple, 15, 500, .3, 3);
+          }
+          else if(wall||q.travel>=q.maxDist)q.life=0;
+        } else {q.stay-=dt;q.tick-=dt;if(q.tick<=0&&q.stay>0){q.tick=.2;if(alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<CFG.r*1.5){hit(o,35,q.x,q.y,0,0,q.sk,f); spark(q.x,q.y,P.purple,3,200,.2,2);}}}
+      } 
+      else if(q.kind==='fireball'||q.kind==='wind'||q.kind==='blade'){
+        q.x+=q.vx*dt;q.y+=q.vy*dt;q.travel+=(Math.hypot(q.vx,q.vy)*dt);
+        const wall=q.x<CFG.r||q.x>CFG.W-CFG.r||q.y<CFG.r||q.y>CFG.H-CFG.r;
+        let hitRad = 24;
+        if(q.kind==='fireball') hitRad = q.sk.r || 28;
+        else if(q.kind==='wind') hitRad = q.sk.r || 22;
+        
+        const hitTarget=alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<hitRad+CFG.r;
+        
+        if(q.kind==='fireball'&&hitTarget){
+          hit(o,q.sk.dmg,q.x,q.y,q.sk.kb,0,q.sk,f);
+          addStatus(o,{k:'dot',dur:1.1,v:55});
+          fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:70,col:P.fire});
+          spark(q.x,q.y,P.fire,15,400,.3,3);
+          q.life=0;
+        }
         else if(q.kind==='wind'&&(hitTarget||wall||q.travel>=q.maxDist)){explodeWind(f,q);q.life=0;}
         else if(q.kind==='blade'&&hitTarget){hit(o,110,q.x,q.y,80,0,q.sk,f);q.life=0;}
         else if(q.kind==='fireball'&&(wall||q.travel>=q.maxDist))q.life=0;
         else if(q.kind==='blade'&&(wall||q.life<=0))q.life=0;
-      } else if(q.kind==='shuriken'){
-        if(!q.stopped){const ox=q.x,oy=q.y;q.x+=q.vx*dt;q.y+=q.vy*dt;q.travel+=Math.hypot(q.vx,q.vy)*dt;const hitTarget=alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<q.sk.r+CFG.r,wall=q.x<CFG.r||q.x>CFG.W-CFG.r||q.y<CFG.r||q.y>CFG.H-CFG.r;
-          if(hitTarget){q.stopped=true;q.vx=q.vy=0;q.stay=1;q.tick=0;hit(o,80,q.x,q.y,100,0,q.sk,f);}
-          else if(wall||q.travel>=q.maxDist)q.life=0;
-        } else {q.stay-=dt;q.tick-=dt;if(q.tick<=0&&q.stay>0){q.tick=.2;if(alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<CFG.r*1.5)hit(o,35,q.x,q.y,0,0,q.sk,f);}}
       }
+      
       if(q.life<=0)st.projectiles.splice(i,1);
     }
   }
@@ -227,7 +262,9 @@
     const st=ensure(f),sn=st.snake;if(!sn)return;
     if(sn.phase==='guard'){sn.t+=dt;if(sn.t>=2)releaseSnake(f,sn.ang,C.sk.b);return;}
     sn.t+=dt;const p=Math.min(1,sn.t/sn.T),pt=snakePoint(sn,p),o=enemyOf(f);
-    if(alive(o)&&Math.hypot(o.x-pt.x,o.y-pt.y)<CFG.r*1.15&&!sn.hit.has(o)){sn.hit.add(o);hit(o,200,pt.x,pt.y,0,0,C.sk.b,f);o.kx+=Math.cos(sn.ang)*520;o.ky+=Math.sin(sn.ang)*520;}
+    if(alive(o)&&Math.hypot(o.x-pt.x,o.y-pt.y)<CFG.r*1.15&&!sn.hit.has(o)){
+      sn.hit.add(o);hit(o,200,pt.x,pt.y,0,0,C.sk.b,f);o.kx+=Math.cos(sn.ang)*520;o.ky+=Math.sin(sn.ang)*520;
+    }
     if(p>=1){st.grounds.push({x:sn.tx,y:sn.ty,t:0,tick:0,life:2,rad:CFG.r*1.5,own:f});fx({k:'ring',x:sn.tx,y:sn.ty,t:.5,m:.5,r:CFG.r*1.5,col:P.purple});st.snake=null;}
   }
   function updateGrounds(f,dt){
@@ -252,20 +289,154 @@
   if(typeof oldCdOf==='function'&&!oldCdOf._sasukeWrapped){const w=function(f,s){const base=oldCdOf(f,s);if(f&&f.c===C&&ensure(f).curse&&base>0)return base*(1+ensure(f).load*.05);return base;};w._sasukeWrapped=true;window.cdOf=w;}
   const oldMk=window.mk;
   if(typeof oldMk==='function'&&!oldMk._sasukeWrapped){const w=function(id,x,side,isAI){const f=oldMk(id,x,side,isAI);if(id==='sasuke')ensure(f);return f;};w._sasukeWrapped=true;window.mk=w;}
+  
   const oldUpdate=window.update;
-  if(typeof oldUpdate==='function'&&!oldUpdate._sasukeWrapped){const w=function(dt){oldUpdate(dt);if(G.state!=='fight')return;for(const f of [G.p,G.e]){if(!f||f.c!==C)continue;const st=ensure(f);modeSync(f);updateLoad(f,dt);if(st.substitution>0)st.substitution=Math.max(0,st.substitution-dt);updateProjectiles(f,dt);updateSnake(f,dt);updateGrounds(f,dt);updateChidori(f,dt);updateKirin(f,dt);if(st.comboT>0)st.comboT-=dt;} };w._sasukeWrapped=true;window.update=w;}
+  if(typeof oldUpdate==='function'&&!oldUpdate._sasukeWrapped){
+    const w=function(dt){
+      oldUpdate(dt);if(G.state!=='fight')return;
+      for(const f of [G.p,G.e]){
+        if(!f||f.c!==C)continue;const st=ensure(f);
+        modeSync(f);updateLoad(f,dt);
+        if(st.substitution>0)st.substitution=Math.max(0,st.substitution-dt);
+        updateProjectiles(f,dt);updateSnake(f,dt);updateGrounds(f,dt);updateChidori(f,dt);updateKirin(f,dt);
+        if(st.comboT>0)st.comboT-=dt;
+        // 更新雷柱時間
+        if(st.bolts){for(let i=st.bolts.length-1;i>=0;i--){st.bolts[i].t+=dt;if(st.bolts[i].t>=st.bolts[i].max)st.bolts.splice(i,1);}}
+      }
+    };
+    w._sasukeWrapped=true;window.update=w;
+  }
 
   const oldDraw=window.draw;
-  if(typeof oldDraw==='function'&&!oldDraw._sasukeWrapped){const w=function(){oldDraw();if(!G.p)return;cx.save();cx.scale(view.s,view.s);cx.translate(-cam.x,-cam.y);const T=performance.now()/1000;
-    for(const f of [G.p,G.e]){if(!f||f.c!==C)continue;const st=ensure(f),col=st.load>=7?P.red:st.load>=4?P.gold:P.green,bw=78,bh=9,bx=f.x-bw/2,by=f.y-CFG.r-38;
-      if(st.curse||st.load>0){cx.fillStyle='#080611cc';cx.fillRect(bx,by,bw,bh);cx.fillStyle=col;cx.fillRect(bx,by,bw*st.load/10,bh);cx.strokeStyle='#fff';cx.lineWidth=1.5;cx.strokeRect(bx,by,bw,bh);cx.fillStyle='#fff';cx.font='bold 12px system-ui';cx.textAlign='center';cx.fillText('咒印負荷 '+st.load+'/10',f.x,by-5);if(st.curse){cx.font='11px system-ui';cx.fillText('冷卻 +'+(st.load*5)+'%',f.x,by-19);}}
-      if(st.curse){cx.globalCompositeOperation='lighter';cx.strokeStyle=P.purple;cx.globalAlpha=.45+.15*Math.sin(T*8);cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+10+Math.sin(T*6)*4,0,Math.PI*2);cx.stroke();cx.globalAlpha=1;}
-      if(st.snake){cx.globalCompositeOperation='lighter';cx.strokeStyle=P.white;cx.lineWidth=7;cx.beginPath();cx.arc(f.x,f.y,CFG.r+18+Math.sin(T*15)*5,0,Math.PI*2);cx.stroke();cx.strokeStyle=P.purple;cx.lineWidth=3;cx.setLineDash([12,14]);cx.lineDashOffset=-T*100;cx.beginPath();cx.arc(f.x,f.y,CFG.r+31,0,Math.PI*2);cx.stroke();cx.setLineDash([]);}
-      if(st.chidori){cx.globalCompositeOperation='lighter';for(let j=0;j<6;j++){const aa=T*24+j*Math.PI/3;cx.strokeStyle=j%2?P.black:P.purple;cx.lineWidth=j%2?4:2;cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(f.x+Math.cos(aa)*75,f.y+Math.sin(aa)*75);cx.stroke();}}
-      for(const z of st.grounds){cx.globalCompositeOperation='lighter';cx.globalAlpha=.55+.2*Math.sin(T*12);cx.fillStyle=P.purple;cx.beginPath();cx.arc(z.x,z.y,z.rad,0,Math.PI*2);cx.fill();cx.globalAlpha=1;for(let j=0;j<5;j++){const aa=T*5+j*1.3;cx.strokeStyle=j%2?P.white:P.purple;cx.beginPath();cx.moveTo(z.x+Math.cos(aa)*20,z.y+Math.sin(aa)*20);cx.lineTo(z.x+Math.cos(aa+.4)*z.rad,z.y+Math.sin(aa+.4)*z.rad);cx.stroke();}}
-      for(const q of st.projectiles){cx.save();cx.translate(q.x,q.y);cx.rotate(q.ang||Math.atan2(q.vy||0,q.vx||1));cx.globalCompositeOperation='lighter';if(q.kind==='fireball'){const g=cx.createRadialGradient(0,0,0,0,0,42);g.addColorStop(0,'#fff');g.addColorStop(.25,'#ffd36b');g.addColorStop(.7,P.fire);g.addColorStop(1,'#ff250000');cx.fillStyle=g;cx.beginPath();cx.arc(0,0,42+Math.sin(T*24)*5,0,Math.PI*2);cx.fill();}else{cx.fillStyle=q.kind==='blade'?P.blue:q.kind==='shuriken'?P.dark:P.blue;cx.shadowColor=cx.fillStyle;cx.shadowBlur=16;cx.beginPath();for(let j=0;j<4;j++){cx.rotate(Math.PI/2);cx.moveTo(0,0);cx.lineTo(-6,q.kind==='blade'?30:42);cx.lineTo(6,q.kind==='blade'?30:42);cx.closePath();}cx.fill();}cx.restore();}
-      if(st.kirin){const k=st.kirin;cx.globalCompositeOperation='lighter';cx.globalAlpha=.22+.12*Math.sin(T*18);cx.strokeStyle=P.purple;cx.lineWidth=k.tier===2?8:4;cx.beginPath();cx.arc(k.x,k.y,k.rad*(.8+.15*Math.sin(T*9)),0,Math.PI*2);cx.stroke();cx.globalAlpha=1;cx.strokeStyle=P.white;cx.lineWidth=2;for(let j=0;j<4;j++){const aa=T*4+j*Math.PI/2;cx.beginPath();cx.moveTo(k.x+Math.cos(aa)*k.rad,k.y+Math.sin(aa)*k.rad);cx.lineTo(k.x+Math.cos(aa+.15)*k.rad*1.5,k.y+Math.sin(aa+.15)*k.rad*1.5);cx.stroke();}}
-    }
-    cx.restore();};w._sasukeWrapped=true;window.draw=w;}
-  console.log('[char_sasuke] 宇智波佐助完整模組已載入');
+  if(typeof oldDraw==='function'&&!oldDraw._sasukeWrapped){
+    const w=function(){
+      // 1. 動態更新技能按鈕名稱
+      if(G.p && G.p.c===C){
+        const st=ensure(G.p);
+        C.sk.b.name = st.curse ? '白蛇' : '豪火球';
+        C.sk.c.name = st.curse ? '黑色千鳥' : '風魔手裡劍';
+      }
+      
+      oldDraw();
+      if(!G.p)return;
+      cx.save();cx.scale(view.s,view.s);cx.translate(-cam.x,-cam.y);const T=performance.now()/1000;
+      
+      for(const f of [G.p,G.e]){
+        if(!f||f.c!==C)continue;const st=ensure(f),col=st.load>=7?P.red:st.load>=4?P.gold:P.green,bw=78,bh=9,bx=f.x-bw/2,by=f.y-CFG.r-38;
+        
+        // 負荷條
+        if(st.curse||st.load>0){
+          cx.fillStyle='#080611cc';cx.fillRect(bx,by,bw,bh);
+          cx.fillStyle=col;cx.fillRect(bx,by,bw*st.load/10,bh);
+          cx.strokeStyle='#fff';cx.lineWidth=1.5;cx.strokeRect(bx,by,bw,bh);
+          cx.fillStyle='#fff';cx.font='bold 12px system-ui';cx.textAlign='center';cx.fillText('咒印負荷 '+st.load+'/10',f.x,by-5);
+          if(st.curse){cx.font='11px system-ui';cx.fillText('冷卻 +'+(st.load*5)+'%',f.x,by-19);}
+        }
+        
+        // 咒印氣場
+        if(st.curse){cx.globalCompositeOperation='lighter';cx.strokeStyle=P.purple;cx.globalAlpha=.45+.15*Math.sin(T*8);cx.lineWidth=3;cx.beginPath();cx.arc(f.x,f.y,CFG.r+10+Math.sin(T*6)*4,0,Math.PI*2);cx.stroke();cx.globalAlpha=1;}
+        
+        // 白蛇盤踞
+        if(st.snake){
+          cx.globalCompositeOperation='lighter';
+          if(st.snake.phase==='guard'){
+            cx.strokeStyle=P.white;cx.lineWidth=7;cx.beginPath();cx.arc(f.x,f.y,CFG.r+18+Math.sin(T*15)*5,0,Math.PI*2);cx.stroke();
+            cx.strokeStyle=P.purple;cx.lineWidth=3;cx.setLineDash([12,14]);cx.lineDashOffset=-T*100;cx.beginPath();cx.arc(f.x,f.y,CFG.r+31,0,Math.PI*2);cx.stroke();cx.setLineDash([]);
+          } else {
+            // 白蛇實體爬行
+            const p = Math.min(1, st.snake.t / st.snake.T);
+            cx.strokeStyle='#fff';
+            cx.lineWidth=10;
+            cx.lineCap='round';
+            cx.lineJoin='round';
+            cx.shadowColor = P.purple;
+            cx.shadowBlur = 20;
+            cx.beginPath();
+            for(let i=0; i<=p; i+=0.05){
+              const pt = snakePoint(st.snake, i);
+              if(i===0) cx.moveTo(pt.x, pt.y); else cx.lineTo(pt.x, pt.y);
+            }
+            cx.stroke();
+            cx.shadowBlur = 0;
+            if(Math.random() < 0.5) {
+              const pt = snakePoint(st.snake, p);
+              spark(pt.x, pt.y, P.purple, 2, 300, .2, 2);
+            }
+          }
+        }
+        
+        // 千鳥黑雷
+        if(st.chidori){
+          cx.globalCompositeOperation='lighter';
+          for(let j=0;j<8;j++){
+            const aa=T*30+j*Math.PI/4;
+            cx.strokeStyle=j%2?P.black:P.purple;
+            cx.lineWidth=j%2?4:2;
+            cx.beginPath();
+            cx.moveTo(f.x,f.y);
+            cx.lineTo(f.x+Math.cos(aa)*80+(Math.random()-.5)*20, f.y+Math.sin(aa)*80+(Math.random()-.5)*20);
+            cx.stroke();
+          }
+        }
+        
+        // 雷電地面
+        for(const z of st.grounds){
+          cx.globalCompositeOperation='lighter';cx.globalAlpha=.55+.2*Math.sin(T*12);
+          cx.fillStyle=P.purple;cx.beginPath();cx.arc(z.x,z.y,z.rad,0,Math.PI*2);cx.fill();cx.globalAlpha=1;
+          for(let j=0;j<5;j++){const aa=T*5+j*1.3;cx.strokeStyle=j%2?P.white:P.purple;cx.beginPath();cx.moveTo(z.x+Math.cos(aa)*20,z.y+Math.sin(aa)*20);cx.lineTo(z.x+Math.cos(aa+.4)*z.rad,z.y+Math.sin(aa+.4)*z.rad);cx.stroke();}
+        }
+        
+        // 麒麟雷柱
+        if(st.bolts){
+          cx.globalCompositeOperation='lighter';
+          for(const b of st.bolts){
+            const k=1-(b.t/b.max);
+            const layers=b.tier===2?3:1;
+            for(let l=0;l<layers;l++){
+              cx.strokeStyle=l===0?'#fff':l===1?P.purple:'#e0f';
+              cx.lineWidth=l===0?4:12;
+              cx.globalAlpha=k*(l===0?1:0.5);
+              cx.beginPath();
+              let px=b.x+(Math.random()-.5)*40, py=b.y;
+              cx.moveTo(px,py);
+              for(let j=0;j<15;j++){px+=(Math.random()-.5)*30;py-=60;cx.lineTo(px,py);}
+              cx.stroke();
+            }
+          }
+        }
+        
+        // 投射物
+        for(const q of st.projectiles){
+          cx.save();cx.translate(q.x,q.y);cx.rotate(q.ang||Math.atan2(q.vy||0,q.vx||1));cx.globalCompositeOperation='lighter';
+          if(q.kind==='fireball'){
+             const g=cx.createRadialGradient(0,0,0,0,0,45);
+             g.addColorStop(0,'#fff');g.addColorStop(.25,'#ffd36b');g.addColorStop(.7,P.fire);g.addColorStop(1,'#ff250000');
+             cx.fillStyle=g;cx.beginPath();cx.arc(0,0,45+Math.sin(T*24)*5,0,Math.PI*2);cx.fill();
+             if(Math.random()<0.8) fx({k:'dt',x:q.x,y:q.y,vx:-q.vx*.1,vy:-q.vy*.1,t:.4,m:.4,col:P.fire,r:6,dr:3});
+          } else {
+             cx.rotate(T * 25);
+             const isWind = q.kind==='wind';
+             const isShuriken = q.kind==='shuriken';
+             cx.fillStyle = isWind ? P.blue : isShuriken ? P.dark : P.blue;
+             cx.shadowColor = cx.fillStyle;
+             cx.shadowBlur = 20;
+             cx.beginPath();
+             const r = isWind? 30 : isShuriken ? 16 : 24;
+             for(let j=0;j<4;j++){
+               cx.rotate(Math.PI/2);
+               cx.moveTo(0,0);
+               cx.lineTo(-6, r);
+               cx.lineTo(6, r);
+               cx.closePath();
+             }
+             cx.fill();
+          }
+          cx.restore();
+        }
+      }
+      cx.restore();
+    };
+    w._sasukeWrapped=true;window.draw=w;
+  }
+  console.log('[char_sasuke] 宇智波佐助完整模組已載入 (特效強化版)');
 })();
