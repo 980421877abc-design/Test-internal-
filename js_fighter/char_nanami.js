@@ -10,7 +10,7 @@
   CHARS.nanami = {
     name: '七海建人', work: '咒術迴戰', color: '#d4b843', glyph: '海',
     img: 'image/nanami.png',
-    hp: 7500, speed: 540,
+    hp: 8000, speed: 540,
     res: { name: '咒力', max: 1500, regen: 30, color: '#b09eff', blockDrain: 25 },
     aiDist: 220,
 
