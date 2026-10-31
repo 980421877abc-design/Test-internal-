@@ -11,15 +11,15 @@
   CHARS.yelan = {
     name: '夜蘭', work: '原神', color: '#6fd3ff', glyph: '蘭',
     img: 'image/yelan.png',
-    hp: 8000, speed: 540,
-    res: { name: '元素力', max: 1000, regen: 50, color: '#6fd3ff', blockDrain: 40 },
+    hp: 7500, speed: 540,
+    res: { name: '元素力', max: 800, regen: 40, color: '#6fd3ff', blockDrain: 40 },
     aiDist: 380,
     yelan: {
-      burstMax: 70,
+      burstMax: 80,
       fortuneInterval: 3, fortuneMax: 3, fortuneExpire: 10,
       linglongDmg: 100, linglongDur: 12,
       mote: {
-        pickupR:100, attractR: 500, accel: 2000, damping: 1.5, value: 5, expire: 25,
+        pickupR:100, attractR: 500, accel: 3000, damping: 1.5, value: 5, expire: 25,
       },
       skill1Filter: {
         blue: 0.10, vignette: 0.45, fade: 10,
