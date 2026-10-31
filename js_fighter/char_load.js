@@ -10,7 +10,9 @@
   const CHAR_SCRIPTS = [
     'js_fighter/char_kira.js',
     'js_fighter/char_yelan.js',
-    'js_fighter/char_nanami.js'
+    'js_fighter/char_nanami.js',
+    'js_fighter/char_sasuke.js'
+    
     // 👉 以後有新角色，直接在這裡加一行，例如：
     // 'js_fighter/char_gojo_chant.js',
     // 'js_fighter/char_toji.js',
