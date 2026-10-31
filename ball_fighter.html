@@ -608,7 +608,11 @@ function drawTelegraph(f,q){const h=f.hold,full=h.t>=q.hold.full,charging=h.t>=q
   if(on){cx.fillStyle='#fff';cx.font='bold 22px system-ui';cx.textAlign='center';cx.globalAlpha=1;cx.fillText('蒼赫合成：茈',ob.x,ob.y-ob.r*1.8)}cx.restore()}}}
 const BO=()=>SET.bo/100;
 function ring(el,f){el.style.setProperty('--cd',f<0?0:f);el.style.setProperty('--tk',f<0?'transparent':'rgba(255,255,255,.22)')} // 冷卻環：從頂端順時針轉滿 = 冷卻完成
-function drawProj(q){const s=q.s,c=q.col,r=s.r,T=performance.now()/1000,tr=q.tr;cx.save();cx.globalCompositeOperation='lighter';cx.lineCap='round';
+function drawProj(q){
+  const s=q.s,c=q.col,r=s.r,T=performance.now()/1000,tr=q.tr;
+  // ★ 新增這行防呆：如果座標或大小變成 NaN 就直接跳過不畫 ★
+  if(!Number.isFinite(q.x) || !Number.isFinite(q.y) || !Number.isFinite(r)) return;
+  cx.save();cx.globalCompositeOperation='lighter';cx.lineCap='round';
  if(s.fx==='slash'){cx.translate(q.x,q.y);cx.rotate(Math.atan2(q.vy,q.vx));const R=r*2.2;   // 解：劍氣（朝前凸的新月形氣刃，寬度對應判定）
   const g=cx.createLinearGradient(-R*.2,0,R*.65,0);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,c);
   cx.fillStyle=g;cx.beginPath();cx.arc(-R*.35,0,R,-1.25,1.25);cx.arc(-R*2.376,0,R*2.526,.385,-.385,true);cx.closePath();cx.fill();
