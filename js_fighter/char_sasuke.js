@@ -10,30 +10,30 @@
     hp: 8000, 
     speed: 600,
     res: { name: '查克拉', max: 1500, regen: 40, color: '#765cff', blockDrain: 25 },
-    aiDist: 260,
+    aiDist: 200,
     
     passive: {
-      max: 10, upTime: 3, downTime: 2, regen: 20, cdAdd: 0.05, hitSub: 2
+      max: 10, upTime: 2, downTime: 2, regen: 150, cdAdd: 0.1, hitSub: 2
     },
 
     sk: {
       a: { name: '體術', type: 'melee', cost: 0, cd: .3, wind: .06, dmg: 60, range: 140, arc: 1.2, kb: 140,
-           shurikenDmg: 80, shurikenSpeed: 1200, shurikenDot: 40, shurikenRange: 400 },
+           shurikenDmg: 80, shurikenSpeed: 1200, shurikenDot: 40, shurikenRange: 450 },
            
-      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 50, col: '#ff6338',
+      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 3, wind: .1, range: 650, speed: 760, r: 50, col: '#ff6338',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           fireDmg: 400, fireDot: 55,
-           snakeInv: 2, snakeAmp: 1.2, snakeDmg: 200, snakePush: 600, snakeGroundDmg: 80, snakeGroundLife: 2,
+           fireDmg: 450, fireDot: 60,
+           snakeInv: 2, snakeAmp: 1.2, snakeDmg: 250, snakePush: 600, snakeGroundDmg: 80, snakeGroundLife: 2,
            pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:430, w:CFG.r*1.4 } : { k:'line', len:650, w:CFG.r*2 } },
 
       c: { name: '風魔手裡劍／黑色千鳥', type: 'proj', cost: 150, cd: 6, wind: .1, range: 360, speed: 900, r: 30, col: '#9bd7ff',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           windBladeDmg: 120, windBladeSpeed: 400, windRad: 50,
-           chidoriDist: 520, chidoriDur: 0.25, chidoriTick: 50, chidoriEnd: 800,
+           windBladeDmg: 200, windBladeSpeed: 450, windRad: 50,
+           chidoriDist: 550, chidoriDur: 0.2, chidoriTick: 50, chidoriEnd: 800,
            pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:520, w:CFG.r*1.45 } : { k:'line', len:360, w:CFG.r*1.8 } },
 
       d: { name: '麒麟', type: 'melee', cost: 200, cd: 15, wind: .15, hold: { start: .05, full: 1.5 }, lockMove: 1,
-           dCd: [6, 9, 15], dDmg: [300, 800, 2200], dRad: [90, 145, 220], dHits: [1, 4, 8],
+           dCd: [6, 9, 15], dDmg: [300, 800, 2200], dRad: [90, 145, 220], dHits: [2, 5, 10],
            pv: () => ({ k: 'none' }) },
 
       e: { name: '替身術', type: 'melee', cost: 50, cd: 15, wind: .05, 
