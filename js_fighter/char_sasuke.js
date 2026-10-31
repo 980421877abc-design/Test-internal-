@@ -1,5 +1,5 @@
 /* js_fighter/char_sasuke.js
- * 宇智波佐助｜雙形態完整模組（防 NaN 崩潰終極版）
+ * 宇智波佐助｜雙形態完整模組（絕對防崩潰版）
  */
 (function () {
   'use strict';
@@ -10,30 +10,30 @@
     hp: 8000, 
     speed: 600,
     res: { name: '查克拉', max: 1500, regen: 40, color: '#765cff', blockDrain: 25 },
-    aiDist: 200,
+    aiDist: 260,
     
     passive: {
-      max: 10, upTime: 2, downTime: 2, regen: 150, cdAdd: 0.1, hitSub: 2
+      max: 10, upTime: 3, downTime: 2, regen: 20, cdAdd: 0.05, hitSub: 2
     },
 
     sk: {
       a: { name: '體術', type: 'melee', cost: 0, cd: .3, wind: .06, dmg: 60, range: 140, arc: 1.2, kb: 140,
-           shurikenDmg: 80, shurikenSpeed: 1200, shurikenDot: 40, shurikenRange: 450 },
+           shurikenDmg: 80, shurikenSpeed: 1200, shurikenDot: 40, shurikenRange: 400 },
            
-      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 3, wind: .1, range: 650, speed: 760, r: 50, col: '#ff6338',
+      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 50, col: '#ff6338',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           fireDmg: 450, fireDot: 60,
-           snakeInv: 2, snakeAmp: 1.2, snakeDmg: 250, snakePush: 600, snakeGroundDmg: 80, snakeGroundLife: 2,
+           fireDmg: 400, fireDot: 55,
+           snakeInv: 2, snakeAmp: 1.2, snakeDmg: 200, snakePush: 600, snakeGroundDmg: 80, snakeGroundLife: 2,
            pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:430, w:CFG.r*1.4 } : { k:'line', len:650, w:CFG.r*2 } },
 
       c: { name: '風魔手裡劍／黑色千鳥', type: 'proj', cost: 150, cd: 6, wind: .1, range: 360, speed: 900, r: 30, col: '#9bd7ff',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           windBladeDmg: 200, windBladeSpeed: 450, windRad: 50,
-           chidoriDist: 550, chidoriDur: 0.2, chidoriTick: 50, chidoriEnd: 800,
+           windBladeDmg: 120, windBladeSpeed: 400, windRad: 50,
+           chidoriDist: 520, chidoriDur: 0.25, chidoriTick: 50, chidoriEnd: 800,
            pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:520, w:CFG.r*1.45 } : { k:'line', len:360, w:CFG.r*1.8 } },
 
       d: { name: '麒麟', type: 'melee', cost: 200, cd: 15, wind: .15, hold: { start: .05, full: 1.5 }, lockMove: 1,
-           dCd: [6, 9, 15], dDmg: [300, 800, 2200], dRad: [90, 145, 220], dHits: [2, 5, 10],
+           dCd: [6, 9, 15], dDmg: [300, 800, 2200], dRad: [90, 145, 220], dHits: [1, 4, 8],
            pv: () => ({ k: 'none' }) },
 
       e: { name: '替身術', type: 'melee', cost: 50, cd: 15, wind: .05, 
@@ -198,8 +198,6 @@
     
     const foe = enemyOf(f);
     const ang = (a && Number.isFinite(a.ang)) ? a.ang : Math.atan2(o.y-f.y, o.x-f.x);
-    
-    // 防呆：如果找不到敵人就以自己前方為準
     const tx = (foe && alive(foe)) ? foe.x : f.x + Math.cos(ang)*300;
     const ty = (foe && alive(foe)) ? foe.y : f.y + Math.sin(ang)*300;
 
@@ -223,7 +221,7 @@
   const oldHit=window.hit;
   if(typeof oldHit==='function'&&!oldHit._sasukeWrapped){
     const w=function(t,d,fx_,fy_,kb,heavy,sk,att){
-      if (!Number.isFinite(d)) d = 0; // 防呆：避免 NaN 汙染血量導致統計失效
+      if (!Number.isFinite(d)) d = 0; 
       const before=t&&t.hp;
       oldHit(t,d,fx_,fy_,kb,heavy,sk,att);
       if(t&&before>t.hp&&att&&att.c===C&&ensure(att).curse&&sk&&['b','c','d'].includes(sk.key)){
@@ -239,7 +237,6 @@
     for(let i=st.projectiles.length-1;i>=0;i--){
       const q=st.projectiles[i]; q.life-=dt;
       
-      // 防呆：檢查座標是否為 NaN，若是則直接移除
       if (!Number.isFinite(q.x) || !Number.isFinite(q.y) || !Number.isFinite(q.vx) || !Number.isFinite(q.vy)) {
         st.projectiles.splice(i, 1);
         continue;
@@ -392,13 +389,19 @@
           const st = ensure(f);
           const id = f === G.p ? 'p' : 'e';
           
+          // ★ 救護車機制：如果角色座標變成 NaN，立刻傳送回中心 ★
+          if (!Number.isFinite(f.x) || !Number.isFinite(f.y)) {
+            f.x = CFG.W / 2;
+            f.y = CFG.H / 2;
+            f.kx = 0; f.ky = 0;
+          }
+
           if(st.snake && st.snake.phase === 'guard') {
             f.x = st.snake.sx;
             f.y = st.snake.sy;
             f.mx = 0; f.my = 0;
           }
           
-          // 只有玩家 (G.p) 的無敵回溯才生效，避免木樁或敵人的血量被意外補滿
           if(id === 'p' && f.inv > 0 && hpBefore[id] !== undefined) {
             f.hp = hpBefore[id];
             f.sts = f.sts.filter(s => s.k !== 'bind');
@@ -554,7 +557,7 @@
         }
         
         for(const q of st.projectiles){
-          if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) continue; // 防呆：跳過無效座標的投射物
+          if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) continue; 
           cx.save();cx.translate(q.x,q.y);cx.rotate(q.ang||Math.atan2(q.vy||0,q.vx||1));cx.globalCompositeOperation='lighter';
           if(q.kind==='fireball'){
              const g=cx.createRadialGradient(0,0,0,0,0,80);
@@ -587,5 +590,5 @@
     };
     w._sasukeWrapped=true;window.draw=w;
   }
-  console.log('[char_sasuke] 宇智波佐助完整模組已載入 (防 NaN 崩潰終極版)');
+  console.log('[char_sasuke] 宇智波佐助完整模組已載入 (絕對防崩潰版)');
 })();
