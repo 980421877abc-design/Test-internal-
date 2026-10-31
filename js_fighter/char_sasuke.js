@@ -1,5 +1,5 @@
 /* js_fighter/char_sasuke.js
- * 宇智波佐助｜雙形態完整模組（特效全開版）
+ * 宇智波佐助｜雙形態完整模組（手感與特效終極修正版）
  */
 (function () {
   'use strict';
@@ -12,16 +12,16 @@
     aiDist: 260,
     sk: {
       a: { name: '體術', type: 'melee', cost: 0, cd: .3, wind: .06, dmg: 60, range: 140, arc: 1.2, kb: 140 },
-      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 28, col: '#ff6338',
+      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 45, col: '#ff6338',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:430, w:CFG.r*1.4 } : { k:'line', len:650, w:CFG.r*.9 } },
+           pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:430, w:CFG.r*1.4 } : { k:'line', len:650, w:CFG.r*1.5 } },
       c: { name: '風魔手裡劍／黑色千鳥', type: 'proj', cost: 150, cd: 6, wind: .1, range: 360, speed: 900, r: 22, col: '#9bd7ff',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
-           pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:500, w:CFG.r*1.45 } : { k:'line', len:CFG.r*5, w:CFG.r*.8 } },
-      d: { name: '麒麟', type: 'melee', cost: 200, cd: 0, wind: .15, hold: { start: .05, full: 1.5 }, lockMove: 1,
+           pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:500, w:CFG.r*1.45 } : { k:'line', len:CFG.r*5, w:CFG.r*1.5 } },
+      // CD 設為 15，確保主程式有冷卻圈，但實際由自訂邏輯管理
+      d: { name: '麒麟', type: 'melee', cost: 200, cd: 15, wind: .15, hold: { start: .05, full: 1.5 }, lockMove: 1,
            pv: (f,full,q) => ({ k:'zone', range: q.range || 300, r: full ? 170 : 110 }) },
       e: { name: '替身術', type: 'melee', cost: 50, cd: 15, wind: .05, pv: () => ({ k:'circle', r: CFG.r*1.7 }) },
-      // 移除 modes，純粹的開關
       x: { name: '咒印模式', type: 'toggle', flag: 'curse', side: 'L', cost: 0, cd: .1, wind: .03,
            tag: f => f.sasukeState && f.sasukeState.curse ? '咒印｜負荷 '+(f.sasukeState.load||0)+'/10' : '普通模式' }
     }
@@ -82,9 +82,9 @@
     if (st.curse && st.combo===2) {
       st.combo=0;
       // 手裡劍放大
-      const q={kind:'shuriken',x:f.x+Math.cos(ang)*(CFG.r+15),y:f.y+Math.sin(ang)*(CFG.r+15),vx:Math.cos(ang)*1100,vy:Math.sin(ang)*1100,ang,travel:0,maxDist:CFG.r*7,life:1.8,own:f,stopped:false,stay:0,tick:0,hit:false,sk:s,col:P.dark};
+      const q={kind:'shuriken',x:f.x+Math.cos(ang)*(CFG.r+15),y:f.y+Math.sin(ang)*(CFG.r+15),vx:Math.cos(ang)*1200,vy:Math.sin(ang)*1200,ang,travel:0,maxDist:CFG.r*8,life:1.8,own:f,stopped:false,stay:0,tick:0,hit:false,sk:s,col:P.dark};
       st.projectiles.push(q); 
-      fx({k:'ring',x:q.x,y:q.y,t:.2,m:.2,r:50,col:P.purple}); 
+      fx({k:'ring',x:q.x,y:q.y,t:.2,m:.2,r:60,col:P.purple}); 
       spark(q.x,q.y,P.dark,20,600,.3,4);
       return;
     }
@@ -98,14 +98,14 @@
   C.sk.b.fire = function (f,o,a,s) {
     const st=ensure(f),ang=a.ang;
     if (!st.curse) {
+      // 豪火球放大版
       st.projectiles.push({kind:'fireball',x:f.x+Math.cos(ang)*(CFG.r+18),y:f.y+Math.sin(ang)*(CFG.r+18),vx:Math.cos(ang)*s.speed,vy:Math.sin(ang)*s.speed,life:2,travel:0,maxDist:s.range,own:f,sk:s,col:P.fire});
-      fx({k:'flash',t:.18,m:.18,col:P.fire,a:.8}); spark(f.x,f.y,P.fire,20,600,.3,4);
+      fx({k:'flash',t:.2,m:.2,col:P.fire,a:.8}); spark(f.x,f.y,P.fire,25,600,.3,4);
       return;
     }
     if (!st.snake) {
       st.snake={phase:'guard',t:0,ang,travel:0,hit:new Set()};
       f.inv=Math.max(f.inv,2); f.cd.b=0; st.load=Math.min(10,st.load+1);
-      f.mx = 0; f.my = 0; // 強制停止移動
       pop(f,'白蛇盤踞 (無敵)',P.white); fx({k:'ring',x:f.x,y:f.y,t:.6,m:.6,r:CFG.r*2,col:P.white});
       fx({k:'ring',x:f.x,y:f.y,t:.8,m:.8,r:CFG.r*2.5,col:P.purple}); spark(f.x,f.y,P.white,30,600,.6,5);
       return;
@@ -116,8 +116,8 @@
     const st=ensure(f); if(!st.snake)return;
     st.snake.phase='crawl'; st.snake.t=0; st.snake.ang=ang; st.snake.hit=new Set(); f.inv=0; f.cd.b=cdOf(f,s);
     st.snake.sx=f.x;st.snake.sy=f.y;st.snake.tx=f.x+Math.cos(ang)*430;st.snake.ty=f.y+Math.sin(ang)*430;
-    st.snake.amp=CFG.r*1.2; // 縮小 S 型幅度
-    st.snake.T=.65; // 稍微加快
+    st.snake.amp=CFG.r*1.2; 
+    st.snake.T=.65; 
     fx({k:'flash',t:.22,m:.22,col:P.purple,a:1});
   }
   function snakePoint(sn,p) {
@@ -133,26 +133,11 @@
       spark(f.x,f.y,P.blue,18,600,.3,4); return;
     }
     
-    // 黑色千鳥：加快、抓取
+    // 黑色千鳥：自訂衝刺推人，不會回彈
     f.inv=Math.max(f.inv,.6); st.load=Math.min(10,st.load+1); 
-    st.chidori={target:null,t:0,tick:0,done:false};
+    st.chidori={ sx: f.x, sy: f.y, ang: ang, t: 0, T: 0.3, dist: 500, hitTarget: null, tick: 0 };
     
-    lunge(f,ang,{
-      dist:550, dur:.18, // 速度快
-      sk:s, dmg:0, kb:0, reach:CFG.r*.8, through:true,
-      onHit: target => {
-        if(!st.chidori.target) {
-          st.chidori.target = target;
-          pop(f, '千鳥 抓取！', P.purple);
-        }
-      },
-      done:()=>{
-        if(st.chidori) st.chidori.finish = .2;
-        fx({k:'flash',t:.3,m:.3,col:P.white,a:1});
-        shake(10);
-      }
-    });
-    fx({k:'flash',t:.16,m:.16,col:P.purple,a:1.2}); spark(f.x,f.y,P.black,25,800,.35,5);
+    fx({k:'flash',t:.16,m:.16,col:P.purple,a:1.2}); spark(f.x,f.y,P.black,30,800,.35,5);
   };
   function explodeWind(f,q) {
     if (q.split) return;
@@ -184,7 +169,10 @@
       const h=f.hold;if(!h||h.k!=='d')return;
       const st=ensure(f),tier=h.t>=1.5?2:(h.t>=.5?1:0); f.hold=null;
       if(st.kirinCd[tier]>0){if(f===G.p)say('該段冷卻中',.7);return;}
-      st.kirinPending=tier; cast(f,'d',aim||h.aim);
+      st.kirinPending=tier; 
+      const oldCd = f.cd.d; f.cd.d = 0; // 暫時歸零以繞過主程式 CD 限制
+      cast(f,'d',aim||h.aim);
+      f.cd.d = oldCd;
     }; window.holdRelease._sasukeWrapped=true;
   }
   C.sk.d.fire=function(f,o,a,s){
@@ -193,7 +181,9 @@
     const cd=[6,9,15][tier],dmg=[300,800,2200][tier],rad=[90,145,220][tier],hits=[1,4,8][tier];
     st.kirinCd[tier]=cd; 
     
-    st.kirin={tier,t:0,next:.12,hits:0,max:hits,x:f.x+Math.cos(a.ang)*320,y:f.y+Math.sin(a.ang)*320,ang:a.ang,dmg,rad,sk:s};
+    // 直接鎖定敵人當下位置，保證命中
+    const foe = enemyOf(f);
+    st.kirin={tier,t:0,next:.12,hits:0,max:hits,x:foe.x,y:foe.y,ang:a.ang,dmg,rad,sk:s};
     st.bolts.push({ x: st.kirin.x, y: st.kirin.y, t:0, max:0.5, tier });
     
     fx({k:'ring',x:st.kirin.x,y:st.kirin.y,t:tier===2?.75:.4,m:tier===2?.75:.4,r:rad,col:P.purple});
@@ -231,12 +221,12 @@
       if(q.kind==='shuriken'){
         if(!q.stopped){
           q.x+=q.vx*dt; q.y+=q.vy*dt; q.travel+=Math.hypot(q.vx,q.vy)*dt;
-          const hitTarget = alive(o) && Math.hypot(o.x-q.x, o.y-q.y) < 32 + CFG.r; // 判定變大
+          const hitTarget = alive(o) && Math.hypot(o.x-q.x, o.y-q.y) < 40 + CFG.r; // 判定變大
           const wall = q.x<CFG.r || q.x>CFG.W-CFG.r || q.y<CFG.r || q.y>CFG.H-CFG.r;
           if(hitTarget){
             q.stopped=true; q.vx=q.vy=0; q.stay=1; q.tick=0;
             hit(o, 80, q.x, q.y, 100, 0, q.sk, f);
-            fx({k:'ring',x:q.x,y:q.y,t:.3,m:.3,r:60,col:P.purple});
+            fx({k:'ring',x:q.x,y:q.y,t:.3,m:.3,r:70,col:P.purple});
             spark(q.x, q.y, P.purple, 20, 600, .3, 4);
           }
           else if(wall||q.travel>=q.maxDist)q.life=0;
@@ -244,7 +234,7 @@
           q.stay-=dt;q.tick-=dt;
           if(q.tick<=0&&q.stay>0){
             q.tick=.2;
-            if(alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<CFG.r*1.8){
+            if(alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<CFG.r*2.0){
               hit(o,40,q.x,q.y,0,0,q.sk,f); 
               spark(q.x,q.y,P.purple,5,300,.2,3);
             }
@@ -255,16 +245,16 @@
         q.x+=q.vx*dt;q.y+=q.vy*dt;q.travel+=(Math.hypot(q.vx,q.vy)*dt);
         const wall=q.x<CFG.r||q.x>CFG.W-CFG.r||q.y<CFG.r||q.y>CFG.H-CFG.r;
         let hitRad = 24;
-        if(q.kind==='fireball') hitRad = 35; // 火球判定變大
-        else if(q.kind==='wind') hitRad = 40; // 風魔判定變大
+        if(q.kind==='fireball') hitRad = 50; // 豪火球特大
+        else if(q.kind==='wind') hitRad = 50; // 風魔特大
         
         const hitTarget=alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<hitRad+CFG.r;
         
         if(q.kind==='fireball'&&hitTarget){
           hit(o,q.sk.dmg,q.x,q.y,q.sk.kb,0,q.sk,f);
           addStatus(o,{k:'dot',dur:1.1,v:55});
-          fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:90,col:P.fire});
-          spark(q.x,q.y,P.fire,25,500,.4,4);
+          fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:100,col:P.fire});
+          spark(q.x,q.y,P.fire,30,500,.4,4);
           q.life=0;
         }
         else if(q.kind==='wind'&&(hitTarget||wall||q.travel>=q.maxDist)){explodeWind(f,q);q.life=0;}
@@ -281,7 +271,7 @@
     const st=ensure(f),sn=st.snake;if(!sn)return;
     if(sn.phase==='guard'){
       sn.t+=dt;
-      f.mx = 0; f.my = 0; // 強制停止移動
+      // 強制停止移動在 update 最前面處理
       if(sn.t>=2)releaseSnake(f,sn.ang,C.sk.b);
       return;
     }
@@ -300,31 +290,46 @@
   function updateChidori(f,dt){
     const st=ensure(f),c=st.chidori;if(!c)return;
     c.t+=dt;
-    if(c.target && alive(c.target)){
-      // 抓取：把敵人固定在佐助前方
-      const o = c.target;
-      o.x = clamp(f.x + Math.cos(f.face) * CFG.r*1.5, CFG.r, CFG.W-CFG.r);
-      o.y = clamp(f.y + Math.sin(f.face) * CFG.r*1.5, CFG.r, CFG.H-CFG.r);
-      o.stun = 0.1;
-      c.tick-=dt;
-      if(c.tick<=0){
-        c.tick=.1;
-        hit(o,50,f.x,f.y,0,0,C.sk.c,f);
-        spark(o.x,o.y,P.purple,5,600,.2,3);
-        spark(o.x,o.y,P.black,3,400,.2,4);
+    const u=Math.min(1,c.t/c.T);
+    
+    // 自訂衝刺位移，確保不會回彈
+    f.x = c.sx + Math.cos(c.ang) * c.dist * u;
+    f.y = c.sy + Math.sin(c.ang) * c.dist * u;
+    f.x = clamp(f.x, CFG.r, CFG.W-CFG.r);
+    f.y = clamp(f.y, CFG.r, CFG.H-CFG.r);
+    
+    if(Math.random() < 0.8) {
+        spark(f.x, f.y, P.purple, 5, 800, .2, 3);
+        spark(f.x, f.y, P.black, 3, 600, .2, 4);
+    }
+    
+    const o = enemyOf(f);
+    if (!c.hitTarget && alive(o) && Math.hypot(o.x - f.x, o.y - f.y) < CFG.r * 2.5) {
+      c.hitTarget = o;
+      pop(f, '千鳥 抓取！', P.purple);
+    }
+    
+    if (c.hitTarget && alive(c.hitTarget)) {
+      c.hitTarget.x = f.x + Math.cos(c.ang) * CFG.r * 1.5;
+      c.hitTarget.y = f.y + Math.sin(c.ang) * CFG.r * 1.5;
+      c.hitTarget.stun = 0.1;
+      
+      c.tick += dt;
+      if (c.tick >= 0.1) {
+        c.tick = 0;
+        hit(c.hitTarget, 50, f.x, f.y, 0, 0, C.sk.c, f);
+        spark(c.hitTarget.x, c.hitTarget.y, P.purple, 5, 600, .2, 3);
       }
     }
-    if(c.finish!==undefined){
-      c.finish-=dt;
-      if(c.finish<=0){
-        if(c.target && alive(c.target)){
-          hit(c.target, 800, f.x, f.y, 400, 1, C.sk.c, f);
-          fx({k:'flash',t:.4,m:.4,col:P.purple,a:1.2});
-          fx({k:'ring',x:c.target.x,y:c.target.y,t:.6,m:.6,r:150,col:P.purple});
-          shake(15);
-        }
-        st.chidori=null;
+    
+    if (u >= 1) {
+      if (c.hitTarget && alive(c.hitTarget)) {
+        hit(c.hitTarget, 800, f.x, f.y, 400, 1, C.sk.c, f);
+        fx({k:'flash',t:.4,m:.4,col:P.purple,a:1.2});
+        fx({k:'ring',x:c.hitTarget.x,y:c.hitTarget.y,t:.6,m:.6,r:150,col:P.purple});
+        shake(15);
       }
+      st.chidori = null;
     }
   }
   
@@ -344,6 +349,18 @@
   const oldUpdate=window.update;
   if(typeof oldUpdate==='function'&&!oldUpdate._sasukeWrapped){
     const w=function(dt){
+      // 1. 處理白蛇盤踞時的強制鎖定移動
+      if (G.state === 'fight') {
+        for (const f of [G.p, G.e]) {
+          if (f && f.c === C) {
+            const st = ensure(f);
+            if (st.snake && st.snake.phase === 'guard') {
+              f.mx = 0; f.my = 0; f.vx = 0; f.vy = 0;
+            }
+          }
+        }
+      }
+      
       oldUpdate(dt);if(G.state!=='fight')return;
       for(const f of [G.p,G.e]){
         if(!f||f.c!==C)continue;const st=ensure(f);
@@ -352,7 +369,7 @@
         updateProjectiles(f,dt);updateSnake(f,dt);updateGrounds(f,dt);updateChidori(f,dt);updateKirin(f,dt);
         if(st.comboT>0)st.comboT-=dt;
         
-        // 同步麒麟 CD 到 UI 上
+        // 同步麒麟 CD 到 UI
         const maxKirinCd = Math.max(...st.kirinCd);
         f.cd.d = maxKirinCd;
 
@@ -434,9 +451,9 @@
             cx.lineTo(f.x+Math.cos(aa)*90+(Math.random()-.5)*25, f.y+Math.sin(aa)*90+(Math.random()-.5)*25);
             cx.stroke();
           }
-          if(st.chidori.target){
+          if(st.chidori.hitTarget){
             cx.strokeStyle=P.white;cx.lineWidth=2;
-            cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(st.chidori.target.x,st.chidori.target.y);cx.stroke();
+            cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(st.chidori.hitTarget.x,st.chidori.hitTarget.y);cx.stroke();
           }
         }
         
@@ -470,10 +487,11 @@
         for(const q of st.projectiles){
           cx.save();cx.translate(q.x,q.y);cx.rotate(q.ang||Math.atan2(q.vy||0,q.vx||1));cx.globalCompositeOperation='lighter';
           if(q.kind==='fireball'){
-             const g=cx.createRadialGradient(0,0,0,0,0,50);
+             // 超大豪火球
+             const g=cx.createRadialGradient(0,0,0,0,0,60);
              g.addColorStop(0,'#fff');g.addColorStop(.25,'#ffd36b');g.addColorStop(.7,P.fire);g.addColorStop(1,'#ff250000');
-             cx.fillStyle=g;cx.beginPath();cx.arc(0,0,50+Math.sin(T*24)*6,0,Math.PI*2);cx.fill();
-             if(Math.random()<0.9) fx({k:'dt',x:q.x,y:q.y,vx:-q.vx*.15,vy:-q.vy*.15,t:.5,m:.5,col:P.fire,r:8,dr:4});
+             cx.fillStyle=g;cx.beginPath();cx.arc(0,0,60+Math.sin(T*24)*8,0,Math.PI*2);cx.fill();
+             if(Math.random()<0.9) fx({k:'dt',x:q.x,y:q.y,vx:-q.vx*.15,vy:-q.vy*.15,t:.5,m:.5,col:P.fire,r:10,dr:4});
           } else {
              cx.rotate(T * 30);
              const isWind = q.kind==='wind';
@@ -482,17 +500,16 @@
              cx.shadowColor = cx.fillStyle;
              cx.shadowBlur = 25;
              cx.beginPath();
-             const r = isWind? 55 : isShuriken ? 32 : 24; // 尺寸放大
+             const r = isWind? 60 : isShuriken ? 36 : 24; // 尺寸全面放大
              for(let j=0;j<4;j++){
                cx.rotate(Math.PI/2);
                cx.moveTo(0,0);
-               cx.lineTo(-8, r);
-               cx.lineTo(8, r);
+               cx.lineTo(-10, r);
+               cx.lineTo(10, r);
                cx.closePath();
              }
              cx.fill();
-             // 加內圈
-             cx.fillStyle='#fff'; cx.beginPath(); cx.arc(0,0,8,0,7); cx.fill();
+             cx.fillStyle='#fff'; cx.beginPath(); cx.arc(0,0,10,0,7); cx.fill();
           }
           cx.restore();
         }
@@ -501,5 +518,5 @@
     };
     w._sasukeWrapped=true;window.draw=w;
   }
-  console.log('[char_sasuke] 宇智波佐助完整模組已載入 (特效全開版)');
+  console.log('[char_sasuke] 宇智波佐助完整模組已載入 (手感與特效終極修正版)');
 })();
