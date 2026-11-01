@@ -25,6 +25,30 @@
   }
 
   let TRAIN = null;
+  let frameDamage = 0;
+
+  /* 自訂角色可能在 update 包裝層內造成傷害，單靠回合末 HP 比較會漏記。
+   * 先記錄當幀 hit() 實際扣掉的 HP；update 仍保留 HP 差值作為後備。 */
+  window.recordTrainingDamage = function (att, amount, sk) {
+    if (!G.training) return;
+    const d = Number(amount);
+    if (Number.isFinite(d) && d > 0) frameDamage += d;
+  };
+
+  const origHit = window.hit;
+  if (typeof origHit === 'function' && !origHit._trainingHitWrapped) {
+    const wrappedHit = function (target, dmg, fx, fy, kb, heavy, sk, att) {
+      const before = target && Number.isFinite(target.hp) ? target.hp : NaN;
+      const out = origHit(target, dmg, fx, fy, kb, heavy, sk, att);
+      const after = target && Number.isFinite(target.hp) ? target.hp : NaN;
+      if (G.training && att === G.p && target === G.e && Number.isFinite(before) && Number.isFinite(after) && before > after) {
+        frameDamage += before - after;
+      }
+      return out;
+    };
+    wrappedHit._trainingHitWrapped = true;
+    window.hit = wrappedHit;
+  }
 
   /* ── 2. 從詳情頁判斷「現在該用誰」── */
   function detailCharId() {
@@ -73,9 +97,11 @@
   window.update = function (dt) {
     if (!G.training) return origUpdate(dt);
     const e = G.e, p = G.p, hpBefore = e.hp;
+    frameDamage = 0;
     origUpdate(dt);
 
-    const dmg = hpBefore - e.hp;
+    const hpDamage = Math.max(0, hpBefore - e.hp);
+    const dmg = Math.max(frameDamage, hpDamage);
     if (TRAIN && dmg > 0) {
       TRAIN.total += dmg; TRAIN.hits++;
       const now = performance.now() / 1000;
