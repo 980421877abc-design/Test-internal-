@@ -20,7 +20,7 @@
       a: { name: '體術', type: 'melee', cost: 0, cd: .3, wind: .06, dmg: 60, range: 140, arc: 1.2, kb: 140,
            shurikenDmg: 80, shurikenSpeed: 1200, shurikenDot: 40, shurikenRange: 400 },
            
-      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 50, col: '#ff6338',
+      b: { name: '豪火球／白蛇', type: 'proj', cost: 100, cd: 4, wind: .1, range: 650, speed: 760, r: 50, kb: 160, col: '#ff6338',
            hold: { start: .05, full: 99 }, noCharge: 1, aimMove: 1,
            fireDmg: 400, fireDot: 55,
            snakeInv: 2, snakeAmp: 1.2, snakeDmg: 200, snakePush: 600, snakeGroundDmg: 80, snakeGroundLife: 2,
@@ -32,9 +32,9 @@
            chidoriDist: 520, chidoriDur: 0.25, chidoriTick: 50, chidoriEnd: 800,
            pv: (f) => f.sasukeState && f.sasukeState.curse ? { k:'line', len:520, w:CFG.r*1.45 } : { k:'line', len:360, w:CFG.r*1.8 } },
 
-      d: { name: '麒麟', type: 'melee', cost: 200, cd: 15, wind: .15, hold: { start: .05, full: 1.5 }, lockMove: 1,
+      d: { name: '麒麟', type: 'melee', cost: 200, cd: 15, wind: .15, range: 420, hold: { start: .05, full: 1.5 }, lockMove: 1,
            dCd: [6, 9, 15], dDmg: [300, 800, 2200], dRad: [90, 145, 220], dHits: [1, 4, 8],
-           pv: () => ({ k: 'none' }) },
+           pv: (f,full,q) => ({ k: 'zone', range: q.range, r: full ? q.dRad[2] : q.dRad[0] }) },
 
       e: { name: '替身術', type: 'melee', cost: 50, cd: 15, wind: .05, 
            inv: 2.0,
@@ -58,7 +58,7 @@
       combo:0, comboT:0, snake:null, chidori:null,
       kirinCd:[0,0,0], kirin:null, kirinPending:null,
       projectiles:[], grounds:[], substitution:0, bolts:[],
-      chidoriTarget: null, chidoriTick: 0
+      chidoriTarget: null, chidoriTick: 0, damageDealt: 0, damageTaken: 0, lastDamage: 0
     };
     return f.sasukeState;
   }
@@ -76,8 +76,22 @@
   function fanHit(f,o,ang,range,arc,sk,dmg,kb) {
     if (!alive(o)) return false;
     const dx=o.x-f.x,dy=o.y-f.y,d=Math.hypot(dx,dy),da=Math.abs(wrapAngle(Math.atan2(dy,dx)-ang));
-    if (d<=range+CFG.r && da<=arc/2) { hit(o,dmg,f.x,f.y,kb||0,0,sk,f); return true; }
+    if (d<=range+CFG.r && da<=arc/2) { sasukeHit(o,dmg,f.x,f.y,kb||0,0,sk,f); return true; }
     return false;
+  }
+
+  /* 所有佐助技能統一從這裡進入主程式 hit，避免傷害值或擊退值未定義，並保留實際扣血紀錄。 */
+  function sasukeHit(target,dmg,fx_,fy_,kb,heavy,sk,att) {
+    if (!target || !Number.isFinite(dmg) || dmg <= 0 || G.state !== 'fight') return 0;
+    const before=Number.isFinite(target.hp)?target.hp:0;
+    const h=window.hit;
+    if (typeof h !== 'function') return 0;
+    h(target,dmg,Number.isFinite(fx_)?fx_:target.x,Number.isFinite(fy_)?fy_:target.y,
+      Number.isFinite(kb)?kb:0,Number.isFinite(heavy)?heavy:0,sk,att);
+    const dealt=Math.max(0,before-(Number.isFinite(target.hp)?target.hp:before));
+    if (att&&att.c===C) { const st=ensure(att); st.damageDealt+=dealt; st.lastDamage=dealt; }
+    if (target&&target.c===C) { const st=ensure(target); st.damageTaken+=dealt; }
+    return dealt;
   }
 
   function updateLoad(f,dt) {
@@ -222,6 +236,10 @@
   if(typeof oldHit==='function'&&!oldHit._sasukeWrapped){
     const w=function(t,d,fx_,fy_,kb,heavy,sk,att){
       if (!Number.isFinite(d)) d = 0; 
+      if (!Number.isFinite(kb)) kb = 0;
+      if (!Number.isFinite(fx_)) fx_ = t && Number.isFinite(t.x) ? t.x : 0;
+      if (!Number.isFinite(fy_)) fy_ = t && Number.isFinite(t.y) ? t.y : 0;
+      if (!Number.isFinite(heavy)) heavy = 0;
       const before=t&&t.hp;
       oldHit(t,d,fx_,fy_,kb,heavy,sk,att);
       if(t&&before>t.hp&&att&&att.c===C&&ensure(att).curse&&sk&&['b','c','d'].includes(sk.key)){
@@ -249,7 +267,7 @@
           const wall = q.x<CFG.r || q.x>CFG.W-CFG.r || q.y<CFG.r || q.y>CFG.H-CFG.r;
           if(hitTarget){
             q.stopped=true; q.vx=q.vy=0; q.stay=1; q.tick=0;
-            hit(o, q.sk.shurikenDmg, q.x, q.y, 100, 0, q.sk, f);
+            sasukeHit(o, q.sk.shurikenDmg, q.x, q.y, 100, 0, q.sk, f);
             if (G.state !== 'fight') break;
             fx({k:'ring',x:q.x,y:q.y,t:.3,m:.3,r:70,col:P.purple});
             spark(q.x, q.y, P.purple, 20, 600, .3, 4);
@@ -260,7 +278,7 @@
           if(q.tick<=0&&q.stay>0){
             q.tick=.2;
             if(alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<CFG.r*2.0){
-              hit(o,q.sk.shurikenDot,q.x,q.y,0,0,q.sk,f); 
+              sasukeHit(o,q.sk.shurikenDot,q.x,q.y,0,0,q.sk,f); 
               if (G.state !== 'fight') break;
               spark(q.x,q.y,P.purple,5,300,.2,3);
             }
@@ -277,15 +295,18 @@
         const hitTarget=alive(o)&&Math.hypot(o.x-q.x,o.y-q.y)<hitRad+CFG.r;
         
         if(q.kind==='fireball'&&hitTarget){
-          hit(o,q.sk.fireDmg,q.x,q.y,q.sk.kb,0,q.sk,f);
+          sasukeHit(o,Number.isFinite(q.sk.fireDmg)?q.sk.fireDmg:400,q.x,q.y,Number.isFinite(q.sk.kb)?q.sk.kb:0,0,q.sk,f);
           if (G.state !== 'fight') break; 
           addStatus(o,{k:'dot',dur:1.1,v:q.sk.fireDot});
-          fx({k:'ring',x:q.x,y:q.y,t:.35,m:.35,r:100,col:P.fire});
-          spark(q.x,q.y,P.fire,30,500,.4,4);
+          fx({k:'ring',x:q.x,y:q.y,t:.5,m:.5,r:150,col:P.fire});
+          fx({k:'flash',t:.22,m:.22,col:'#ffd36b',a:1.1});
+          spark(q.x,q.y,P.fire,42,760,.5,5);
+          spark(q.x,q.y,P.gold,18,520,.35,3);
+          shake(8);
           q.life=0;
         }
         else if(q.kind==='wind'&&(hitTarget||wall||q.travel>=q.maxDist)){explodeWind(f,q);q.life=0;}
-        else if(q.kind==='blade'&&hitTarget){hit(o,q.sk.windBladeDmg,q.x,q.y,100,0,q.sk,f);if (G.state !== 'fight') break; q.life=0;}
+        else if(q.kind==='blade'&&hitTarget){sasukeHit(o,q.sk.windBladeDmg,q.x,q.y,100,0,q.sk,f);if (G.state !== 'fight') break; q.life=0;}
         else if(q.kind==='fireball'&&(wall||q.travel>=q.maxDist))q.life=0;
         else if(q.kind==='blade'&&(wall||q.life<=0))q.life=0;
       }
@@ -303,7 +324,7 @@
     }
     sn.t+=dt;const p=Math.min(1,sn.t/sn.T),pt=snakePoint(sn,p),o=enemyOf(f);
     if(alive(o)&&Math.hypot(o.x-pt.x,o.y-pt.y)<CFG.r*1.2&&!sn.hit.has(o)){
-      sn.hit.add(o);hit(o,C.sk.b.snakeDmg,pt.x,pt.y,0,0,C.sk.b,f);
+      sn.hit.add(o);sasukeHit(o,C.sk.b.snakeDmg,pt.x,pt.y,0,0,C.sk.b,f);
       if (G.state !== 'fight') return;
       o.kx+=Math.cos(sn.ang)*C.sk.b.snakePush;o.ky+=Math.sin(sn.ang)*C.sk.b.snakePush;
     }
@@ -312,7 +333,7 @@
   
   function updateGrounds(f,dt){
     const st=ensure(f),o=enemyOf(f);
-    for(let i=st.grounds.length-1;i>=0;i--){const z=st.grounds[i];z.t+=dt;z.tick-=dt;if(z.tick<=0){z.tick=.2;if(alive(o)&&Math.hypot(o.x-z.x,o.y-z.y)<z.rad+CFG.r){hit(o,C.sk.b.snakeGroundDmg,z.x,z.y,0,0,C.sk.b,z.own);if(G.state!=='fight')break;}}if(z.t>=z.life)st.grounds.splice(i,1);}
+    for(let i=st.grounds.length-1;i>=0;i--){const z=st.grounds[i];z.t+=dt;z.tick-=dt;if(z.tick<=0){z.tick=.2;if(alive(o)&&Math.hypot(o.x-z.x,o.y-z.y)<z.rad+CFG.r){sasukeHit(o,C.sk.b.snakeGroundDmg,z.x,z.y,0,0,C.sk.b,z.own);if(G.state!=='fight')break;}}if(z.t>=z.life)st.grounds.splice(i,1);}
   }
   
   function updateChidori(f,dt){
@@ -345,7 +366,7 @@
       c.tick += dt;
       if (c.tick >= 0.1) {
         c.tick = 0;
-        hit(c.hitTarget, C.sk.c.chidoriTick, f.x, f.y, 0, 0, C.sk.c, f);
+        sasukeHit(c.hitTarget, C.sk.c.chidoriTick, f.x, f.y, 0, 0, C.sk.c, f);
         if (G.state !== 'fight') return;
         spark(c.hitTarget.x, c.hitTarget.y, P.purple, 5, 600, .2, 3);
       }
@@ -353,7 +374,7 @@
     
     if (u >= 1) {
       if (c.hitTarget && alive(c.hitTarget)) {
-        hit(c.hitTarget, C.sk.c.chidoriEnd, f.x, f.y, 400, 1, C.sk.c, f);
+        sasukeHit(c.hitTarget, C.sk.c.chidoriEnd, f.x, f.y, 400, 1, C.sk.c, f);
         if (G.state !== 'fight') return;
         fx({k:'flash',t:.4,m:.4,col:P.purple,a:1.2});
         fx({k:'ring',x:c.hitTarget.x,y:c.hitTarget.y,t:.6,m:.6,r:150,col:P.purple});
@@ -367,7 +388,7 @@
     const st=ensure(f);for(let i=0;i<3;i++)st.kirinCd[i]=Math.max(0,st.kirinCd[i]-dt);
     if(f.hold&&f.hold.k==='d'&&f.stun>0){const tier=f.hold.t>=1.5?2:(f.hold.t>=.5?1:0);f.hold=null;st.kirinCd[tier]=C.sk.d.dCd[tier];pop(f,'麒麟被打斷',P.red);}
     const k=st.kirin;if(!k)return;k.t+=dt;
-    while(k.hits<k.max&&k.t>=k.next){k.next+=.1;k.hits++;const aa=k.x+(Math.random()-.5)*k.rad,bb=k.y+(Math.random()-.5)*k.rad;blast(f,aa,bb,k.tier===2?100:80,C.sk.d.dDmg[k.tier]/k.max,220,P.purple,0);fx({k:'ring',x:aa,y:bb,t:.25,m:.25,r:80,col:P.white});spark(aa,bb,P.purple,k.tier===2?20:10,900,.3,4);if(k.tier===2)shake(4);}
+    while(k.hits<k.max&&k.t>=k.next){k.next+=.1;k.hits++;const aa=k.x+(Math.random()-.5)*k.rad,bb=k.y+(Math.random()-.5)*k.rad,foe=enemyOf(f),before=foe&&foe.hp;blast(f,aa,bb,k.tier===2?100:80,C.sk.d.dDmg[k.tier]/k.max,220,P.purple,0);if(foe&&Number.isFinite(before)&&Number.isFinite(foe.hp)&&before>foe.hp){st.damageDealt+=before-foe.hp;st.lastDamage=before-foe.hp;}fx({k:'ring',x:aa,y:bb,t:.25,m:.25,r:80,col:P.white});spark(aa,bb,P.purple,k.tier===2?20:10,900,.3,4);if(k.tier===2)shake(4);}
     if(k.hits>=k.max&&k.t>k.next+.15)st.kirin=null;
   }
 
@@ -377,10 +398,6 @@
   const oldUpdate=window.update;
   if(typeof oldUpdate==='function'&&!oldUpdate._sasukeWrapped){
     const w=function(dt){
-      const hpBefore = {};
-      if (G.p) hpBefore['p'] = G.p.hp;
-      if (G.e) hpBefore['e'] = G.e.hp;
-
       oldUpdate(dt);
       
       if(G.state === 'fight'){
@@ -402,10 +419,6 @@
             f.mx = 0; f.my = 0;
           }
           
-          if(id === 'p' && f.inv > 0 && hpBefore[id] !== undefined) {
-            f.hp = hpBefore[id];
-            f.sts = f.sts.filter(s => s.k !== 'bind');
-          }
         }
       }
 
