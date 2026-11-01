@@ -27,12 +27,25 @@
   let TRAIN = null;
   let frameDamage = 0;
 
+  function addTrainingDamage(d) {
+    if (!TRAIN || !G.training || !Number.isFinite(d) || d <= 0) return;
+    TRAIN.total += d; TRAIN.hits++;
+    const now = performance.now() / 1000;
+    TRAIN.combo = (now - TRAIN.lastHitT < 1.5) ? TRAIN.combo + 1 : 1;
+    TRAIN.lastHitT = now;
+    TRAIN.maxCombo = Math.max(TRAIN.maxCombo, TRAIN.combo);
+    TRAIN.dmg3s.push({ t: now, d });
+  }
+
   /* 自訂角色可能在 update 包裝層內造成傷害，單靠回合末 HP 比較會漏記。
    * 先記錄當幀 hit() 實際扣掉的 HP；update 仍保留 HP 差值作為後備。 */
   window.recordTrainingDamage = function (att, amount, sk) {
     if (!G.training) return;
     const d = Number(amount);
-    if (Number.isFinite(d) && d > 0) frameDamage += d;
+    if (Number.isFinite(d) && d > 0) {
+      frameDamage += d;
+      addTrainingDamage(d);
+    }
   };
 
   const origHit = window.hit;
@@ -42,7 +55,9 @@
       const out = origHit(target, dmg, fx, fy, kb, heavy, sk, att);
       const after = target && Number.isFinite(target.hp) ? target.hp : NaN;
       if (G.training && att === G.p && target === G.e && Number.isFinite(before) && Number.isFinite(after) && before > after) {
-        frameDamage += before - after;
+        const dealt = before - after;
+        frameDamage += dealt;
+        addTrainingDamage(dealt);
       }
       return out;
     };
@@ -80,6 +95,7 @@
       t: Infinity, ot: true, state: 'fight'
     });
     TRAIN = { total: 0, combo: 0, maxCombo: 0, lastHitT: 0, dmg3s: [], dps: 0, hits: 0 };
+    frameDamage = 0;
 
     cam.snap = 1;
     if (typeof playBgm === 'function') playBgm();
@@ -97,19 +113,14 @@
   window.update = function (dt) {
     if (!G.training) return origUpdate(dt);
     const e = G.e, p = G.p, hpBefore = e.hp;
+    const damageAlreadyRecorded = frameDamage;
     frameDamage = 0;
     origUpdate(dt);
 
     const hpDamage = Math.max(0, hpBefore - e.hp);
-    const dmg = Math.max(frameDamage, hpDamage);
-    if (TRAIN && dmg > 0) {
-      TRAIN.total += dmg; TRAIN.hits++;
-      const now = performance.now() / 1000;
-      TRAIN.combo = (now - TRAIN.lastHitT < 1.5) ? TRAIN.combo + 1 : 1;
-      TRAIN.lastHitT = now;
-      TRAIN.maxCombo = Math.max(TRAIN.maxCombo, TRAIN.combo);
-      TRAIN.dmg3s.push({ t: now, d: dmg });
-    }
+    // hit() 已在命中當下記錄；只有完全攔不到 hit() 的舊式直接扣血才用 HP 差值補記。
+    if (damageAlreadyRecorded <= 0 && frameDamage <= 0 && hpDamage > 0) addTrainingDamage(hpDamage);
+    frameDamage = 0;
     if (TRAIN) {
       const now = performance.now() / 1000;
       TRAIN.dmg3s = TRAIN.dmg3s.filter(x => now - x.t < 3);
@@ -180,6 +191,7 @@
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'r' && G.training && TRAIN) {
       TRAIN = { total: 0, combo: 0, maxCombo: 0, lastHitT: 0, dmg3s: [], dps: 0, hits: 0 };
+      frameDamage = 0;
       if (typeof say === 'function') say('統計已重置', 1);
     }
   });
